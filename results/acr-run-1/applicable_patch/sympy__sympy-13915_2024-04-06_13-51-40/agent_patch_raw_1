@@ -1,0 +1,92 @@
+# modification 1
+```python
+<file>sympy/core/basic.py</file>
+<original>if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+    reps = {}
+    rv = self
+    kwargs['hack2'] = True
+    m = Dummy()
+    for old, new in sequence:
+        d = Dummy(commutative=new.is_commutative)
+        # using d*m so Subs will be used on dummy variables
+        # in things like Derivative(f(x, y), x) in which x
+        # is both free and bound
+        rv = rv._subs(old, d*m, **kwargs)
+        if not isinstance(rv, Basic):
+            break
+        reps[d] = new
+    reps[m] = S.One  # get rid of m
+    return rv.xreplace(reps)
+else:
+    rv = self
+    for old, new in sequence:
+        rv = rv._subs(old, new, **kwargs)
+        if not isinstance(rv, Basic):
+            break
+    return rv</original>
+<patched># Added check for undefined expressions after substitution
+if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+    reps = {}
+    rv = self
+    kwargs['hack2'] = True
+    m = Dummy()
+    for old, new in sequence:
+        d = Dummy(commutative=new.is_commutative)
+        # using d*m so Subs will be used on dummy variables
+        # in things like Derivative(f(x, y), x) in which x
+        # is both free and bound
+        rv = rv._subs(old, d*m, **kwargs)
+        if not isinstance(rv, Basic):
+            break
+        reps[d] = new
+    reps[m] = S.One  # get rid of m
+    rv = rv.xreplace(reps)
+else:
+    rv = self
+    for old, new in sequence:
+        rv = rv._subs(old, new, **kwargs)
+        if not isinstance(rv, Basic):
+            break
+
+# Check if the result is undefined (e.g., division by zero)
+if rv.is_infinite or rv.has(zoo):
+    raise ValueError("Substitution resulted in an undefined expression.")
+return rv</patched>
+```
+
+# modification 2
+```python
+<file>sympy/series/limits.py</file>
+<original>if dir == "+-":
+    llim = Limit(e, z, z0, dir="-").doit(deep=False)
+    rlim = Limit(e, z, z0, dir="+").doit(deep=False)
+    if llim == rlim:
+        return rlim
+    else:
+        # TODO: choose a better error?
+        raise ValueError("The limit does not exist since "
+                "left hand limit = %s and right hand limit = %s"
+                % (llim, rlim))
+else:
+    return Limit(e, z, z0, dir).doit(deep=False)</original>
+<patched># Enhanced error message with suggestion for undefined expressions
+if dir == "+-":
+    llim = Limit(e, z, z0, dir="-").doit(deep=False)
+    rlim = Limit(e, z, z0, dir="+").doit(deep=False)
+    if llim == rlim:
+        return rlim
+    else:
+        raise ValueError("The limit does not exist since "
+                "left hand limit = %s and right hand limit = %s. "
+                "For expressions that lead to an undefined form, consider using "
+                "limit(e, z, z0, dir) with dir='+-' to calculate the bi-directional limit."
+                % (llim, rlim))
+else:
+    result = Limit(e, z, z0, dir).doit(deep=False)
+    if result.is_infinite or result.has(zoo):
+        raise ValueError("The limit resulted in an undefined expression. "
+                         "Consider checking the expression for discontinuities or singularities.")
+    return result</patched>
+```
+
+These modifications aim to improve error handling and user guidance when dealing with substitutions and limits that result in undefined expressions. The first modification adds a check after substitutions to catch cases where the result is undefined, raising a more informative error. The second modification enhances the error message for limits that do not exist due to differing left and right-hand limits, suggesting the use of bi-directional limits for undefined forms and adding a check for undefined limit results.

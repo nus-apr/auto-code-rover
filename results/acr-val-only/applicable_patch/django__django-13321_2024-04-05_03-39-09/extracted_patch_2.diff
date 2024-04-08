@@ -1,0 +1,18 @@
+diff --git a/django/contrib/sessions/backends/db.py b/django/contrib/sessions/backends/db.py
+index 7c905a2c99..3de156afba 100644
+--- a/django/contrib/sessions/backends/db.py
++++ b/django/contrib/sessions/backends/db.py
+@@ -41,7 +41,12 @@ class SessionStore(SessionBase):
+ 
+     def load(self):
+         s = self._get_session_from_db()
+-        return self.decode(s.session_data) if s else {}
++        try:
++            return self.decode(s.session_data) if s else {}
++        except (django.core.signing.BadSignature, binascii.Error):
++            # Handle specific exceptions related to session data decoding
++            logging.warning("Invalid session data encountered and will be ignored.")
++            return {}
+ 
+     def exists(self, session_key):
+         return self.model.objects.filter(session_key=session_key).exists()

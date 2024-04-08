@@ -1,0 +1,39 @@
+To address the issue of being unable to pickle a figure with a draggable legend in Matplotlib, we need to ensure that the `DraggableLegend` object, which is not directly serializable by `pickle`, is handled appropriately during the pickling process. This involves modifying the `Legend` class to temporarily disable the draggable feature during pickling and optionally re-enable it upon unpickling. Since the original issue and context do not provide direct access to the `DraggableLegend` class or its implementation, the patch will focus on modifying the `Legend` class to include custom pickling support.
+
+# modification 1
+```python
+<file>lib/matplotlib/legend.py</file>
+<original>class Legend:
+    ...
+    def set_draggable(self, state, use_blit=False, update='loc'):
+        ...
+</original>
+<patched>import copyreg
+
+class Legend:
+    ...
+    def set_draggable(self, state, use_blit=False, update='loc'):
+        ...
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the _draggable attribute to make it pickleable
+        state['_draggable'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Optionally, re-enable draggable if it was enabled before pickling
+        if state.get('_was_draggable', False):
+            self.set_draggable(True)
+
+# Register the Legend class for custom pickling support
+def pickle_legend(legend):
+    return (legend.__class__, legend.__getstate__())
+
+copyreg.pickle(Legend, pickle_legend)
+</patched>
+```
+
+This patch introduces custom pickling support for the `Legend` class by defining `__getstate__` and `__setstate__` methods. The `__getstate__` method prepares the `Legend` instance for pickling by removing the `_draggable` attribute, which contains non-serializable components. The `__setstate__` method restores the instance's state after unpickling, with an option to re-enable the draggable feature based on a condition (this example assumes a `_was_draggable` flag that could be set based on the application's requirements).
+
+Additionally, the `pickle_legend` function and the `copyreg.pickle` call are used to register the custom pickling behavior for the `Legend` class. This approach ensures that instances of `Legend` can be pickled and unpickled correctly, addressing the issue of being unable to pickle figures with draggable legends.

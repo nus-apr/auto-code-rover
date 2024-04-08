@@ -1,0 +1,32 @@
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</original>
+<patched>        from sympy.core.mul import Mul
+        if isinstance(other, Mul) and any(isinstance(arg, Point) for arg in other.args):
+            # Handle the case where other is a Mul object resulting from multiplication of a Point by a scalar.
+            scalar = 1
+            point = None
+            for arg in other.args:
+                if isinstance(arg, Point):
+                    point = arg
+                else:
+                    scalar *= arg
+            if point is not None:
+                return self + point * scalar
+        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</patched>
+```
+
+This patch introduces handling for cases where the `other` operand in the `__add__` method is a `Mul` object resulting from the multiplication of a `Point` by a scalar. It checks if `other` is an instance of `Mul` and contains a `Point` object. If so, it separates the scalar and the `Point` object, multiplies them, and then adds the result to `self`. This approach maintains the commutative property of addition, allowing `point1 + sympy.sympify(2.0) * point2` to work as expected.

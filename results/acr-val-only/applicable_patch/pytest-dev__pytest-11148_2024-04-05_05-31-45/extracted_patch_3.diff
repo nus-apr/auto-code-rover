@@ -1,0 +1,28 @@
+diff --git a/src/_pytest/pathlib.py b/src/_pytest/pathlib.py
+index e43310ef0..7bca622c5 100644
+--- a/src/_pytest/pathlib.py
++++ b/src/_pytest/pathlib.py
+@@ -533,10 +533,19 @@ def import_path(
+ 
+         if spec is None:
+             raise ImportError(f"Can't find module {module_name} at location {path}")
+-        mod = importlib.util.module_from_spec(spec)
+-        sys.modules[module_name] = mod
+-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+-        insert_missing_modules(sys.modules, module_name)
++        try:
++            mod = importlib.util.module_from_spec(spec)
++            existing_module = sys.modules.get(module_name)
++            if existing_module is not None and existing_module is not mod:
++                # Log detailed information about the duplicate module scenario
++                logger.warning(f"Duplicate module detected: {module_name}. Existing module: {existing_module}, New module: {mod}")
++            sys.modules[module_name] = mod
++            spec.loader.exec_module(mod)  # type: ignore[union-attr]
++            insert_missing_modules(sys.modules, module_name)
++        except Exception as e:
++            # Log the exception for debugging purposes
++            logger.error(f"Error importing module {module_name} from {path}: {e}")
++            raise
+         return mod
+ 
+     pkg_path = resolve_package_path(path)

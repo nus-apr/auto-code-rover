@@ -1,0 +1,52 @@
+Given the context and the issue described, the patch would need to ensure that the custom database router respects the database parameter when Django's migrate command is invoked. Since the specific implementation details of the custom database router (`TenantDatabaseRouter`) and middleware (`TenantSubdomainMiddleware`) are not provided, I will conceptualize a generic patch that addresses the common cause of such issues.
+
+The issue likely arises because the custom database router's methods (`db_for_read`, `db_for_write`, `allow_migrate`) do not correctly handle the `hints` parameter, which can include the database alias when migrations are run. To respect the database parameter during migrations, the router should check for a `'database'` hint and use it to determine the database for operations.
+
+Please note, the following patches are conceptual and need to be adapted to fit the actual implementation details of your project's custom database router.
+
+# modification 1
+```python
+<file>path/to/your/project/database_routers.py</file>
+<original>
+def db_for_read(self, model, **hints):
+    # Your existing logic to determine the database for read operations
+</original>
+<patched>
+def db_for_read(self, model, **hints):
+    if 'database' in hints:
+        return hints['database']
+    # Your existing logic to determine the database for read operations
+</patched>
+```
+
+# modification 2
+```python
+<file>path/to/your/project/database_routers.py</file>
+<original>
+def db_for_write(self, model, **hints):
+    # Your existing logic to determine the database for write operations
+</original>
+<patched>
+def db_for_write(self, model, **hints):
+    if 'database' in hints:
+        return hints['database']
+    # Your existing logic to determine the database for write operations
+</patched>
+```
+
+# modification 3
+```python
+<file>path/to/your/project/database_routers.py</file>
+<original>
+def allow_migrate(self, db, app_label, model_name=None, **hints):
+    # Your existing logic to determine if migration is allowed
+</original>
+<patched>
+def allow_migrate(self, db, app_label, model_name=None, **hints):
+    if 'database' in hints and hints['database'] != db:
+        return False
+    # Your existing logic to determine if migration is allowed
+</patched>
+```
+
+These modifications ensure that the custom database router checks for a `'database'` hint, which is provided when migrations specify a database using the `--database` parameter. If the hint is present, the router uses the specified database for read and write operations and respects it during migration checks. This approach should address the issue of the migrate command not respecting the database parameter when adding permissions or performing other database operations within the context of migrations.

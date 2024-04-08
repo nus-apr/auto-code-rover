@@ -1,0 +1,72 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..24e5dfb221 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -437,34 +437,43 @@ def _partition_args(self, args):
+         return py_returns, py_args, py_locals, py_inferred
+ 
+     def _prototype_arg(self, arg):
+-        mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
+-        np_types = {'double': 'np.double_t',
+-                    'int': 'np.int_t'}
+-        t = arg.get_datatype('c')
+-        if arg.dimensions:
+-            self._need_numpy = True
+-            ndim = len(arg.dimensions)
+-            mtype = np_types[t]
+-            return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+-        else:
+-            return "%s %s" % (t, self._string_var(arg.name))
++            mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
++            np_types = {'double': 'np.double_t',
++                        'int': 'np.int_t'}
++            t = arg.get_datatype('c')
++            if arg.dimensions:
++                self._need_numpy = True
++                ndim = len(arg.dimensions)
++                mtype = np_types[t]
++                return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
++            else:
++                # Ensure scalar arguments are treated correctly in the generated C code
++                if t == 'double':
++                    return "double {0}".format(self._string_var(arg.name))
++                elif t == 'int':
++                    return "int {0}".format(self._string_var(arg.name))
++                else:
++                    return "%s %s" % (t, self._string_var(arg.name))
+ 
+     def _declare_arg(self, arg):
+-        proto = self._prototype_arg(arg)
+-        if arg.dimensions:
+-            shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
+-            return proto + " = np.empty({shape})".format(shape=shape)
+-        else:
+-            return proto + " = 0"
++            proto = self._prototype_arg(arg)
++            if arg.dimensions:
++                shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
++                return proto + " = np.empty({shape}, dtype=np.float64)".format(shape=shape)  # Ensure dtype matches expected C type
++            else:
++                return proto + " = 0"
+ 
+     def _call_arg(self, arg):
+-        if arg.dimensions:
+-            t = arg.get_datatype('c')
+-            return "<{0}*> {1}.data".format(t, self._string_var(arg.name))
+-        elif isinstance(arg, ResultBase):
+-            return "&{0}".format(self._string_var(arg.name))
+-        else:
+-            return self._string_var(arg.name)
++            if arg.dimensions:
++                t = arg.get_datatype('c')
++                # Ensure the pointer to the data is correctly passed for array arguments
++                return "<{0}*> {1}.data".format(t, self._string_var(arg.name))
++            elif isinstance(arg, ResultBase):
++                # Ensure address-of is used for result arguments to match C expectations
++                return "&{0}".format(self._string_var(arg.name))
++            else:
++                # Ensure scalar arguments are correctly passed without modification
++                return self._string_var(arg.name)
+ 
+     def _string_var(self, var):
+         printer = self.generator.printer.doprint

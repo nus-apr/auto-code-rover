@@ -1,0 +1,44 @@
+{
+    "task_id": "matplotlib__matplotlib-24265",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/matplotlib__matplotlib/setup_matplotlib__matplotlib__3.6",
+        "env_name": "setup_matplotlib__matplotlib__3.6",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider lib/matplotlib/tests/test_style.py"
+    },
+    "task_info": {
+        "instance_id": "matplotlib__matplotlib-24265",
+        "base_commit": "e148998d9bed9d1b53a91587ad48f9bb43c7737f",
+        "hints_text": "",
+        "created_at": "2022-10-25T02:03:19Z",
+        "test_patch": "diff --git a/lib/matplotlib/tests/test_style.py b/lib/matplotlib/tests/test_style.py\n--- a/lib/matplotlib/tests/test_style.py\n+++ b/lib/matplotlib/tests/test_style.py\n@@ -184,6 +184,8 @@ def test_deprecated_seaborn_styles():\n     with pytest.warns(mpl._api.MatplotlibDeprecationWarning):\n         mpl.style.use(\"seaborn-bright\")\n     assert mpl.rcParams == seaborn_bright\n+    with pytest.warns(mpl._api.MatplotlibDeprecationWarning):\n+        mpl.style.library[\"seaborn-bright\"]\n \n \n def test_up_to_date_blacklist():\n",
+        "repo": "matplotlib/matplotlib",
+        "problem_statement": "[Bug]: Setting matplotlib.pyplot.style.library['seaborn-colorblind'] result in key error on matplotlib v3.6.1\n### Bug summary\n\nI have code that executes:\r\n```\r\nimport matplotlib.pyplot as plt\r\nthe_rc = plt.style.library[\"seaborn-colorblind\"]\r\n```\r\n\r\nUsing version 3.4.3 of matplotlib, this works fine. I recently installed my code on a machine with matplotlib version 3.6.1 and upon importing my code, this generated a key error for line `the_rc = plt.style.library[\"seaborn-colorblind\"]` saying \"seaborn-colorblind\" was a bad key.\n\n### Code for reproduction\n\n```python\nimport matplotlib.pyplot as plt\r\nthe_rc = plt.style.library[\"seaborn-colorblind\"]\n```\n\n\n### Actual outcome\n\nTraceback (most recent call last):\r\nKeyError: 'seaborn-colorblind'\n\n### Expected outcome\n\nseaborn-colorblind should be set as the matplotlib library style and I should be able to continue plotting with that style.\n\n### Additional information\n\n- Bug occurs with matplotlib version 3.6.1\r\n- Bug does not occur with matplotlib version 3.4.3\r\n- Tested on MacOSX and Ubuntu (same behavior on both)\n\n### Operating system\n\nOS/X\n\n### Matplotlib Version\n\n3.6.1\n\n### Matplotlib Backend\n\nMacOSX\n\n### Python version\n\n3.9.7\n\n### Jupyter version\n\n_No response_\n\n### Installation\n\npip\n",
+        "version": "3.6",
+        "FAIL_TO_PASS": [
+            "lib/matplotlib/tests/test_style.py::test_deprecated_seaborn_styles"
+        ],
+        "PASS_TO_PASS": [
+            "lib/matplotlib/tests/test_style.py::test_alias[mpl15]",
+            "lib/matplotlib/tests/test_style.py::test_alias[mpl20]",
+            "lib/matplotlib/tests/test_style.py::test_available",
+            "lib/matplotlib/tests/test_style.py::test_context",
+            "lib/matplotlib/tests/test_style.py::test_context_with_badparam",
+            "lib/matplotlib/tests/test_style.py::test_context_with_dict",
+            "lib/matplotlib/tests/test_style.py::test_context_with_dict_after_namedstyle",
+            "lib/matplotlib/tests/test_style.py::test_context_with_dict_before_namedstyle",
+            "lib/matplotlib/tests/test_style.py::test_context_with_union_of_dict_and_namedstyle",
+            "lib/matplotlib/tests/test_style.py::test_invalid_rc_warning_includes_filename",
+            "lib/matplotlib/tests/test_style.py::test_single_path",
+            "lib/matplotlib/tests/test_style.py::test_up_to_date_blacklist",
+            "lib/matplotlib/tests/test_style.py::test_use",
+            "lib/matplotlib/tests/test_style.py::test_use_url",
+            "lib/matplotlib/tests/test_style.py::test_xkcd_cm",
+            "lib/matplotlib/tests/test_style.py::test_xkcd_no_cm"
+        ],
+        "environment_setup_commit": "73909bcb408886a22e2b84581d6b9e6d9907c813",
+        "patch": "diff --git a/lib/matplotlib/style/core.py b/lib/matplotlib/style/core.py\n--- a/lib/matplotlib/style/core.py\n+++ b/lib/matplotlib/style/core.py\n@@ -43,6 +43,32 @@ class __getattr__:\n     'toolbar', 'timezone', 'figure.max_open_warning',\n     'figure.raise_window', 'savefig.directory', 'tk.window_focus',\n     'docstring.hardcopy', 'date.epoch'}\n+_DEPRECATED_SEABORN_STYLES = {\n+    s: s.replace(\"seaborn\", \"seaborn-v0_8\")\n+    for s in [\n+        \"seaborn\",\n+        \"seaborn-bright\",\n+        \"seaborn-colorblind\",\n+        \"seaborn-dark\",\n+        \"seaborn-darkgrid\",\n+        \"seaborn-dark-palette\",\n+        \"seaborn-deep\",\n+        \"seaborn-muted\",\n+        \"seaborn-notebook\",\n+        \"seaborn-paper\",\n+        \"seaborn-pastel\",\n+        \"seaborn-poster\",\n+        \"seaborn-talk\",\n+        \"seaborn-ticks\",\n+        \"seaborn-white\",\n+        \"seaborn-whitegrid\",\n+    ]\n+}\n+_DEPRECATED_SEABORN_MSG = (\n+    \"The seaborn styles shipped by Matplotlib are deprecated since %(since)s, \"\n+    \"as they no longer correspond to the styles shipped by seaborn. However, \"\n+    \"they will remain available as 'seaborn-v0_8-<style>'. Alternatively, \"\n+    \"directly use the seaborn API instead.\")\n \n \n def _remove_blacklisted_style_params(d, warn=True):\n@@ -113,31 +139,9 @@ def use(style):\n     def fix_style(s):\n         if isinstance(s, str):\n             s = style_alias.get(s, s)\n-            if s in [\n-                \"seaborn\",\n-                \"seaborn-bright\",\n-                \"seaborn-colorblind\",\n-                \"seaborn-dark\",\n-                \"seaborn-darkgrid\",\n-                \"seaborn-dark-palette\",\n-                \"seaborn-deep\",\n-                \"seaborn-muted\",\n-                \"seaborn-notebook\",\n-                \"seaborn-paper\",\n-                \"seaborn-pastel\",\n-                \"seaborn-poster\",\n-                \"seaborn-talk\",\n-                \"seaborn-ticks\",\n-                \"seaborn-white\",\n-                \"seaborn-whitegrid\",\n-            ]:\n-                _api.warn_deprecated(\n-                    \"3.6\", message=\"The seaborn styles shipped by Matplotlib \"\n-                    \"are deprecated since %(since)s, as they no longer \"\n-                    \"correspond to the styles shipped by seaborn. However, \"\n-                    \"they will remain available as 'seaborn-v0_8-<style>'. \"\n-                    \"Alternatively, directly use the seaborn API instead.\")\n-                s = s.replace(\"seaborn\", \"seaborn-v0_8\")\n+            if s in _DEPRECATED_SEABORN_STYLES:\n+                _api.warn_deprecated(\"3.6\", message=_DEPRECATED_SEABORN_MSG)\n+                s = _DEPRECATED_SEABORN_STYLES[s]\n         return s\n \n     for style in map(fix_style, styles):\n@@ -244,17 +248,26 @@ def update_nested_dict(main_dict, new_dict):\n     return main_dict\n \n \n+class _StyleLibrary(dict):\n+    def __getitem__(self, key):\n+        if key in _DEPRECATED_SEABORN_STYLES:\n+            _api.warn_deprecated(\"3.6\", message=_DEPRECATED_SEABORN_MSG)\n+            key = _DEPRECATED_SEABORN_STYLES[key]\n+\n+        return dict.__getitem__(self, key)\n+\n+\n # Load style library\n # ==================\n _base_library = read_style_directory(BASE_LIBRARY_PATH)\n-library = None\n+library = _StyleLibrary()\n available = []\n \n \n def reload_library():\n     \"\"\"Reload the style library.\"\"\"\n-    global library\n-    library = update_user_library(_base_library)\n+    library.clear()\n+    library.update(update_user_library(_base_library))\n     available[:] = sorted(library.keys())\n \n \n",
+        "pr_link": "https://github.com/matplotlib/matplotlib/pull/24265"
+    }
+}

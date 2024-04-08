@@ -1,0 +1,35 @@
+{
+    "task_id": "django__django-12286",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__3.1",
+        "env_name": "setup_django__django__3.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 check_framework.test_translation"
+    },
+    "task_info": {
+        "instance_id": "django__django-12286",
+        "base_commit": "979f61abd322507aafced9627702362e541ec34e",
+        "hints_text": "Thanks for this report. Regression in 4400d8296d268f5a8523cd02ddc33b12219b2535.",
+        "created_at": "2020-01-07T13:56:28Z",
+        "test_patch": "diff --git a/tests/check_framework/test_translation.py b/tests/check_framework/test_translation.py\n--- a/tests/check_framework/test_translation.py\n+++ b/tests/check_framework/test_translation.py\n@@ -3,7 +3,7 @@\n     check_language_settings_consistent, check_setting_language_code,\n     check_setting_languages, check_setting_languages_bidi,\n )\n-from django.test import SimpleTestCase\n+from django.test import SimpleTestCase, override_settings\n \n \n class TranslationCheckTests(SimpleTestCase):\n@@ -75,12 +75,36 @@ def test_invalid_languages_bidi(self):\n                     Error(msg % tag, id='translation.E003'),\n                 ])\n \n+    @override_settings(USE_I18N=True, LANGUAGES=[('en', 'English')])\n     def test_inconsistent_language_settings(self):\n         msg = (\n             'You have provided a value for the LANGUAGE_CODE setting that is '\n             'not in the LANGUAGES setting.'\n         )\n-        with self.settings(LANGUAGE_CODE='fr', LANGUAGES=[('en', 'English')]):\n-            self.assertEqual(check_language_settings_consistent(None), [\n-                Error(msg, id='translation.E004'),\n-            ])\n+        for tag in ['fr', 'fr-CA', 'fr-357']:\n+            with self.subTest(tag), self.settings(LANGUAGE_CODE=tag):\n+                self.assertEqual(check_language_settings_consistent(None), [\n+                    Error(msg, id='translation.E004'),\n+                ])\n+\n+    @override_settings(\n+        USE_I18N=True,\n+        LANGUAGES=[\n+            ('de', 'German'),\n+            ('es', 'Spanish'),\n+            ('fr', 'French'),\n+            ('ca', 'Catalan'),\n+        ],\n+    )\n+    def test_valid_variant_consistent_language_settings(self):\n+        tests = [\n+            # language + region.\n+            'fr-CA',\n+            'es-419',\n+            'de-at',\n+            # language + region + variant.\n+            'ca-ES-valencia',\n+        ]\n+        for tag in tests:\n+            with self.subTest(tag), self.settings(LANGUAGE_CODE=tag):\n+                self.assertEqual(check_language_settings_consistent(None), [])\n",
+        "repo": "django/django",
+        "problem_statement": "translation.E004 shouldn't be raised on sublanguages when a base language is available.\nDescription\n\t\nAccording to Django documentation:\nIf a base language is available but the sublanguage specified is not, Django uses the base language. For example, if a user specifies de-at (Austrian German) but Django only has de available, Django uses de.\nHowever, when using Django 3.0.2, if my settings.py has\nLANGUAGE_CODE = \"de-at\"\nI get this error message:\nSystemCheckError: System check identified some issues:\nERRORS:\n?: (translation.E004) You have provided a value for the LANGUAGE_CODE setting that is not in the LANGUAGES setting.\nIf using\nLANGUAGE_CODE = \"es-ar\"\nDjango works fine (es-ar is one of the translations provided out of the box).\n",
+        "version": "3.1",
+        "FAIL_TO_PASS": [
+            "test_valid_variant_consistent_language_settings (check_framework.test_translation.TranslationCheckTests)"
+        ],
+        "PASS_TO_PASS": [
+            "test_inconsistent_language_settings (check_framework.test_translation.TranslationCheckTests)",
+            "test_invalid_language_code (check_framework.test_translation.TranslationCheckTests)",
+            "test_invalid_languages (check_framework.test_translation.TranslationCheckTests)",
+            "test_invalid_languages_bidi (check_framework.test_translation.TranslationCheckTests)",
+            "test_valid_language_code (check_framework.test_translation.TranslationCheckTests)",
+            "test_valid_languages (check_framework.test_translation.TranslationCheckTests)",
+            "test_valid_languages_bidi (check_framework.test_translation.TranslationCheckTests)"
+        ],
+        "environment_setup_commit": "0668164b4ac93a5be79f5b87fae83c657124d9ab",
+        "patch": "diff --git a/django/core/checks/translation.py b/django/core/checks/translation.py\n--- a/django/core/checks/translation.py\n+++ b/django/core/checks/translation.py\n@@ -1,4 +1,5 @@\n from django.conf import settings\n+from django.utils.translation import get_supported_language_variant\n from django.utils.translation.trans_real import language_code_re\n \n from . import Error, Tags, register\n@@ -55,7 +56,9 @@ def check_setting_languages_bidi(app_configs, **kwargs):\n @register(Tags.translation)\n def check_language_settings_consistent(app_configs, **kwargs):\n     \"\"\"Error if language settings are not consistent with each other.\"\"\"\n-    available_tags = {i for i, _ in settings.LANGUAGES} | {'en-us'}\n-    if settings.LANGUAGE_CODE not in available_tags:\n+    try:\n+        get_supported_language_variant(settings.LANGUAGE_CODE)\n+    except LookupError:\n         return [E004]\n-    return []\n+    else:\n+        return []\n",
+        "pr_link": "https://github.com/django/django/pull/12286"
+    }
+}

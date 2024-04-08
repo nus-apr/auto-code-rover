@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>requests/utils.py</file>
+<original>if r.encoding is None:
+        for item in iterator:
+            yield item
+        return</original>
+<patched>if r.encoding is None or not decode_unicode:
+        for item in iterator:
+            yield item
+        return</patched>
+```
+
+# modification 2
+```python
+<file>requests/models.py</file>
+<original>if decode_unicode:
+            chunks = stream_decode_response_unicode(chunks, self)</original>
+<patched>if decode_unicode and self.encoding is not None:
+            chunks = stream_decode_response_unicode(chunks, self, decode_unicode=True)</patched>
+```
+
+Explanation:
+- **Modification 1**: Ensures that `stream_decode_response_unicode` in `requests/utils.py` only attempts to decode the iterator if `decode_unicode` is explicitly requested and the response's encoding is set. This change adds a check for `decode_unicode` to ensure that the function's behavior aligns with the expectation that setting `decode_unicode=True` in `iter_content` should result in unicode output.
+  
+- **Modification 2**: Adjusts the call to `stream_decode_response_unicode` within `iter_content` in `requests/models.py` to explicitly pass the `decode_unicode` flag. This ensures that the decoding process is only attempted if `decode_unicode` is `True` and the response's encoding is known, addressing the issue where `iter_content(decode_unicode=True)` might not return unicode as expected.
+
+These modifications aim to clarify the conditions under which decoding to unicode occurs, ensuring that `iter_content` behaves consistently with the documentation and user expectations when `decode_unicode=True` is specified.

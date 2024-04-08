@@ -1,0 +1,123 @@
+# modification 1
+```python
+<file>django/db/models/base.py</file>
+<original>    def _check_local_fields(cls, fields, option):
+        from django.db import models
+
+        # In order to avoid hitting the relation tree prematurely, we use our
+        # own fields_map instead of using get_field()
+        forward_fields_map = {}
+        for field in cls._meta._get_fields(reverse=False):
+            forward_fields_map[field.name] = field
+            if hasattr(field, 'attname'):
+                forward_fields_map[field.attname] = field
+
+        errors = []
+        for field_name in fields:
+            try:
+                field = forward_fields_map[field_name]
+            except KeyError:
+                errors.append(
+                    checks.Error(
+                        "'%s' refers to the nonexistent field '%s'." % (
+                            option, field_name,
+                        ),
+                        obj=cls,
+                        id='models.E012',
+                    )
+                )
+            else:
+                if isinstance(field.remote_field, models.ManyToManyRel):
+                    errors.append(
+                        checks.Error(
+                            "'%s' refers to a ManyToManyField '%s', but "
+                            "ManyToManyFields are not permitted in '%s'." % (
+                                option, field_name, option,
+                            ),
+                            obj=cls,
+                        id='models.E013',
+                    )
+                elif field not in cls._meta.local_fields:
+                    errors.append(
+                        checks.Error(
+                            "'%s' refers to field '%s' which is not local to model '%s'."
+                            % (option, field_name, cls._meta.object_name),
+                            hint="This issue may be caused by multi-table inheritance.",
+                            obj=cls,
+                            id='models.E016',
+                        )
+                    )
+        return errors
+</original>
+<patched>    def _check_local_fields(cls, fields, option):
+        from django.db import models
+
+        # In order to avoid hitting the relation tree prematurely, we use our
+        # own fields_map instead of using get_field()
+        forward_fields_map = {}
+        for field in cls._meta._get_fields(reverse=False):
+            forward_fields_map[field.name] = field
+            if hasattr(field, 'attname'):
+                forward_fields_map[field.attname] = field
+
+        errors = []
+        for field_name in fields:
+            try:
+                field = forward_fields_map[field_name]
+            except KeyError:
+                error_id = 'models.E012' if option != 'constraints' else 'models.E013'
+                errors.append(
+                    checks.Error(
+                        "'%s' refers to the nonexistent field '%s'." % (
+                            option, field_name,
+                        ),
+                        obj=cls,
+                        id=error_id,
+                    )
+                )
+            else:
+                if isinstance(field.remote_field, models.ManyToManyRel):
+                    errors.append(
+                        checks.Error(
+                            "'%s' refers to a ManyToManyField '%s', but "
+                            "ManyToManyFields are not permitted in '%s'." % (
+                                option, field_name, option,
+                            ),
+                            obj=cls,
+                            id='models.E013',
+                    )
+                elif field not in cls._meta.local_fields:
+                    errors.append(
+                        checks.Error(
+                            "'%s' refers to field '%s' which is not local to model '%s'."
+                            % (option, field_name, cls._meta.object_name),
+                            hint="This issue may be caused by multi-table inheritance.",
+                            obj=cls,
+                            id='models.E016',
+                        )
+                    )
+        return errors
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>    def generate_altered_unique_together(self):
+        self._generate_altered_foo_together(operations.AlterUniqueTogether)
+</original>
+<patched>    def generate_altered_unique_together(self):
+        self._generate_altered_foo_together(operations.AlterUniqueTogether)
+
+    def _generate_altered_constraints(self):
+        """
+        Generate operations for altered UniqueConstraint.
+        This method should mirror the logic in _generate_altered_unique_together
+        to handle changes in UniqueConstraint definitions.
+        """
+        # Placeholder for implementation
+        pass
+</patched>
+```
+
+Note: The modifications provided are conceptual and aim to illustrate how one might begin to address the issue described. The first modification introduces a way to differentiate error handling for constraints, including `UniqueConstraint`, by adjusting the error ID based on the option type. The second modification suggests an approach for handling altered `UniqueConstraint` in migrations, similar to how `unique_together` alterations are managed. Actual implementation details, especially for `_generate_altered_constraints`, would require a deeper understanding of the Django migrations framework and more comprehensive changes to accurately track and handle changes to `UniqueConstraint` definitions.

@@ -1,0 +1,29 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..bd1ce97668 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -125,10 +125,20 @@ class EnumSerializer(BaseSerializer):
+     def serialize(self):
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        return (
+-            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+-            {"import %s" % module},
+-        )
++        if isinstance(self.value, enum.Enum):
++            # Handling single Enum value
++            return (
++                "%s.%s.%s" % (module, enum_class.__qualname__, self.value.name),
++                {"import %s" % module},
++            )
++        else:
++            # Handling combined Enum flags
++            combined_names = [flag.name for flag in enum_class if flag in self.value]
++            combined_expression = " | ".join("%s.%s.%s" % (module, enum_class.__qualname__, name) for name in combined_names)
++            return (
++                combined_expression,
++                {"import %s" % module},
++            )
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):

@@ -1,0 +1,24 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 425db22c..e2401028 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -88,7 +88,18 @@ class SessionRedirectMixin(object):
+         i = 0
+ 
+         while resp.is_redirect:
+-            prepared_request = req.copy()
++            # Instead of copying the original request, we maintain the method modified by redirections.
++            # This change ensures that if a POST request is converted to a GET due to a 303 See Other,
++            # subsequent redirects will preserve the GET method, even through a 307 Temporary Redirect.
++            if i == 0:
++                prepared_request = req.copy()
++            else:
++                prepared_request = resp.request.copy()
++                # Ensure the original data and headers are preserved if not explicitly modified by redirections.
++                if 'Content-Length' in req.headers and 'Content-Length' not in prepared_request.headers:
++                    prepared_request.headers['Content-Length'] = req.headers['Content-Length']
++                if req.body and not prepared_request.body:
++                    prepared_request.body = req.body
+ 
+             resp.content  # Consume socket so it can be released
+ 

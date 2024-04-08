@@ -1,0 +1,29 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 425db22c..dcece737 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -88,7 +88,12 @@ class SessionRedirectMixin(object):
+         i = 0
+ 
+         while resp.is_redirect:
+-            prepared_request = req.copy()
++            # Check if the method was changed in the previous redirect
++            # If so, use the modified method instead of the original one
++            if i > 0 and resp.history and resp.history[-1].status_code == 303:
++                prepared_request = resp.request.copy()
++            else:
++                prepared_request = req.copy()
+ 
+             resp.content  # Consume socket so it can be released
+ 
+@@ -99,7 +104,9 @@ class SessionRedirectMixin(object):
+             resp.close()
+ 
+             url = resp.headers['location']
+-            method = req.method
++            # Use the method from the prepared_request which might have been updated
++            # due to a 303 redirect in a previous iteration
++            method = prepared_request.method
+ 
+             # Handle redirection without scheme (see: RFC 1808 Section 4)
+             if url.startswith('//'):

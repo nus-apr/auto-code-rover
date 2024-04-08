@@ -1,0 +1,30 @@
+{
+    "task_id": "sympy__sympy-24909",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.13",
+        "env_name": "setup_sympy__sympy__1.13",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/physics/units/tests/test_prefixes.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-24909",
+        "base_commit": "d3b4158dea271485e3daa11bf82e69b8dab348ce",
+        "hints_text": "I get a 1 for all of the following (and some are redundant like \"V\" and \"volt\"):\r\n```python\r\nW, joule, ohm, newton, volt, V, v, volts, henrys, pa, kilogram, ohms, kilograms, Pa, weber, tesla, Wb, H, wb, newtons, kilometers, webers, pascals, kilometer, watt, T, km, kg, joules, pascal, watts, J, henry, kilo, teslas\r\n```\nPlus it's only milli.\r\n```\r\nIn [65]: for p in PREFIXES:\r\n    ...:     print(p, PREFIXES[p]*W)\r\n    ...:\r\nY 1000000000000000000000000*watt\r\nZ 1000000000000000000000*watt\r\nE 1000000000000000000*watt\r\nP 1000000000000000*watt\r\nT 1000000000000*watt\r\nG 1000000000*watt\r\nM 1000000*watt\r\nk 1000*watt\r\nh 100*watt\r\nda 10*watt\r\nd watt/10\r\nc watt/100\r\nm 1\r\nmu watt/1000000\r\nn watt/1000000000\r\np watt/1000000000000\r\nf watt/1000000000000000\r\na watt/1000000000000000000\r\nz watt/1000000000000000000000\r\ny watt/1000000000000000000000000\r\n```\nDear team,\r\n\r\nI am excited to contribute to this project and offer my skills. Please let me support the team's efforts and collaborate effectively. Looking forward to working with you all.\n@Sourabh5768  Thanks for showing interest, you don't need to ask for a contribution If you know how to fix an issue, you can just make a pull request to fix it.",
+        "created_at": "2023-03-13T14:24:25Z",
+        "test_patch": "diff --git a/sympy/physics/units/tests/test_prefixes.py b/sympy/physics/units/tests/test_prefixes.py\n--- a/sympy/physics/units/tests/test_prefixes.py\n+++ b/sympy/physics/units/tests/test_prefixes.py\n@@ -2,7 +2,7 @@\n from sympy.core.numbers import Rational\n from sympy.core.singleton import S\n from sympy.core.symbol import (Symbol, symbols)\n-from sympy.physics.units import Quantity, length, meter\n+from sympy.physics.units import Quantity, length, meter, W\n from sympy.physics.units.prefixes import PREFIXES, Prefix, prefix_unit, kilo, \\\n     kibi\n from sympy.physics.units.systems import SI\n@@ -17,7 +17,8 @@ def test_prefix_operations():\n \n     dodeca = Prefix('dodeca', 'dd', 1, base=12)\n \n-    assert m * k == 1\n+    assert m * k is S.One\n+    assert m * W == W / 1000\n     assert k * k == M\n     assert 1 / m == k\n     assert k / m == M\n@@ -25,7 +26,7 @@ def test_prefix_operations():\n     assert dodeca * dodeca == 144\n     assert 1 / dodeca == S.One / 12\n     assert k / dodeca == S(1000) / 12\n-    assert dodeca / dodeca == 1\n+    assert dodeca / dodeca is S.One\n \n     m = Quantity(\"fake_meter\")\n     SI.set_quantity_dimension(m, S.One)\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Bug with milli prefix\nWhat happened:\r\n```\r\nIn [1]: from sympy.physics.units import milli, W\r\nIn [2]: milli*W == 1\r\nOut[2]: True\r\nIn [3]: W*milli\r\nOut[3]: watt*Prefix(milli, m, -3, 10)\r\n```\r\nWhat I expected to happen: milli*W should evaluate to milli watts / mW\r\n\r\n`milli*W` or more generally `milli` times some unit evaluates to the number 1. I have tried this with Watts and Volts, I'm not sure what other cases this happens. I'm using sympy version 1.11.1-1 on Arch Linux with Python 3.10.9. If you cannot reproduce I would be happy to be of any assitance.\n",
+        "version": "1.13",
+        "FAIL_TO_PASS": [
+            "test_prefix_operations"
+        ],
+        "PASS_TO_PASS": [
+            "test_bases",
+            "test_prefix_unit"
+        ],
+        "environment_setup_commit": "be161798ecc7278ccf3ffa47259e3b5fde280b7d",
+        "patch": "diff --git a/sympy/physics/units/prefixes.py b/sympy/physics/units/prefixes.py\n--- a/sympy/physics/units/prefixes.py\n+++ b/sympy/physics/units/prefixes.py\n@@ -6,7 +6,7 @@\n \"\"\"\n from sympy.core.expr import Expr\n from sympy.core.sympify import sympify\n-\n+from sympy.core.singleton import S\n \n class Prefix(Expr):\n     \"\"\"\n@@ -85,9 +85,9 @@ def __mul__(self, other):\n \n         fact = self.scale_factor * other.scale_factor\n \n-        if fact == 1:\n-            return 1\n-        elif isinstance(other, Prefix):\n+        if isinstance(other, Prefix):\n+            if fact == 1:\n+                return S.One\n             # simplify prefix\n             for p in PREFIXES:\n                 if PREFIXES[p].scale_factor == fact:\n@@ -103,7 +103,7 @@ def __truediv__(self, other):\n         fact = self.scale_factor / other.scale_factor\n \n         if fact == 1:\n-            return 1\n+            return S.One\n         elif isinstance(other, Prefix):\n             for p in PREFIXES:\n                 if PREFIXES[p].scale_factor == fact:\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/24909"
+    }
+}

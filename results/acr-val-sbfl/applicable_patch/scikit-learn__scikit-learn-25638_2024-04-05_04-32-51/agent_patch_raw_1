@@ -1,0 +1,32 @@
+# modification 1
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+    # [obj_1] and not ["label_1"]
+    return "unknown"</original>
+<patched># Handle nullable pandas dtypes by checking for pandas extension dtypes
+if not issparse(y) and y.dtype == object:
+    if hasattr(y, "dtype") and (str(y.dtype).startswith("Int") or str(y.dtype).startswith("Float") or y.dtype.name == "boolean"):
+        # Check if y contains pandas nullable integer, float, or boolean types
+        if y.ndim == 1 or (y.ndim == 2 and y.shape[1] == 1):
+            return "binary"
+        elif y.ndim == 2:
+            return "multiclass-multioutput"
+    elif not isinstance(y.flat[0], str):
+        # [obj_1] and not ["label_1"]
+        return "unknown"</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if len(set(isinstance(label, str) for label in ys_labels)) > 1:
+    raise ValueError("Mix of label input types (string and number)")</original>
+<patched># Adjust the check to allow nullable pandas dtypes alongside integers
+if len(set(isinstance(label, str) for label in ys_labels)) > 1 and not all(isinstance(label, (int, np.integer, type(pd.NA))) for label in ys_labels):
+    raise ValueError("Mix of label input types (string and number)")</patched>
+```
+
+These modifications aim to address the issue with nullable pandas dtypes in `unique_labels` by:
+1. Modifying the `type_of_target` function to correctly identify nullable pandas dtypes (`"Int64"`, `"Float64"`, `"boolean"`) as valid binary or multiclass-multioutput targets instead of marking them as `"unknown"`.
+2. Adjusting the check in `unique_labels` to allow a mix of nullable pandas dtypes and integers, which is necessary because these dtypes are represented as objects in numpy arrays but should be treated similarly to their non-nullable counterparts for the purpose of determining unique labels.

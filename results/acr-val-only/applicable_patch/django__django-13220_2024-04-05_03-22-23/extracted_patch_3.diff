@@ -1,0 +1,27 @@
+diff --git a/django/core/exceptions.py b/django/core/exceptions.py
+index dc084b8692..b1c33e8548 100644
+--- a/django/core/exceptions.py
++++ b/django/core/exceptions.py
+@@ -155,6 +155,22 @@ class ValidationError(Exception):
+             return sum(dict(self).values(), [])
+         return list(self)
+ 
++    def __eq__(self, other):
++        if not isinstance(other, ValidationError):
++            return NotImplemented
++        # Deep comparison of error_dict if present
++        if hasattr(self, 'error_dict') and hasattr(other, 'error_dict'):
++            self_error_dict = {k: set(v) for k, v in self.error_dict.items()}
++            other_error_dict = {k: set(v) for k, v in other.error_dict.items()}
++            return self_error_dict == other_error_dict
++        # Normalize messages to a set for order-independent comparison if error_dict is not present
++        elif not hasattr(self, 'error_dict') and not hasattr(other, 'error_dict'):
++            self_messages = set(self.messages)
++            other_messages = set(other.messages)
++            return self_messages == other_messages
++        # If one has error_dict and the other does not, they are not equal
++        return False
++
+     def update_error_dict(self, error_dict):
+         if hasattr(self, 'error_dict'):
+             for field, error_list in self.error_dict.items():

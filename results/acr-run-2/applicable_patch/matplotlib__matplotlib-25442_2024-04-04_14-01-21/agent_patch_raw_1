@@ -1,0 +1,56 @@
+# modification 1
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>    canvas = property(lambda self: self.ref_artist.figure.canvas)</original>
+<patched>    canvas = property(lambda self: self.ref_artist.figure.canvas if self.ref_artist and self.ref_artist.figure else None)</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>    def disconnect(self):
+        """Disconnect the callbacks."""
+        for cid in self.cids:
+            self.canvas.mpl_disconnect(cid)
+        try:
+            c1 = self._c1
+        except AttributeError:
+            pass
+        else:
+            self.canvas.mpl_disconnect(c1)
+</original>
+<patched>    def disconnect(self):
+        """Disconnect the callbacks."""
+        if self.canvas:  # Check if canvas is not None
+            for cid in self.cids:
+                self.canvas.mpl_disconnect(cid)
+            try:
+                c1 = self._c1
+            except AttributeError:
+                pass
+            else:
+                self.canvas.mpl_disconnect(c1)</patched>
+```
+
+# modification 3
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>    def on_release(self, event):
+        if self._check_still_parented() and self.got_artist:
+            self.finalize_offset()
+            self.got_artist = False
+            self.canvas.mpl_disconnect(self._c1)
+
+            if self._use_blit:
+                self.ref_artist.set_animated(False)</original>
+<patched>    def on_release(self, event):
+        if self.canvas and self._check_still_parented() and self.got_artist:  # Check if canvas is not None
+            self.finalize_offset()
+            self.got_artist = False
+            self.canvas.mpl_disconnect(self._c1)
+
+            if self._use_blit:
+                self.ref_artist.set_animated(False)</patched>
+```
+
+These modifications add checks to ensure that operations attempting to access or modify the `canvas` property do so only when it is not `None`, addressing the `AttributeError: 'NoneType' object has no attribute 'canvas'` issue.

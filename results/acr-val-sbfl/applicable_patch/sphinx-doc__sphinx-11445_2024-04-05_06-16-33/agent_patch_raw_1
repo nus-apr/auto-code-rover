@@ -1,0 +1,51 @@
+# modification 1
+```python
+<file>sphinx/util/rst.py</file>
+<original>def prepend_prolog(content: StringList, prolog: str) -> None:
+    """Prepend a string to content body as prolog."""
+    if prolog:
+        pos = 0
+        for line in content:
+            if docinfo_re.match(line):
+                pos += 1
+            else:
+                break
+
+        if pos > 0:
+            # insert a blank line after docinfo
+            content.insert(pos, '', '<generated>', 0)
+            pos += 1
+
+        # insert prolog (after docinfo if exists)
+        for lineno, line in enumerate(prolog.splitlines()):
+            content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+
+        content.insert(pos + lineno + 1, '', '<generated>', 0)</original>
+<patched>def prepend_prolog(content: StringList, prolog: str) -> None:
+    """Prepend a string to content body as prolog."""
+    if prolog:
+        pos = 0
+        in_directive = False
+        for line in content:
+            if docinfo_re.match(line) or line.startswith('.. '):
+                pos += 1
+                if line.startswith('.. '):
+                    in_directive = True
+            elif in_directive and line.strip() == '':
+                pos += 1  # Include empty lines that are part of a directive block
+            else:
+                break
+
+        if pos > 0:
+            # insert a blank line after docinfo or directive block
+            content.insert(pos, '', '<generated>', 0)
+            pos += 1
+
+        # insert prolog (after docinfo or directive block if exists)
+        for lineno, line in enumerate(prolog.splitlines()):
+            content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+
+        content.insert(pos + lineno + 1, '', '<generated>', 0)</patched>
+```
+
+This patch modifies the `prepend_prolog` function to better handle cases where the first heading in a document is a domain directive (e.g., `:mod:`). The original implementation only looked for docinfo fields and inserted the prolog immediately after these fields or at the beginning of the document if no docinfo fields were present. The patched version adds a check for lines starting with `.. `, which are used for directives in reStructuredText, and includes handling for empty lines that are part of a directive block. This ensures that the prolog is inserted in a location that does not interfere with the rendering of domain directives in top-level headings.

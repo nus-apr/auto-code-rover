@@ -1,0 +1,33 @@
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def check_filterable(self, expression):
+        """Raise an error if expression cannot be used in a WHERE clause."""
+        if not getattr(expression, 'filterable', True):
+            raise NotSupportedError(
+                expression.__class__.__name__ + ' is disallowed in the filter '
+                'clause.'
+            )
+        if hasattr(expression, 'get_source_expressions'):
+            for expr in expression.get_source_expressions():
+                self.check_filterable(expr)</original>
+<patched>    def check_filterable(self, expression):
+        """Raise an error if expression cannot be used in a WHERE clause."""
+        # Check if the expression is an instance of a model field and has a 'filterable' attribute explicitly set to False
+        if hasattr(expression, 'field') and hasattr(expression.field, 'filterable') and expression.field.filterable is False:
+            raise NotSupportedError(
+                expression.__class__.__name__ + ' is disallowed in the filter '
+                'clause due to being explicitly marked as non-filterable.'
+            )
+        elif not getattr(expression, 'filterable', True):
+            # This condition is for non-field expressions that might have a 'filterable' attribute
+            raise NotSupportedError(
+                expression.__class__.__name__ + ' is disallowed in the filter '
+                'clause.'
+            )
+        if hasattr(expression, 'get_source_expressions'):
+            for expr in expression.get_source_expressions():
+                self.check_filterable(expr)</patched>
+```
+
+This patch modifies the `check_filterable` method in `django/db/models/sql/query.py` to distinguish between model fields explicitly marked as non-filterable (i.e., having a `filterable` attribute set to `False`) and other expressions that might unintentionally trigger the `NotSupportedError` due to a naming conflict. This approach aims to preserve the original intent of the `check_filterable` method while avoiding errors caused by model fields named `filterable`.

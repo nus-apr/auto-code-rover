@@ -1,0 +1,33 @@
+diff --git a/sympy/core/symbol.py b/sympy/core/symbol.py
+index 86b3449903..8781a73801 100644
+--- a/sympy/core/symbol.py
++++ b/sympy/core/symbol.py
+@@ -231,7 +231,9 @@ def __new_stage2__(cls, name, **assumptions):
+ 
+         # be strict about commutativity
+         is_commutative = fuzzy_bool(assumptions.get('commutative', True))
++        # Ensure that assumptions are correctly applied, especially for symbols involved in complex expressions
+         assumptions['commutative'] = is_commutative
++        # Add additional processing or checks here if needed to handle specific assumptions related to the issue
+         obj._assumptions = StdFactKB(assumptions)
+         obj._assumptions._generator = tmp_asm_copy  # Issue #8873
+         return obj
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index 1acc00be3a..88bf22ec34 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -553,7 +553,13 @@ def shorter(*choices):
+         floats = True
+         expr = nsimplify(expr, rational=True)
+ 
+-    expr = bottom_up(expr, lambda w: w.normal())
++    # Introduce a check for expressions involving powers with negative bases and their inverses
++    def custom_normalization(w):
++        if isinstance(w, Pow) and w.base.is_negative and w.exp.is_real:
++            return (-1)**w.exp * (abs(w.base) ** w.exp)
++        return w.normal()
++    
++    expr = bottom_up(expr, custom_normalization)
+     expr = Mul(*powsimp(expr).as_content_primitive())
+     _e = cancel(expr)
+     expr1 = shorter(_e, _mexpand(_e).cancel())  # issue 6829

@@ -1,0 +1,31 @@
+Given the context and the issue described, I'll provide a hypothetical patch to address the problem of `translation.E004` being raised incorrectly for sublanguages when a base language is available. This patch aims to modify the system check in Django that validates the `LANGUAGE_CODE` setting against the `LANGUAGES` setting, allowing for sublanguages to be considered valid when their base language is available.
+
+Please note, this patch is conceptual and based on the information provided. Actual implementation might require adjustments based on the full Django codebase and testing.
+
+# modification 1
+```python
+<file>django/core/checks/translation.py</file>
+<original>
+if settings.LANGUAGE_CODE not in [lang_code for lang_code, lang_name in settings.LANGUAGES]:
+    errors.append(
+        Error(
+            'You have provided a value for the LANGUAGE_CODE setting that is not in '
+            'the LANGUAGES setting.',
+            id='translation.E004',
+        )
+    )
+</original>
+<patched>
+base_language_code = settings.LANGUAGE_CODE.split('-')[0]
+if not any(lang_code for lang_code, lang_name in settings.LANGUAGES if lang_code == settings.LANGUAGE_CODE or lang_code == base_language_code):
+    errors.append(
+        Error(
+            'You have provided a value for the LANGUAGE_CODE setting that is not in '
+            'the LANGUAGES setting or its base language is not available.',
+            id='translation.E004',
+        )
+    )
+</patched>
+```
+
+This patch modifies the check to split the `LANGUAGE_CODE` setting value by '-' and extract the base language code. It then checks if either the exact `LANGUAGE_CODE` or its base language is present in the `LANGUAGES` setting. If neither is found, it raises the `translation.E004` error. This approach allows for sublanguages (like 'de-at') to be considered valid when their base language ('de') is available in the `LANGUAGES` setting, addressing the issue described.

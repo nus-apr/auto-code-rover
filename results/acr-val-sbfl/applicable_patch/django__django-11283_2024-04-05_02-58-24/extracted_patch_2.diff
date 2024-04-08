@@ -1,0 +1,36 @@
+diff --git a/django/contrib/auth/migrations/0011_update_proxy_permissions.py b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+index 0e66649695..290869fcac 100644
+--- a/django/contrib/auth/migrations/0011_update_proxy_permissions.py
++++ b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+@@ -24,10 +24,29 @@ def update_proxy_model_permissions(apps, schema_editor, reverse=False):
+         proxy_content_type = ContentType.objects.get_for_model(Model, for_concrete_model=False)
+         old_content_type = proxy_content_type if reverse else concrete_content_type
+         new_content_type = concrete_content_type if reverse else proxy_content_type
+-        Permission.objects.filter(
++        # First, collect all permissions that match the query and would be updated
++        permissions_to_update = Permission.objects.filter(
+             permissions_query,
+             content_type=old_content_type,
+-        ).update(content_type=new_content_type)
++        )
++        
++        # Collect codenames of permissions that already exist with the new content type
++        existing_permission_codenames = set(Permission.objects.filter(
++            content_type=new_content_type,
++        ).values_list('codename', flat=True))
++        
++        updated_permissions = []
++        for permission in permissions_to_update:
++            # Only proceed with update if there's no permission with the same codename for the new content type
++            if permission.codename not in existing_permission_codenames:
++                permission.content_type = new_content_type
++                updated_permissions.append(permission)
++            else:
++                # Log or handle permissions that would cause duplicate issues
++                print(f"Duplicate permission detected and skipped: {permission.codename} for content type {new_content_type}")
++        
++        # Bulk update the collected permissions to minimize database hits
++        Permission.objects.bulk_update(updated_permissions, ['content_type'])
+ 
+ 
+ def revert_proxy_model_permissions(apps, schema_editor):

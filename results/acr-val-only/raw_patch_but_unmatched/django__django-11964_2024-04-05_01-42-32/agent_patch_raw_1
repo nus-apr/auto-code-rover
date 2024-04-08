@@ -1,0 +1,63 @@
+Given the analysis and the context provided, the issue seems to stem from the fact that when enum values (from `TextChoices` or `IntegerChoices`) are retrieved from the database, they are not converted back to their simple string or integer representations. Instead, they retain their enum type, which can lead to inconsistencies, especially when the values are expected to be of a basic type (string or integer) for operations like serialization or comparison.
+
+To address this issue, we can introduce a patch that ensures the values of fields using `TextChoices` or `IntegerChoices` are returned as their simple representations (the `.value` of the enum) when accessed. This can be achieved by overriding the `__get__` method for the fields to check if the field is defined with choices that are instances of `TextChoices` or `IntegerChoices` and then returning the `.value` of the enum.
+
+However, it's important to note that directly modifying Django's source code is not recommended for production environments as it can lead to unexpected behavior with future Django updates. A better approach would be to subclass the `CharField` and `IntegerField` to implement this behavior or to handle the conversion in the application logic outside of the Django model field definitions.
+
+For demonstration purposes, here's a hypothetical patch that would directly modify the Django source code, which is not recommended for actual use:
+
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>class CharField(Field):
+    ...
+    def to_python(self, value):
+        if isinstance(value, str) or value is None:
+            return value
+        return str(value)</original>
+<patched>class CharField(Field):
+    ...
+    def to_python(self, value):
+        if isinstance(value, str) or value is None:
+            return value
+        if hasattr(value, 'value'):  # Check if value has 'value' attribute (enum case)
+            return value.value
+        return str(value)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>class IntegerField(Field):
+    ...
+    def to_python(self, value):
+        if value is None:
+            return value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError(
+                self.error_messages['invalid'],
+                code='invalid',
+                params={'value': value},
+            )</original>
+<patched>class IntegerField(Field):
+    ...
+    def to_python(self, value):
+        if value is None:
+            return value
+        if hasattr(value, 'value'):  # Check if value has 'value' attribute (enum case)
+            return value.value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError(
+                self.error_messages['invalid'],
+                code='invalid',
+                params={'value': value},
+            )</patched>
+```
+
+This patch introduces a check in the `to_python` method for both `CharField` and `IntegerField` to see if the value being converted has a `.value` attribute, which is characteristic of enum instances. If so, it returns the `.value` attribute, ensuring that enum values are handled correctly. 
+
+Remember, modifying Django's internal code is not a sustainable solution. A better approach would involve subclassing or extending Django's field types within your application to implement this behavior.

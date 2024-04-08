@@ -1,0 +1,23 @@
+Given the feedback and the need to address the issue more accurately, it seems the initial approach might not have directly addressed the core problem or there might have been a misunderstanding in the application of the patch. The core issue lies in handling `None` estimators during the `fit` process, specifically after some estimators have been set to `None` using `set_params`. Let's revise the approach, focusing on ensuring that the `fit` method correctly handles `None` estimators.
+
+# modification 1
+```python
+<file>sklearn/ensemble/voting.py</file>
+<original>        return super().fit(X, transformed_y, sample_weight)</original>
+<patched>        # Filter out None estimators before calling super().fit
+        filtered_estimators = [(name, est) for name, est in self.estimators if est is not None]
+        if not filtered_estimators:
+            raise ValueError("All estimators are None. VotingClassifier requires at least one non-None estimator.")
+        
+        # Temporarily replace self.estimators with filtered_estimators for fitting
+        original_estimators = self.estimators
+        self.estimators = filtered_estimators
+        try:
+            fitted = super().fit(X, transformed_y, sample_weight)
+        finally:
+            # Restore original estimators after fitting
+            self.estimators = original_estimators
+        return fitted</patched>
+```
+
+This modification ensures that before calling the `super().fit` method, the `VotingClassifier` filters out any `None` estimators, addressing the issue where `fit` could fail if any estimators are set to `None`. It temporarily replaces `self.estimators` with a filtered list that excludes `None` values, ensuring that the fitting process only considers valid estimators. After the fitting process, it restores the original `estimators` list, maintaining the state of the `VotingClassifier` object. This approach ensures that the `fit` method can handle `None` estimators gracefully, preventing the `AttributeError` described in the issue.

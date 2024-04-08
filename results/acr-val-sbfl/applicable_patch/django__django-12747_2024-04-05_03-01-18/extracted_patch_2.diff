@@ -1,0 +1,16 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index d9c9b0db04..fbcf531aec 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -733,7 +733,11 @@ class QuerySet:
+ 
+         collector = Collector(using=del_query.db)
+         collector.collect(del_query)
++        # Patch to ensure consistency in _rows_count for zero deletions
+         deleted, _rows_count = collector.delete()
++        # Normalize _rows_count to include all models in the queryset with zero deletions
++        all_models = {model._meta.label: 0 for model in collector.data.keys()}
++        _rows_count = {**all_models, **_rows_count}
+ 
+         # Clear the result cache, in case this QuerySet gets reused.
+         self._result_cache = None

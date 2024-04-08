@@ -1,0 +1,62 @@
+Based on the provided context, it appears that the `PythonCodePrinter` class does not include a method specifically for handling tuples, which is likely why tuples with a single element are not being printed correctly. To address the issue, we need to add a method to handle the printing of tuples, ensuring that a comma is included when the tuple has only one element. This method will check the length of the tuple and format it accordingly.
+
+# modification 1
+```python
+<file>sympy/printing/pycode.py</file>
+<original></original>
+<patched>class PythonCodePrinter(AbstractPythonCodePrinter):
+
+    def _print_sign(self, e):
+        return '(0.0 if {e} == 0 else {f}(1, {e}))'.format(
+            f=self._module_format('math.copysign'), e=self._print(e.args[0]))
+
+    def _print_Not(self, expr):
+        PREC = precedence(expr)
+        return self._operators['not'] + self.parenthesize(expr.args[0], PREC)
+
+    def _print_Indexed(self, expr):
+        base = expr.args[0]
+        index = expr.args[1:]
+        return "{}[{}]".format(str(base), ", ".join([self._print(ind) for ind in index]))
+
+    def _print_Pow(self, expr, rational=False):
+        return self._hprint_Pow(expr, rational=rational)
+
+    def _print_Rational(self, expr):
+        return '{}/{}'.format(expr.p, expr.q)
+
+    def _print_Half(self, expr):
+        return self._print_Rational(expr)
+
+    def _print_frac(self, expr):
+        return self._print_Mod(Mod(expr.args[0], 1))
+
+    def _print_Symbol(self, expr):
+
+        name = super()._print_Symbol(expr)
+
+        if name in self.reserved_words:
+            if self._settings['error_on_reserved']:
+                msg = ('This expression includes the symbol "{}" which is a '
+                       'reserved keyword in this language.')
+                raise ValueError(msg.format(name))
+            return name + self._settings['reserved_word_suffix']
+        elif '{' in name:   # Remove curly braces from subscripted variables
+            return name.replace('{', '').replace('}', '')
+        else:
+            return name
+
+    def _print_Tuple(self, expr):
+        if len(expr) == 1:
+            return '({},)'.format(', '.join(map(self._print, expr)))
+        else:
+            return '({})'.format(', '.join(map(self._print, expr)))
+
+    _print_lowergamma = CodePrinter._print_not_supported
+    _print_uppergamma = CodePrinter._print_not_supported
+    _print_fresnelc = CodePrinter._print_not_supported
+    _print_fresnels = CodePrinter._print_not_supported
+</patched>
+```
+
+This modification introduces a `_print_Tuple` method to the `PythonCodePrinter` class. This method checks the length of the tuple and ensures that a comma is included after the element if the tuple has only one element, thus preserving the tuple nature of the expression in the generated Python code.

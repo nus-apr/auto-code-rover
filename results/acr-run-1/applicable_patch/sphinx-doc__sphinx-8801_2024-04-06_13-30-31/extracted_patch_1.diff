@@ -1,0 +1,51 @@
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index dc413b5c2..3500f093d 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -115,10 +115,10 @@ def exclude_members_option(arg: Any) -> Union[object, Set[str]]:
+     return {x.strip() for x in arg.split(',') if x.strip()}
+ 
+ 
+-def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
++def inherited_members_option(arg: Any) -> Union[bool, Set[str]]:
+     """Used to convert the :members: option to auto directives."""
+     if arg in (None, True):
+-        return 'object'
++        return True  # Changed 'object' to True to correctly indicate the inclusion of inherited members.
+     else:
+         return arg
+ 
+@@ -597,18 +597,21 @@ class Documenter:
+             warnings.warn("The 'no_docstring' argument to %s.add_content() is deprecated."
+                           % self.__class__.__name__,
+                           RemovedInSphinx50Warning, stacklevel=2)
+-
+-        # set sourcename and add content from attribute documentation
+-        sourcename = self.get_sourcename()
+-        if self.analyzer:
+-            attr_docs = self.analyzer.find_attr_docs()
+-            if self.objpath:
+-                key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+-                if key in attr_docs:
+-                    no_docstring = True
+-                    # make a copy of docstring for attributes to avoid cache
+-                    # the change of autodoc-process-docstring event.
+-                    docstrings = [list(attr_docs[key])]
++        else:
++            # set sourcename and add content from attribute documentation
++            sourcename = self.get_sourcename()
++            if self.analyzer:
++                attr_docs = self.analyzer.find_attr_docs()
++                if self.objpath:
++                    key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
++                    if key in attr_docs:
++                        # Changed logic to not set no_docstring to True here to ensure inherited docstrings are processed
++                        # make a copy of docstring for attributes to avoid cache
++                        # the change of autodoc-process-docstring event.
++                        docstrings = [list(attr_docs[key])]
++
++                        for i, line in enumerate(self.process_doc(docstrings)):
++                            self.add_line(line, sourcename, i)
+ 
+                     for i, line in enumerate(self.process_doc(docstrings)):
+                         self.add_line(line, sourcename, i)

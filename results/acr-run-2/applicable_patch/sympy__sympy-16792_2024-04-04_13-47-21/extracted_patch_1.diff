@@ -1,0 +1,45 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..1bda922552 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -437,7 +437,7 @@ def _partition_args(self, args):
+         return py_returns, py_args, py_locals, py_inferred
+ 
+     def _prototype_arg(self, arg):
+-        mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
++        mat_dec = "np.ndarray[{mtype}, ndim={ndim}, mode='c'] {name}"
+         np_types = {'double': 'np.double_t',
+                     'int': 'np.int_t'}
+         t = arg.get_datatype('c')
+@@ -447,7 +447,11 @@ def _prototype_arg(self, arg):
+             mtype = np_types[t]
+             return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+         else:
+-            return "%s %s" % (t, self._string_var(arg.name))
++            # Ensure pointer type for non-scalar C arguments
++            if t in np_types:
++                return "%s* %s" % (t, self._string_var(arg.name))
++            else:
++                return "%s %s" % (t, self._string_var(arg.name))
+ 
+     def _declare_arg(self, arg):
+         proto = self._prototype_arg(arg)
+@@ -460,11 +464,17 @@ def _declare_arg(self, arg):
+     def _call_arg(self, arg):
+         if arg.dimensions:
+             t = arg.get_datatype('c')
++            # Use Cython syntax for obtaining a pointer to the data of a NumPy array
+             return "<{0}*> {1}.data".format(t, self._string_var(arg.name))
+         elif isinstance(arg, ResultBase):
++            # Use address-of for result types to pass by reference
+             return "&{0}".format(self._string_var(arg.name))
+         else:
+-            return self._string_var(arg.name)
++            # Check if argument is a scalar that should be passed by reference
++            if isinstance(arg, InputArgument) and not arg.dimensions and arg.get_datatype('c') in ['double', 'int']:
++                return "&{0}".format(self._string_var(arg.name))
++            else:
++                return self._string_var(arg.name)
+ 
+     def _string_var(self, var):
+         printer = self.generator.printer.doprint

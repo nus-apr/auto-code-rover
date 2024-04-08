@@ -1,0 +1,25 @@
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index f1609aa908..3939e32c0a 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -541,7 +541,19 @@ def shorter(*choices):
+             return choices[0]
+         return min(choices, key=measure)
+ 
+-    expr = bottom_up(expr, lambda w: w.normal())
++    from sympy.core.power import Pow
++    from sympy.core.mul import Mul
++    from sympy.core.numbers import Float
++    
++    def custom_simplify_pow(expr):
++        """Custom function to simplify expressions with floating-point exponents."""
++        if isinstance(expr, Pow) and isinstance(expr.exp, Float):
++            # Convert floating-point exponents to a rational approximation if possible
++            rational_exp = expr.exp.limit_denominator()
++            return Pow(expr.base, rational_exp)
++        return expr
++    
++    expr = bottom_up(expr, custom_simplify_pow)
+     expr = Mul(*powsimp(expr).as_content_primitive())
+     _e = cancel(expr)
+     expr1 = shorter(_e, _mexpand(_e).cancel())  # issue 6829

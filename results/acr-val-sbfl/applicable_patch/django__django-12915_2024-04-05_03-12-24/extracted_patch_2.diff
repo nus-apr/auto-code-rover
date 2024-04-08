@@ -1,0 +1,33 @@
+diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py
+index 711d8864ad..9f40eb47cb 100644
+--- a/django/contrib/staticfiles/handlers.py
++++ b/django/contrib/staticfiles/handlers.py
+@@ -51,6 +51,15 @@ class StaticFilesHandlerMixin:
+             return self.serve(request)
+         except Http404 as e:
+             return response_for_exception(request, e)
++            
++    async def get_response_async(self, request):
++        # Convert the synchronous serve method to an async call
++        async def async_serve(request):
++            return await sync_to_async(self.serve)(request)
++        try:
++            return await async_serve(request)
++        except Http404 as e:
++            return response_for_exception(request, e)
+ 
+ 
+ class StaticFilesHandler(StaticFilesHandlerMixin, WSGIHandler):
+@@ -81,8 +90,9 @@ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):
+     async def __call__(self, scope, receive, send):
+         # Only even look at HTTP requests
+         if scope['type'] == 'http' and self._should_handle(scope['path']):
+-            # Serve static content
+-            # (the one thing super() doesn't do is __call__, apparently)
+-            return await super().__call__(scope, receive, send)
++            request = await self.create_request(scope, receive, send)
++            response = await self.get_response_async(request)
++            await self.send_response(response, send)
++            return
+         # Hand off to the main app
+         return await self.application(scope, receive, send)

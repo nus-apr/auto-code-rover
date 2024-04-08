@@ -1,0 +1,54 @@
+diff --git a/django/core/files/move.py b/django/core/files/move.py
+index 2cce7848ca..c295dc5957 100644
+--- a/django/core/files/move.py
++++ b/django/core/files/move.py
+@@ -46,6 +46,7 @@ def file_move_safe(old_file_name, new_file_name, chunk_size=1024 * 64, allow_ove
+             raise FileExistsError('Destination file %s exists and allow_overwrite is False.' % new_file_name)
+ 
+         os.rename(old_file_name, new_file_name)
++        os.chmod(new_file_name, 0o644)
+         return
+     except OSError:
+         # OSError happens with os.rename() if moving to another filesystem or
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index cbdab1de47..d339681306 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -175,13 +175,13 @@ class FileSystemStorage(Storage):
+     # the file already exists before it's opened.
+     OS_OPEN_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_BINARY', 0)
+ 
+-    def __init__(self, location=None, base_url=None, file_permissions_mode=None,
+-                 directory_permissions_mode=None):
+-        self._location = location
+-        self._base_url = base_url
+-        self._file_permissions_mode = file_permissions_mode
+-        self._directory_permissions_mode = directory_permissions_mode
+-        setting_changed.connect(self._clear_cached_properties)
++    def __init__(self, location=None, base_url=None, file_permissions_mode=0o644,
++                     directory_permissions_mode=None):
++            self._location = location
++            self._base_url = base_url
++            self._file_permissions_mode = file_permissions_mode
++            self._directory_permissions_mode = directory_permissions_mode
++            setting_changed.connect(self._clear_cached_properties)
+ 
+     def _clear_cached_properties(self, setting, **kwargs):
+         """Reset setting based property values."""
+diff --git a/django/core/files/uploadedfile.py b/django/core/files/uploadedfile.py
+index 48007b8682..a53552f1d8 100644
+--- a/django/core/files/uploadedfile.py
++++ b/django/core/files/uploadedfile.py
+@@ -57,9 +57,9 @@ class TemporaryUploadedFile(UploadedFile):
+     A file uploaded to a temporary location (i.e. stream-to-disk).
+     """
+     def __init__(self, name, content_type, size, charset, content_type_extra=None):
+-        _, ext = os.path.splitext(name)
+-        file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR)
+-        super().__init__(file, name, content_type, size, charset, content_type_extra)
++            _, ext = os.path.splitext(name)
++            file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR, mode='w+', permissions=0o644)
++            super().__init__(file, name, content_type, size, charset, content_type_extra)
+ 
+     def temporary_file_path(self):
+         """Return the full path of this file."""

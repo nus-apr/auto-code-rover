@@ -1,0 +1,29 @@
+Given the constraints and the feedback that the initial conceptual patch did not resolve the issue, let's consider a different approach. Since the direct manipulation based on detecting overloaded functions might not be straightforward without a deeper integration into Sphinx's processing pipeline, we'll focus on a more generic solution that could potentially address the issue with `autodoc_typehints` and overloaded callables.
+
+The core of the issue seems to be ensuring that the documentation generated for overloaded functions respects the `autodoc_typehints` setting. A more generic approach might involve ensuring that the documentation process for all functions (overloaded or not) can dynamically adjust how type hints are presented based on the `autodoc_typehints` setting, without assuming a specific utility function like `is_overloaded_function`.
+
+### Generic Patch for Handling `autodoc_typehints`
+
+This modification aims to refine how type hints are included or excluded in the documentation, ensuring that the process is sensitive to the `autodoc_typehints` setting in a way that could also benefit the documentation of overloaded functions.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if self.env.config.autodoc_typehints in ('none', 'description'):
+    kwargs.setdefault('show_annotation', False)</original>
+<patched>if self.env.config.autodoc_typehints == 'none':
+    kwargs['show_annotation'] = False
+else:
+    # Dynamically determine whether to show annotations based on the specific function and its context
+    kwargs['show_annotation'] = self.should_show_annotation(self.object, **kwargs)</patched>
+```
+
+### Explanation
+This patch modifies the handling of the `show_annotation` keyword argument in a way that allows for more dynamic decision-making based on the function being documented and potentially its context (e.g., whether it's overloaded). The `should_show_annotation` method (hypothetical) would need to be implemented to consider the `autodoc_typehints` setting, the nature of the function (including whether it's overloaded), and any other relevant context to decide whether annotations should be shown. This approach provides a flexible framework that could be extended to handle overloaded functions more gracefully, without requiring a specific check for overloading at this point in the code.
+
+### Additional Considerations
+- Implementing the `should_show_annotation` method would involve defining logic that can accurately determine when type annotations should be included in the documentation, potentially requiring a deeper analysis of the function object and its documentation context.
+- This solution assumes that additional context (such as whether a function is overloaded) can be determined or passed to the `should_show_annotation` method, which may require further modifications to how documentation context is managed and passed around within the Sphinx autodoc extension.
+
+### Note
+This proposed patch is again conceptual and aims to provide a direction for addressing the issue within the constraints provided. Actual implementation would require careful consideration of Sphinx's existing architecture and thorough testing to ensure compatibility and effectiveness, especially in handling a variety of cases including overloaded functions.

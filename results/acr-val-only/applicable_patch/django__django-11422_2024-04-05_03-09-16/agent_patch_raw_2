@@ -1,0 +1,30 @@
+Given the initial attempt did not resolve the issue and considering the structure and behavior of Django's autoreload mechanism, a more direct approach might be needed. Since the original patch did not effectively address the problem, let's consider an alternative strategy that directly involves the `runserver` command, which is responsible for initiating the autoreload process. This approach will ensure that `manage.py` is explicitly monitored by the autoreloader without relying on the `watched_files` method's automatic detection, which might miss `manage.py` due to its unique role and location in a Django project.
+
+# modification 1
+```python
+<file>django/core/management/commands/runserver.py</file>
+<original>def run(self, **options):
+        """Run the server, using the autoreloader if needed."""
+        use_reloader = options['use_reloader']
+
+        if use_reloader:
+            autoreload.run_with_reloader(self.inner_run, **options)
+        else:
+            self.inner_run(None, **options)</original>
+<patched>def run(self, **options):
+        """Run the server, using the autoreloader if needed."""
+        use_reloader = options['use_reloader']
+
+        if use_reloader:
+            # Explicitly add manage.py to the list of files to watch
+            from django.utils import autoreload
+            autoreload.ensure_echo_on()
+            autoreload.watch_file('manage.py')
+            autoreload.run_with_reloader(self.inner_run, **options)
+        else:
+            self.inner_run(None, **options)</patched>
+```
+
+This modification directly intervenes in the `run` method of the `runserver` command to explicitly add `manage.py` to the list of files that the autoreloader should monitor. It uses the `watch_file` method from `django.utils.autoreload` to achieve this. This approach ensures that `manage.py` is explicitly considered by the autoreloader, addressing the issue where changes to `manage.py` were not triggering a reload.
+
+This solution assumes that `manage.py` is located in the root directory of the Django project, which is the standard setup. If `manage.py` is located elsewhere, the path passed to `watch_file` would need to be adjusted accordingly.

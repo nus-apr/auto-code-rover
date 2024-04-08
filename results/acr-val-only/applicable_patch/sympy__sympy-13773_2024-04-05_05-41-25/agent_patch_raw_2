@@ -1,0 +1,36 @@
+Given the feedback, it seems there was an oversight in the initial patch. Let's refine the approach by ensuring that the `__matmul__` method correctly identifies matrix-like objects and only proceeds with the operation if both operands are indeed matrices. This refined approach will also consider the structure and conventions of the SymPy library more carefully.
+
+# modification 1
+```python
+<file>sympy/matrices/common.py</file>
+<original>    def __matmul__(self, other):
+        return self.__mul__(other)
+</original>
+<patched>    def __matmul__(self, other):
+        # Ensure both operands are matrices for matrix multiplication.
+        if not getattr(other, 'is_Matrix', False):
+            raise ValueError("Scalar operands are not allowed, use '*' instead for scalar multiplication.")
+        return self._eval_matrix_mul(other)
+</patched>
+```
+
+This modification ensures that `__matmul__` in `MatrixArithmetic` only proceeds with matrix multiplication if the `other` operand is indeed a matrix, aligning with the behavior described in the issue. The check uses the `is_Matrix` attribute, which is a common pattern in SymPy for identifying matrix objects. The method `_eval_matrix_mul` is used for matrix multiplication, assuming it's the appropriate method within the `MatrixArithmetic` class for handling such operations directly.
+
+# modification 2
+```python
+<file>sympy/matrices/expressions/matexpr.py</file>
+<original>    def __matmul__(self, other):
+        return MatMul(self, other).doit()
+</original>
+<patched>    def __matmul__(self, other):
+        from sympy.matrices.expressions.matexpr import MatrixExpr
+        # Ensure both operands are matrix expressions for matrix multiplication.
+        if not isinstance(other, MatrixExpr):
+            raise ValueError("Scalar operands are not allowed, use '*' instead for scalar multiplication.")
+        return MatMul(self, other).doit()
+</patched>
+```
+
+For the `MatrixExpr` class, the patch ensures that `__matmul__` only allows operations between matrix expressions, which is consistent with the intended use of matrix multiplication. The check uses `isinstance` to verify that `other` is an instance of `MatrixExpr`, ensuring compatibility with the matrix expression framework within SymPy.
+
+These modifications aim to address the issue more accurately by enforcing the requirement that both operands must be matrices (or matrix expressions) for the `@` operator to be used, thereby preventing scalar operands from being mistakenly allowed in matrix multiplication operations.

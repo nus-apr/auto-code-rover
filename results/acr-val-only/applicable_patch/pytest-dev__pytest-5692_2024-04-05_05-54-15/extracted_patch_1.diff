@@ -1,0 +1,78 @@
+diff --git a/src/_pytest/junitxml.py b/src/_pytest/junitxml.py
+index 15c630b1d..0e8b0f4fd 100644
+--- a/src/_pytest/junitxml.py
++++ b/src/_pytest/junitxml.py
+@@ -640,35 +640,45 @@ class LogXML:
+     def pytest_sessionstart(self):
+         self.suite_start_time = time.time()
+ 
++    import socket
++    import datetime
++    
+     def pytest_sessionfinish(self):
+-        dirname = os.path.dirname(os.path.abspath(self.logfile))
+-        if not os.path.isdir(dirname):
+-            os.makedirs(dirname)
+-        logfile = open(self.logfile, "w", encoding="utf-8")
+-        suite_stop_time = time.time()
+-        suite_time_delta = suite_stop_time - self.suite_start_time
+-
+-        numtests = (
+-            self.stats["passed"]
+-            + self.stats["failure"]
+-            + self.stats["skipped"]
+-            + self.stats["error"]
+-            - self.cnt_double_fail_tests
+-        )
+-        logfile.write('<?xml version="1.0" encoding="utf-8"?>')
+-
+-        suite_node = Junit.testsuite(
+-            self._get_global_properties_node(),
+-            [x.to_xml() for x in self.node_reporters_ordered],
+-            name=self.suite_name,
+-            errors=self.stats["error"],
+-            failures=self.stats["failure"],
+-            skipped=self.stats["skipped"],
+-            tests=numtests,
+-            time="%.3f" % suite_time_delta,
+-        )
+-        logfile.write(Junit.testsuites([suite_node]).unicode(indent=0))
+-        logfile.close()
++            dirname = os.path.dirname(os.path.abspath(self.logfile))
++            if not os.path.isdir(dirname):
++                os.makedirs(dirname)
++            logfile = open(self.logfile, "w", encoding="utf-8")
++            suite_stop_time = time.time()
++            suite_time_delta = suite_stop_time - self.suite_start_time
++    
++            # Get hostname
++            hostname = socket.gethostname()
++            # Get timestamp in ISO 8601 format
++            timestamp = datetime.datetime.now().isoformat()
++    
++            numtests = (
++                self.stats["passed"]
++                + self.stats["failure"]
++                + self.stats["skipped"]
++                + self.stats["error"]
++                - self.cnt_double_fail_tests
++            )
++            logfile.write('<?xml version="1.0" encoding="utf-8"?>')
++    
++            suite_node = Junit.testsuite(
++                self._get_global_properties_node(),
++                [x.to_xml() for x in self.node_reporters_ordered],
++                name=self.suite_name,
++                errors=self.stats["error"],
++                failures=self.stats["failure"],
++                skipped=self.stats["skipped"],
++                tests=numtests,
++                time="%.3f" % suite_time_delta,
++                hostname=hostname,  # Add hostname attribute
++                timestamp=timestamp,  # Add timestamp attribute
++            )
++            logfile.write(Junit.testsuites([suite_node]).unicode(indent=0))
++            logfile.close()
+ 
+     def pytest_terminal_summary(self, terminalreporter):
+         terminalreporter.write_sep("-", "generated xml file: %s" % (self.logfile))

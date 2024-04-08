@@ -1,0 +1,31 @@
+diff --git a/sympy/solvers/diophantine.py b/sympy/solvers/diophantine.py
+index 6092e35dab..77d073e67f 100644
+--- a/sympy/solvers/diophantine.py
++++ b/sympy/solvers/diophantine.py
+@@ -179,10 +179,22 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+                 raise TypeError(
+                     'syms should be given as a sequence, e.g. a list')
+             syms = [i for i in syms if i in var]
+-            if syms != var:
+-                dict_sym_index = dict(zip(syms, range(len(syms))))
+-                return {tuple([t[dict_sym_index[i]] for i in var])
+-                            for t in diophantine(eq, param)}
++            if syms and set(syms) != set(var):
++                            # Ensure syms are in the same order as they appear in var after sorting
++                            syms_sorted = sorted(syms, key=lambda x: var.index(x))
++                            dict_sym_index = dict(zip(syms_sorted, range(len(syms_sorted))))
++                            # Call diophantine with permute=False to avoid infinite recursion
++                            base_solutions = diophantine(eq, param, permute=False)
++                            permuted_solutions = set()
++                            for base_solution in base_solutions:
++                                # Reorder each solution according to syms_sorted
++                                reordered_solution = tuple(base_solution[dict_sym_index[i]] for i in syms_sorted)
++                                # Add all permutations of the reordered solution if permute is True
++                                if permute:
++                                    permuted_solutions.update(set(signed_permutations(reordered_solution)))
++                                else:
++                                    permuted_solutions.add(reordered_solution)
++                            return permuted_solutions
+         n, d = eq.as_numer_denom()
+         if n.is_number:
+             return set()

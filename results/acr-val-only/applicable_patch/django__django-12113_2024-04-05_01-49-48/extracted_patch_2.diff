@@ -1,0 +1,57 @@
+diff --git a/tests/admin_views/test_multidb.py b/tests/admin_views/test_multidb.py
+index a02b637d34..328ceca416 100644
+--- a/tests/admin_views/test_multidb.py
++++ b/tests/admin_views/test_multidb.py
+@@ -32,16 +32,21 @@ class MultiDatabaseTests(TestCase):
+ 
+     @classmethod
+     def setUpTestData(cls):
++        from django.db import connections
+         cls.superusers = {}
+         cls.test_book_ids = {}
+         for db in connections:
+             Router.target_db = db
+-            cls.superusers[db] = User.objects.create_superuser(
+-                username='admin', password='something', email='test@test.org',
+-            )
+-            b = Book(name='Test Book')
+-            b.save(using=db)
+-            cls.test_book_ids[db] = b.id
++            try:
++                cls.superusers[db] = User.objects.create_superuser(
++                    username='admin', password='something', email='test@test.org',
++                )
++                b = Book(name='Test Book')
++                b.save(using=db)
++                cls.test_book_ids[db] = b.id
++            finally:
++                # Ensure the connection is closed to prevent locking
++                connections[db].close()
+ 
+     @mock.patch('django.contrib.admin.options.transaction')
+     def test_add_view(self, mock):
+diff --git a/tests/auth_tests/test_admin_multidb.py b/tests/auth_tests/test_admin_multidb.py
+index 5849ef98e5..c70cc11c2e 100644
+--- a/tests/auth_tests/test_admin_multidb.py
++++ b/tests/auth_tests/test_admin_multidb.py
+@@ -31,12 +31,17 @@ class MultiDatabaseTests(TestCase):
+ 
+     @classmethod
+     def setUpTestData(cls):
++        from django.db import connections
+         cls.superusers = {}
+         for db in connections:
+             Router.target_db = db
+-            cls.superusers[db] = User.objects.create_superuser(
+-                username='admin', password='something', email='test@test.org',
+-            )
++            try:
++                cls.superusers[db] = User.objects.create_superuser(
++                    username='admin', password='something', email='test@test.org',
++                )
++            finally:
++                # Ensure the connection is closed to prevent locking
++                connections[db].close()
+ 
+     @mock.patch('django.contrib.auth.admin.transaction')
+     def test_add_view(self, mock):

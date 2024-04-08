@@ -1,0 +1,50 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 03cf57a30b..de9351bdd5 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -1066,17 +1066,42 @@ def __new__(cls, *args, **kwargs):
+         evaluate = kwargs.get('evaluate', global_evaluate[0])
+ 
+         # flatten inputs to merge intersections and iterables
++        from sympy.core.relational import Eq
++        from sympy.logic.boolalg import And
++        from sympy import Piecewise, S
++        from sympy.core.symbol import Symbol
++
+         args = _sympify(args)
++        # Remove duplicates and handle symbolic elements
++        new_args = []
++        symbolic_elements = {}
++        for arg in args:
++            if arg not in new_args:
++                new_args.append(arg)
++                if isinstance(arg, Symbol):
++                    symbolic_elements[arg] = []
++            else:
++                if isinstance(arg, Symbol):
++                    symbolic_elements[arg].append(arg)
++        args = new_args
++
++        # If symbolic elements are found, check for equality conditions
++        if symbolic_elements:
++            for symbol, occurrences in symbolic_elements.items():
++                for occurrence in occurrences:
++                    condition = Eq(symbol, occurrence)
++                    args = [Piecewise((arg, condition), (S.EmptySet, True)) if arg == occurrence else arg for arg in args]
+ 
+         # Reduce sets using known rules
+         if evaluate:
+             args = list(cls._new_args_filter(args))
+             return simplify_union(args)
+ 
+-        args = list(ordered(args, Set._infimum_key))
++        # Ensure args are unique and ordered for canonical processing
++        unique_args = list(ordered(frozenset(args), Set._infimum_key))
+ 
+-        obj = Basic.__new__(cls, *args)
+-        obj._argset = frozenset(args)
++        obj = Basic.__new__(cls, *unique_args)
++        obj._argset = frozenset(unique_args)
+         return obj
+ 
+     @property

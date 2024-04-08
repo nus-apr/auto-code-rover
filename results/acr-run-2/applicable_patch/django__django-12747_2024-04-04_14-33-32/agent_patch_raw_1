@@ -1,0 +1,17 @@
+To address the inconsistency in the result format when zero objects are deleted by the `delete` method in Django's `QuerySet`, we need to ensure that the `_rows_count` dictionary returned by the `collector.delete()` method consistently includes model labels with a count of 0 for all models involved in the query, regardless of whether they have foreign keys or not. This will make the behavior consistent across different model structures.
+
+Here's a proposed patch to achieve this:
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>deleted, _rows_count = collector.delete()</original>
+<patched>deleted, _rows_count = collector.delete()
+# Ensure _rows_count includes all models in the query with a count of 0 if not already present
+model_labels = {model._meta.label for model in collector.data.keys()}
+for model_label in model_labels:
+    if model_label not in _rows_count:
+        _rows_count[model_label] = 0</patched>
+```
+
+This modification iterates through all models collected by the `Collector` instance to be deleted. If any model label is not present in the `_rows_count` dictionary (which means no records of that model were deleted), it explicitly adds the model label to the dictionary with a count of 0. This ensures that the result format is consistent, providing a dictionary with all involved model labels and their respective deletion counts, including 0 for models with no deletions. This approach maintains the informative aspect of the deletion result while ensuring consistency across different model structures.

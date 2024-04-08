@@ -1,0 +1,36 @@
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index d4ca323e0d..8007263a6e 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -913,6 +913,12 @@ def subs(self, *args, **kwargs):
+                     break
+                 reps[d] = new
+             reps[m] = S.One  # get rid of m
++            # Check for undefined expressions after substitution
++            if rv.is_Number and rv.is_infinite:
++                from sympy.core.symbol import Dummy
++                from sympy.series.limits import limit
++                limit_var = Dummy()
++                rv = limit(self.subs(old, limit_var), limit_var, new, dir='+-')
+             return rv.xreplace(reps)
+         else:
+             rv = self
+diff --git a/sympy/series/limits.py b/sympy/series/limits.py
+index 660714191a..c6b55b3339 100644
+--- a/sympy/series/limits.py
++++ b/sympy/series/limits.py
+@@ -55,10 +55,13 @@ def limit(e, z, z0, dir="+"):
+     """
+ 
+     if dir == "+-":
++        from sympy.core.relational import Eq
+         llim = Limit(e, z, z0, dir="-").doit(deep=False)
+         rlim = Limit(e, z, z0, dir="+").doit(deep=False)
+-        if llim == rlim:
++        if Eq(llim, rlim) is S.true:
+             return rlim
++        elif llim.is_infinite and rlim.is_infinite and llim == rlim:
++            return llim
+         else:
+             # TODO: choose a better error?
+             raise ValueError("The limit does not exist since "

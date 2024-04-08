@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>sympy/geometry/util.py</file>
+<original>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</original>
+<patched>from sympy.core import Eq, Function, Symbol
+
+if isinstance(eq, Eq):
+    eq = eq.lhs - eq.rhs  # Convert Eq to expression assuming eq == 0
+if is_sequence(y):
+    dep = set(y)
+    y = y[0]
+elif isinstance(y, Symbol) or isinstance(y, Function):
+    dep = {y}
+else:
+    raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/geometry/util.py</file>
+<original>yp = solve(eq.diff(x), dydx)[0].subs(derivs)</original>
+<patched>sol = solve(eq.diff(x), dydx)
+if not sol:
+    raise ValueError("Unable to solve for dy/dx. No solutions found.")
+yp = sol[0].subs(derivs)</patched>
+```
+
+These modifications address the two main issues reported:
+1. The first modification allows `idiff` to handle equations passed as instances of `Eq` by converting them into expressions assuming `eq == 0`. It also updates the function to accept `y` as an expression involving functions of `x`, by checking if `y` is an instance of `Function`.
+2. The second modification adds error handling for cases where `solve` does not return any solutions, preventing the `IndexError: list index out of range` and providing a more informative error message.

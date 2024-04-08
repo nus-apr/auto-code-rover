@@ -1,0 +1,48 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __eq__(self, other):
+        # Needed for @total_ordering
+        if isinstance(other, Field):
+            return self.creation_counter == other.creation_counter
+        return NotImplemented
+</original>
+<patched>    def __eq__(self, other):
+        # Needed for @total_ordering
+        if isinstance(other, Field):
+            return (self.creation_counter == other.creation_counter) and (self.model == other.model)
+        return NotImplemented
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __lt__(self, other):
+        # This is needed because bisect does not take a comparison function.
+        if isinstance(other, Field):
+            return self.creation_counter < other.creation_counter
+        return NotImplemented
+</original>
+<patched>    def __lt__(self, other):
+        # This is needed because bisect does not take a comparison function.
+        if isinstance(other, Field):
+            if self.model != other.model:
+                return str(self.model) < str(other.model)
+            return self.creation_counter < other.creation_counter
+        return NotImplemented
+</patched>
+```
+
+# modification 3
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __hash__(self):
+        return hash(self.creation_counter)
+</original>
+<patched>    def __hash__(self):
+        return hash((self.creation_counter, self.model))
+</patched>
+```
+
+**Note**: In the patched versions, references to `self.model` assume that the `Field` class or its subclasses have a `model` attribute that references the model the field is attached to. If this attribute does not exist or is named differently, additional adjustments may be necessary to ensure that the model information is correctly used in comparisons and hash calculations.

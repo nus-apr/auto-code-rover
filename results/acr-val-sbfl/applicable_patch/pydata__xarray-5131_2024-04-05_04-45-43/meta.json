@@ -1,0 +1,53 @@
+{
+    "task_id": "pydata__xarray-5131",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/pydata__xarray/setup_pydata__xarray__0.12",
+        "env_name": "setup_pydata__xarray__0.12",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider xarray/tests/test_groupby.py"
+    },
+    "task_info": {
+        "instance_id": "pydata__xarray-5131",
+        "base_commit": "e56905889c836c736152b11a7e6117a229715975",
+        "hints_text": "I don't think this is intentional and we are happy to take a PR. The problem seems to be here:\r\n\r\nhttps://github.com/pydata/xarray/blob/c7c4aae1fa2bcb9417e498e7dcb4acc0792c402d/xarray/core/groupby.py#L439\r\n\r\nYou will also have to fix the tests (maybe other places):\r\n\r\nhttps://github.com/pydata/xarray/blob/c7c4aae1fa2bcb9417e498e7dcb4acc0792c402d/xarray/tests/test_groupby.py#L391\r\nhttps://github.com/pydata/xarray/blob/c7c4aae1fa2bcb9417e498e7dcb4acc0792c402d/xarray/tests/test_groupby.py#L408\r\n",
+        "created_at": "2021-04-08T09:19:30Z",
+        "test_patch": "diff --git a/xarray/tests/test_groupby.py b/xarray/tests/test_groupby.py\n--- a/xarray/tests/test_groupby.py\n+++ b/xarray/tests/test_groupby.py\n@@ -388,7 +388,7 @@ def test_da_groupby_assign_coords():\n def test_groupby_repr(obj, dim):\n     actual = repr(obj.groupby(dim))\n     expected = \"%sGroupBy\" % obj.__class__.__name__\n-    expected += \", grouped over %r \" % dim\n+    expected += \", grouped over %r\" % dim\n     expected += \"\\n%r groups with labels \" % (len(np.unique(obj[dim])))\n     if dim == \"x\":\n         expected += \"1, 2, 3, 4, 5.\"\n@@ -405,7 +405,7 @@ def test_groupby_repr(obj, dim):\n def test_groupby_repr_datetime(obj):\n     actual = repr(obj.groupby(\"t.month\"))\n     expected = \"%sGroupBy\" % obj.__class__.__name__\n-    expected += \", grouped over 'month' \"\n+    expected += \", grouped over 'month'\"\n     expected += \"\\n%r groups with labels \" % (len(np.unique(obj.t.dt.month)))\n     expected += \"1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12.\"\n     assert actual == expected\n",
+        "repo": "pydata/xarray",
+        "problem_statement": "Trailing whitespace in DatasetGroupBy text representation\nWhen displaying a DatasetGroupBy in an interactive Python session, the first line of output contains a trailing whitespace. The first example in the documentation demonstrate this:\r\n\r\n```pycon\r\n>>> import xarray as xr, numpy as np\r\n>>> ds = xr.Dataset(\r\n...     {\"foo\": ((\"x\", \"y\"), np.random.rand(4, 3))},\r\n...     coords={\"x\": [10, 20, 30, 40], \"letters\": (\"x\", list(\"abba\"))},\r\n... )\r\n>>> ds.groupby(\"letters\")\r\nDatasetGroupBy, grouped over 'letters' \r\n2 groups with labels 'a', 'b'.\r\n```\r\n\r\nThere is a trailing whitespace in the first line of output which is \"DatasetGroupBy, grouped over 'letters' \". This can be seen more clearly by converting the object to a string (note the whitespace before `\\n`):\r\n\r\n```pycon\r\n>>> str(ds.groupby(\"letters\"))\r\n\"DatasetGroupBy, grouped over 'letters' \\n2 groups with labels 'a', 'b'.\"\r\n```\r\n\r\n\r\nWhile this isn't a problem in itself, it causes an issue for us because we use flake8 in continuous integration to verify that our code is correctly formatted and we also have doctests that rely on DatasetGroupBy textual representation. Flake8 reports a violation on the trailing whitespaces in our docstrings. If we remove the trailing whitespaces, our doctests fail because the expected output doesn't match the actual output. So we have conflicting constraints coming from our tools which both seem reasonable. Trailing whitespaces are forbidden by flake8 because, among other reasons, they lead to noisy git diffs. Doctest want the expected output to be exactly the same as the actual output and considers a trailing whitespace to be a significant difference. We could configure flake8 to ignore this particular violation for the files in which we have these doctests, but this may cause other trailing whitespaces to creep in our code, which we don't want. Unfortunately it's not possible to just add `# NoQA` comments to get flake8 to ignore the violation only for specific lines because that creates a difference between expected and actual output from doctest point of view. Flake8 doesn't allow to disable checks for blocks of code either.\r\n\r\nIs there a reason for having this trailing whitespace in DatasetGroupBy representation? Whould it be OK to remove it? If so please let me know and I can make a pull request.\n",
+        "version": "0.12",
+        "FAIL_TO_PASS": [
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj0-month]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj0-x]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj0-y]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj0-z]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj1-month]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj1-x]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj1-y]",
+            "xarray/tests/test_groupby.py::test_groupby_repr[obj1-z]",
+            "xarray/tests/test_groupby.py::test_groupby_repr_datetime[obj0]",
+            "xarray/tests/test_groupby.py::test_groupby_repr_datetime[obj1]"
+        ],
+        "PASS_TO_PASS": [
+            "xarray/tests/test_groupby.py::test_consolidate_slices",
+            "xarray/tests/test_groupby.py::test_da_groupby_empty",
+            "xarray/tests/test_groupby.py::test_da_groupby_quantile",
+            "xarray/tests/test_groupby.py::test_ds_groupby_quantile",
+            "xarray/tests/test_groupby.py::test_groupby_bins_timeseries",
+            "xarray/tests/test_groupby.py::test_groupby_da_datetime",
+            "xarray/tests/test_groupby.py::test_groupby_drops_nans",
+            "xarray/tests/test_groupby.py::test_groupby_duplicate_coordinate_labels",
+            "xarray/tests/test_groupby.py::test_groupby_grouping_errors",
+            "xarray/tests/test_groupby.py::test_groupby_input_mutation",
+            "xarray/tests/test_groupby.py::test_groupby_map_change_group_size[obj0]",
+            "xarray/tests/test_groupby.py::test_groupby_map_change_group_size[obj1]",
+            "xarray/tests/test_groupby.py::test_groupby_map_shrink_groups[obj0]",
+            "xarray/tests/test_groupby.py::test_groupby_map_shrink_groups[obj1]",
+            "xarray/tests/test_groupby.py::test_groupby_multiple_string_args",
+            "xarray/tests/test_groupby.py::test_groupby_none_group_name"
+        ],
+        "environment_setup_commit": "1c198a191127c601d091213c4b3292a8bb3054e1",
+        "patch": "diff --git a/xarray/core/groupby.py b/xarray/core/groupby.py\n--- a/xarray/core/groupby.py\n+++ b/xarray/core/groupby.py\n@@ -436,7 +436,7 @@ def __iter__(self):\n         return zip(self._unique_coord.values, self._iter_grouped())\n \n     def __repr__(self):\n-        return \"{}, grouped over {!r} \\n{!r} groups with labels {}.\".format(\n+        return \"{}, grouped over {!r}\\n{!r} groups with labels {}.\".format(\n             self.__class__.__name__,\n             self._unique_coord.name,\n             self._unique_coord.size,\n",
+        "pr_link": "https://github.com/pydata/xarray/pull/5131"
+    }
+}

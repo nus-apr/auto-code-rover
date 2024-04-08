@@ -1,0 +1,74 @@
+# modification 1
+```python
+<file>src/_pytest/tmpdir.py</file>
+<original>    def _ensure_relative_to_basetemp(self, basename: str) -> str:
+        basename = os.path.normpath(basename)
+        if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+            raise ValueError(f"{basename} is not a normalized and relative path")
+        return basename
+</original>
+<patched>    def _ensure_relative_to_basetemp(self, basename: str) -> str:
+        import re
+        basename = os.path.normpath(basename)
+        # Sanitize basename to remove illegal characters for directory names
+        basename = re.sub(r'[\\/*?:"<>|]', "", basename)
+        if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+            raise ValueError(f"{basename} is not a normalized and relative path")
+        return basename
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/tmpdir.py</file>
+<original>    def mktemp(self, basename: str, numbered: bool = True) -> Path:
+        """Create a new temporary directory managed by the factory.
+
+        :param basename:
+            Directory base name, must be a relative path.
+
+        :param numbered:
+            If ``True``, ensure the directory is unique by adding a numbered
+            suffix greater than any existing one: ``basename="foo-"`` and ``numbered=True``
+            means that this function will create directories named ``"foo-0"``,
+            ``"foo-1"``, ``"foo-2"`` and so on.
+
+        :returns:
+            The path to the new directory.
+        """
+        basename = self._ensure_relative_to_basetemp(basename)
+        if not numbered:
+            p = self.getbasetemp().joinpath(basename)
+            p.mkdir()
+        else:
+            p = make_numbered_dir(root=self.getbasetemp(), prefix=basename)
+            self._trace("mktemp", p)
+        return p
+</original>
+<patched>    def mktemp(self, basename: str, numbered: bool = True) -> Path:
+        """Create a new temporary directory managed by the factory.
+
+        :param basename:
+            Directory base name, must be a relative path.
+
+        :param numbered:
+            If ``True``, ensure the directory is unique by adding a numbered
+            suffix greater than any existing one: ``basename="foo-"`` and ``numbered=True``
+            means that this function will create directories named ``"foo-0"``,
+            ``"foo-1"``, ``"foo-2"`` and so on.
+
+        :returns:
+            The path to the new directory.
+        """
+        # Ensure basename is sanitized in _ensure_relative_to_basetemp
+        basename = self._ensure_relative_to_basetemp(basename)
+        if not numbered:
+            p = self.getbasetemp().joinpath(basename)
+            p.mkdir()
+        else:
+            p = make_numbered_dir(root=self.getbasetemp(), prefix=basename)
+            self._trace("mktemp", p)
+        return p
+</patched>
+```
+Note: The second modification doesn't change the code but emphasizes that the sanitization is expected to be handled in `_ensure_relative_to_basetemp`, ensuring the reader understands the flow of sanitization.

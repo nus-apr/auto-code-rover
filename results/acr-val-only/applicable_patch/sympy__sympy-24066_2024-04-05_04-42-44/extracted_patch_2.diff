@@ -1,0 +1,25 @@
+diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
+index 3daf84c108..3fd12b421e 100644
+--- a/sympy/physics/units/unitsystem.py
++++ b/sympy/physics/units/unitsystem.py
+@@ -190,10 +190,16 @@ def _collect_factor_and_dimension(self, expr):
+                 dim /= idim**count
+             return factor, dim
+         elif isinstance(expr, Function):
+-            fds = [self._collect_factor_and_dimension(
+-                arg) for arg in expr.args]
+-            return (expr.func(*(f[0] for f in fds)),
+-                    *(d[1] for d in fds))
++            from sympy.core.function import AppliedUndef
++            fds = [self._collect_factor_and_dimension(arg) for arg in expr.args]
++            # Check for undefined functions or functions that inherently require dimensionless arguments
++            if isinstance(expr.func, AppliedUndef) or expr.func in [exp]:
++                for _, dim in fds:
++                    if not self.get_dimension_system().is_dimensionless(dim):
++                        raise ValueError(f"Arguments of {expr.func} must be dimensionless, got dimension {dim}")
++            # Assuming the result of the function is dimensionless for specific functions like exp
++            result_dimension = Dimension(1) if expr.func in [exp] else reduce(lambda x, y: x*y, (d[1] for d in fds), Dimension(1))
++            return (expr.func(*(f[0] for f in fds)), result_dimension)
+         elif isinstance(expr, Dimension):
+             return S.One, expr
+         else:

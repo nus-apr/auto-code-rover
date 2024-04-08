@@ -1,0 +1,77 @@
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>    def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime
+</original>
+<patched>    def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                # Ensure the file path is a string and does not contain null bytes
+                file_path_str = str(file)
+                if '\x00' in file_path_str:
+                    logger.warning("Ignoring file with null byte in path: %s", file_path_str)
+                    continue
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime
+</patched>
+```
+
+# modification 2
+```python
+<file>django/utils/autoreload.py</file>
+<original>    def tick(self):
+        mtimes = {}
+        while True:
+            for filepath, mtime in self.snapshot_files():
+                old_time = mtimes.get(filepath)
+                mtimes[filepath] = mtime
+                if old_time is None:
+                    logger.debug('File %s first seen with mtime %s', filepath, mtime)
+                    continue
+                elif mtime > old_time:
+                    logger.debug('File %s previous mtime: %s, current mtime: %s', filepath, old_time, mtime)
+                    self.notify_file_changed(filepath)
+
+            time.sleep(self.SLEEP_TIME)
+            yield
+</original>
+<patched>    def tick(self):
+        mtimes = {}
+        while True:
+            for filepath, mtime in self.snapshot_files():
+                old_time = mtimes.get(filepath)
+                mtimes[filepath] = mtime
+                if old_time is None:
+                    logger.debug('File %s first seen with mtime %s', filepath, mtime)
+                    continue
+                elif mtime > old_time:
+                    logger.debug('File %s previous mtime: %s, current mtime: %s', filepath, old_time, mtime)
+                    self.notify_file_changed(filepath)
+
+            time.sleep(self.SLEEP_TIME)
+            yield
+        # No modification needed here, but ensuring consistency in handling file paths across methods.
+</patched>
+```
+
+The first modification adds a check in the `snapshot_files` method to ensure that file paths converted to strings do not contain null bytes before proceeding with the rest of the method's logic. This approach aims to prevent the `ValueError: embedded null byte` from being raised by preemptively filtering out paths that would cause the issue. The second modification is included for completeness, indicating that no changes were made to the `tick` method but emphasizing the need for consistent handling of file paths across methods related to file monitoring and auto-reloading.

@@ -1,0 +1,28 @@
+Given the context and the issue at hand, it seems the primary confusion arises from the absence of a `get_facecolors` method and the direct access to `_facecolors2d` which is only populated after `do_3d_projection` is called. To resolve the issue, we can introduce a `get_facecolors` method that safely handles the access to `_facecolors2d`, ensuring it returns a meaningful value even if `do_3d_projection` has not been called yet. This approach prevents the `AttributeError` and provides a fallback mechanism.
+
+# modification 1
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>
+    def get_facecolor(self):
+        return self._facecolors2d
+</original>
+<patched>
+    def get_facecolor(self):
+        if hasattr(self, '_facecolors2d'):
+            return self._facecolors2d
+        else:
+            # Fallback to the default facecolor if _facecolors2d is not available
+            return super().get_facecolor()
+
+    def get_facecolors(self):
+        # Introducing get_facecolors for compatibility
+        return self.get_facecolor()
+</patched>
+```
+
+This patch does two things:
+1. It modifies the `get_facecolor` method in the `Poly3DCollection` class to check if `_facecolors2d` is available before trying to access it. If it's not available, it falls back to the superclass's `get_facecolor` method, which should safely return the default face colors.
+2. It introduces a new method `get_facecolors` that simply calls `get_facecolor`. This addition is meant to address the original issue directly by providing the method that was expected but missing. This way, existing code that expects a `get_facecolors` method can run without modification.
+
+This approach ensures backward compatibility and prevents the `AttributeError` from occurring by providing a safe fallback mechanism. It also directly addresses the user's expectation of a `get_facecolors` method being available for `Poly3DCollection` objects.

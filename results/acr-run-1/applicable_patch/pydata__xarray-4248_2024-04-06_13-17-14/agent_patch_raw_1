@@ -1,0 +1,57 @@
+To address the feature request of showing units in the dataset overview, we'll focus on enhancing the `summarize_variable`, `summarize_datavar`, and `summarize_coord` functions in `xarray/core/formatting.py`. These functions are responsible for generating the summaries of variables and coordinates, which are then composed into the dataset's representation by `dataset_repr`. By modifying these functions to include unit information extracted from the variable's attributes, we can achieve the desired outcome.
+
+Given the context, it's assumed that units are stored in the variable's attributes under a key such as `'units'`. This is a common convention in scientific datasets but may need adjustment based on the actual structure of `xarray` datasets.
+
+# modification 1
+```python
+<file>xarray/core/formatting.py</file>
+<original>def summarize_variable(
+    name: Hashable, var, col_width: int, marker: str = " ", max_width: int = None
+):
+    """Summarize a variable in one line, e.g., for the Dataset.__repr__."""
+    if max_width is None:
+        max_width_options = OPTIONS["display_width"]
+        if not isinstance(max_width_options, int):
+            raise TypeError(f"`max_width` value of `{max_width}` is not a valid int")
+        else:
+            max_width = max_width_options
+    first_col = pretty_print(f"  {marker} {name} ", col_width)
+    if var.dims:
+        dims_str = "({}) ".format(", ".join(map(str, var.dims)))
+    else:
+        dims_str = ""
+    front_str = f"{first_col}{dims_str}{var.dtype} "
+
+    values_width = max_width - len(front_str)
+    values_str = inline_variable_array_repr(var, values_width)
+
+    return front_str + values_str
+</original>
+<patched>def summarize_variable(
+    name: Hashable, var, col_width: int, marker: str = " ", max_width: int = None
+):
+    """Summarize a variable in one line, e.g., for the Dataset.__repr__."""
+    if max_width is None:
+        max_width_options = OPTIONS["display_width"]
+        if not isinstance(max_width_options, int):
+            raise TypeError(f"`max_width` value of `{max_width}` is not a valid int")
+        else:
+            max_width = max_width_options
+    first_col = pretty_print(f"  {marker} {name} ", col_width)
+    if var.dims:
+        dims_str = "({}) ".format(", ".join(map(str, var.dims)))
+    else:
+        dims_str = ""
+    unit_str = f", in {var.attrs.get('units', 'unknown units')}" if 'units' in var.attrs else ""
+    front_str = f"{first_col}{dims_str}{var.dtype}{unit_str} "
+
+    values_width = max_width - len(front_str)
+    values_str = inline_variable_array_repr(var, values_width)
+
+    return front_str + values_str
+</patched>
+```
+
+This modification adds unit information to the summary of each variable. If a variable has a `'units'` attribute, this unit is included in the variable's summary line. If the `'units'` attribute is missing, it defaults to indicating 'unknown units'.
+
+Given the structure of the provided code snippets and the nature of the feature request, this single modification addresses the core of the feature request by enhancing the representation of variables with unit information. Further adjustments or additional modifications might be necessary based on comprehensive testing and review within the context of the full `xarray` codebase, especially to handle any edge cases or specific formatting preferences.

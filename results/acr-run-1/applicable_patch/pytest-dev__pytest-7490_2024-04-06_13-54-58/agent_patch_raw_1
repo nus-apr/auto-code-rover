@@ -1,0 +1,39 @@
+Given the context and the nature of the issue with dynamically adding `xfail` markers in pytest version 6.0.0rc0, a hypothetical patch could involve ensuring that dynamically added `xfail` markers are properly recognized and processed during test execution. Since I can't access the actual pytest codebase or its specific versions here, the following patch is conceptual and based on the understanding of the issue as described:
+
+# modification 1
+```python
+<file>src/_pytest/nodes.py</file>
+<original>
+if isinstance(marker, MarkDecorator):
+    marker_ = marker
+elif isinstance(marker, str):
+    marker_ = getattr(MARK_GEN, marker)
+else:
+    raise ValueError("is not a string or pytest.mark.* Marker")
+self.keywords[marker_.name] = marker_
+if append:
+    self.own_markers.append(marker_.mark)
+else:
+    self.own_markers.insert(0, marker_.mark)
+</original>
+<patched>
+from _pytest.mark.structures import Mark
+
+if isinstance(marker, MarkDecorator):
+    marker_ = marker
+elif isinstance(marker, str):
+    # Ensure the marker is recognized as a Mark instance if specified by string
+    marker_ = Mark(name=marker, args=(), kwargs={})
+else:
+    raise ValueError("Marker must be a string or pytest.mark.* Marker")
+self.keywords[marker_.name] = marker_
+if append:
+    self.own_markers.append(marker_)
+else:
+    self.own_markers.insert(0, marker_)
+</patched>
+```
+
+This modification ensures that when a marker is specified by a string, it is converted into a `Mark` instance directly, bypassing the need for `getattr(MARK_GEN, marker)`, which might not correctly handle dynamically added `xfail` markers in some contexts. This approach aims to standardize the handling of markers, whether they are added dynamically or statically, ensuring that `xfail` and other markers work as expected when tests are run.
+
+Please note, this patch is conceptual and based on the provided descriptions. Actual implementation might require adjustments based on the full context of the pytest codebase, including compatibility with other parts of the framework and thorough testing to ensure it addresses the issue without introducing regressions.

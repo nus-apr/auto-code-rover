@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>sympy/polys/polyoptions.py</file>
+<original>raise OptionError('expected a valid domain specification, got %s' % domain)</original>
+<patched>if '[' in domain and ']' in domain:
+    try:
+        domain_elements = domain.strip('[]').split(',')
+        base_domain = domain_elements[0].strip()
+        if base_domain not in ['RR', 'QQ', 'ZZ']:
+            raise ValueError("Base domain must be one of 'RR', 'QQ', 'ZZ'")
+        gens = [sympify(gen.strip()) for gen in domain_elements[1:]]
+        if base_domain == 'RR':
+            return sympy.polys.domains.RealField().poly_ring(*gens)
+        elif base_domain == 'QQ':
+            return sympy.polys.domains.RationalField().poly_ring(*gens)
+        elif base_domain == 'ZZ':
+            return sympy.polys.domains.Integers().poly_ring(*gens)
+    except Exception as e:
+        raise OptionError('Invalid domain specification: {}. Error: {}'.format(domain, e))
+else:
+    raise OptionError('expected a valid domain specification, got %s' % domain)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/polys/polyoptions.py</file>
+<original>raise OptionError("'%s' must have a boolean value assigned, got %s" % (cls.option, value))</original>
+<patched>raise OptionError("'%s' must have a boolean value assigned, got %s. Ensure the value is either True or False." % (cls.option, value))</patched>
+```
+
+Explanation:
+
+- **Modification 1**: This patch addresses the core issue by extending the `Domain` class's `preprocess` method to handle domain specifications in the form of `RR[x,y,z]`, `QQ[x,y,z]`, or `ZZ[x,y,z]`. It parses the string to extract the base domain (`RR`, `QQ`, `ZZ`) and the generators (`x`, `y`, `z`). Based on the base domain, it then constructs the appropriate polynomial ring. If the domain specification is invalid, it raises an `OptionError` with a detailed message, including the original error for debugging purposes. This approach maintains backward compatibility while extending functionality.
+
+- **Modification 2**: This patch improves the clarity of the error message for boolean options. By explicitly stating that the value must be either `True` or `False`, it aims to reduce confusion and help users correct their input more efficiently. This modification exemplifies a general approach to making error messages more informative and user-friendly, as identified in the analysis phase.

@@ -1,0 +1,86 @@
+# modification 1
+```python
+<file>sklearn/mixture/gaussian_mixture.py</file>
+<original>class GaussianMixture(BaseMixture):
+    ...
+    def _m_step(self, X, log_resp):
+        ...
+        self.weights_ /= n_samples
+        self.precisions_cholesky_ = _compute_precision_cholesky(
+            self.covariances_, self.covariance_type)
+</original>
+<patched>class GaussianMixture(BaseMixture):
+    ...
+    def _m_step(self, X, log_resp):
+        ...
+        self.weights_ /= n_samples
+        self.precisions_cholesky_ = _compute_precision_cholesky(
+            self.covariances_, self.covariance_type)
+        # Store the labels of the training data
+        self.labels_ = np.argmax(log_resp, axis=1)
+</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/mixture/gaussian_mixture.py</file>
+<original>def _estimate_log_prob(self, X):
+    return _estimate_log_gaussian_prob(
+        X, self.means_, self.precisions_cholesky_, self.covariance_type)
+</original>
+<patched>def fit_predict(self, X, y=None):
+    """Estimate model parameters with the EM algorithm and assign component labels.
+
+    Parameters
+    ----------
+    X : array-like, shape (n_samples, n_features)
+        List of n_features-dimensional data points. Each row corresponds to a single data point.
+
+    y : Ignored
+
+    Returns
+    -------
+    labels : array, shape (n_samples,)
+        Component labels.
+    """
+    self.fit(X)
+    _, log_resp = self._estimate_log_prob_resp(X)
+    return np.argmax(log_resp, axis=1)
+</patched>
+```
+
+# modification 3
+```python
+<file>sklearn/mixture/gaussian_mixture.py</file>
+<original>def __init__(self, n_components=1, covariance_type='full', tol=1e-3,
+                 reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
+                 weights_init=None, means_init=None, precisions_init=None,
+                 random_state=None, warm_start=False,
+                 verbose=0, verbose_interval=10):
+        super(GaussianMixture, self).__init__(
+            n_components=n_components, tol=tol, reg_covar=reg_covar,
+            max_iter=max_iter, n_init=n_init, init_params=init_params,
+            random_state=random_state, warm_start=warm_start,
+            verbose=verbose, verbose_interval=verbose_interval)
+        ...
+</original>
+<patched>def __init__(self, n_components=1, covariance_type='full', tol=1e-3,
+                 reg_covar=1e-6, max_iter=100, n_init=1, init_params='kmeans',
+                 weights_init=None, means_init=None, precisions_init=None,
+                 random_state=None, warm_start=False,
+                 verbose=0, verbose_interval=10):
+        super(GaussianMixture, self).__init__(
+            n_components=n_components, tol=tol, reg_covar=reg_covar,
+            max_iter=max_iter, n_init=n_init, init_params=init_params,
+            random_state=random_state, warm_start=warm_start,
+            verbose=verbose, verbose_interval=verbose_interval)
+        self.covariance_type = covariance_type
+        self.weights_init = weights_init
+        self.means_init = means_init
+        self.precisions_init = precisions_init
+        # Initialize labels_ attribute
+        self.labels_ = None
+</patched>
+```
+
+These modifications introduce a `labels_` attribute to the `GaussianMixture` class to store the labels of the training data, similar to clustering algorithms. Additionally, a `fit_predict` method is added to provide a convenient way to fit the model and predict the labels in one step. Lastly, the `__init__` method is patched to initialize the `labels_` attribute.

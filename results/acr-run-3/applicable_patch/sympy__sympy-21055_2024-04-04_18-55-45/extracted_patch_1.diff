@@ -1,0 +1,45 @@
+diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py
+index e1f97190c0..dc8aa99642 100644
+--- a/sympy/assumptions/refine.py
++++ b/sympy/assumptions/refine.py
+@@ -48,8 +48,17 @@ def refine(expr, assumptions=True):
+ 
+     if not expr.is_Atom:
+         args = [refine(arg, assumptions) for arg in expr.args]
+-        # TODO: this will probably not work with Integral or Polynomial
+-        expr = expr.func(*args)
++        # Enhanced handling for Integral and Piecewise expressions
++        if isinstance(expr, Integral) or isinstance(expr, Piecewise):
++            # Attempt to refine each part of a Piecewise expression or the integrand of an Integral
++            if isinstance(expr, Piecewise):
++                new_args = [(refine(e, assumptions), c) for e, c in expr.args]
++                expr = expr.func(*new_args)
++            elif isinstance(expr, Integral):
++                new_function = refine(expr.function, assumptions)
++                expr = expr.func(new_function, *expr.limits)
++        else:
++            expr = expr.func(*args)
+     if hasattr(expr, '_eval_refine'):
+         ref_expr = expr._eval_refine(assumptions)
+         if ref_expr is not None:
+diff --git a/sympy/integrals/integrals.py b/sympy/integrals/integrals.py
+index 8ec4076673..b7a8464eb7 100644
+--- a/sympy/integrals/integrals.py
++++ b/sympy/integrals/integrals.py
+@@ -530,12 +530,14 @@ def doit(self, **hints):
+                 not isinstance(function, Piecewise)):
+                     function = piecewise_fold(function)
+             if isinstance(function, Piecewise):
++                # Apply assumptions to Piecewise conditions before attempting to integrate
++                refined_function = refine(function, assumptions=eval_kwargs.get('assumptions', True))
+                 if len(xab) == 1:
+-                    antideriv = function._eval_integral(xab[0],
++                    antideriv = refined_function._eval_integral(xab[0],
+                         **eval_kwargs)
+                 else:
+                     antideriv = self._eval_integral(
+-                        function, xab[0], **eval_kwargs)
++                        refined_function, xab[0], **eval_kwargs)
+             else:
+                 # There are a number of tradeoffs in using the
+                 # Meijer G method. It can sometimes be a lot faster

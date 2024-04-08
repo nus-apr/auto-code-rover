@@ -1,0 +1,75 @@
+Given the feedback, let's refine the approach to ensure the patch correctly addresses the issue without causing test failures. It's possible that the initial solution was too restrictive or not correctly implemented. Let's adjust the validation logic or its placement within the `__init__` method to ensure it aligns with the project's requirements and doesn't inadvertently break existing functionality.
+
+# modification 1
+```python
+<file>src/flask/blueprints.py</file>
+<original>    def __init__(
+        self,
+        name: str,
+        import_name: str,
+        static_folder: t.Optional[str] = None,
+        static_url_path: t.Optional[str] = None,
+        template_folder: t.Optional[str] = None,
+        url_prefix: t.Optional[str] = None,
+        subdomain: t.Optional[str] = None,
+        url_defaults: t.Optional[dict] = None,
+        root_path: t.Optional[str] = None,
+        cli_group: t.Optional[str] = _sentinel,  # type: ignore
+    ):
+        super().__init__(
+            import_name=import_name,
+            static_folder=static_folder,
+            static_url_path=static_url_path,
+            template_folder=template_folder,
+            root_path=root_path,
+        )
+        self.name = name
+        self.url_prefix = url_prefix
+        self.subdomain = subdomain
+        self.deferred_functions: t.List[DeferredSetupFunction] = []
+
+        if url_defaults is None:
+            url_defaults = {}
+
+        self.url_values_defaults = url_defaults
+        self.cli_group = cli_group
+        self._blueprints: t.List[t.Tuple["Blueprint", dict]] = []
+</original>
+<patched>    def __init__(
+        self,
+        name: str,
+        import_name: str,
+        static_folder: t.Optional[str] = None,
+        static_url_path: t.Optional[str] = None,
+        template_folder: t.Optional[str] = None,
+        url_prefix: t.Optional[str] = None,
+        subdomain: t.Optional[str] = None,
+        url_defaults: t.Optional[dict] = None,
+        root_path: t.Optional[str] = None,
+        cli_group: t.Optional[str] = _sentinel,  # type: ignore
+    ):
+        # Validate blueprint name to not contain dots
+        if '.' in name:
+            raise ValueError("Blueprint names cannot contain dots ('.'). Please use underscores ('_') or other characters instead.")
+        super().__init__(
+            import_name=import_name,
+            static_folder=static_folder,
+            static_url_path=static_url_path,
+            template_folder=template_folder,
+            root_path=root_path,
+        )
+        self.name = name
+        self.url_prefix = url_prefix
+        self.subdomain = subdomain
+        self.deferred_functions: t.List[DeferredSetupFunction] = []
+
+        if url_defaults is None:
+            url_defaults = {}
+
+        self.url_values_defaults = url_defaults
+        self.cli_group = cli_group
+        self._blueprints: t.List[t.Tuple["Blueprint", dict]] = []
+</patched>
+```
+
+This revised patch ensures that the validation for the blueprint name is still performed early in the `__init__` method of the `Blueprint` class, but the error message has been clarified. This approach should prevent the creation of blueprints with names containing dots, aligning with the requirement to avoid dots due to their significance in denoting nested blueprints.

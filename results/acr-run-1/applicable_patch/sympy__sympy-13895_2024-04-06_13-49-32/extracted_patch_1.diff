@@ -1,0 +1,34 @@
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index 1acc00be3a..4c7c804ced 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -616,13 +616,26 @@ def shorter(*choices):
+         if n is not S.One:
+             expr = (numer*n).expand()/d
+ 
++    # Before applying signsimp, check if the operation changes the nature of exponentiation expressions
+     if expr.could_extract_minus_sign():
+         n, d = fraction(expr)
+         if d != 0:
+-            expr = signsimp(-n/(-d))
+-
++            # Proposed check to ensure simplification does not alter equivalence
++            temp_expr = signsimp(-n/(-d))
++            # Verify if temp_expr simplification maintains equivalence for a sample symbolic substitution
++            from sympy.abc import _clash1
++            x_sample = _clash1['x']
++            if simplify(expr.subs(x_sample, S(1))) == simplify(temp_expr.subs(x_sample, S(1))):
++                expr = temp_expr
++
++    # Enhanced check to ensure that the simplified expression is equivalent to the original
++    # This involves a more nuanced measure that considers the nature of the expression, especially for exponentiation
+     if measure(expr) > ratio*measure(original_expr):
+-        expr = original_expr
++        # Introduce a symbolic test to confirm equivalence of original and simplified expressions
++        from sympy.abc import _clash1
++        x_sample = _clash1['x']
++        if not (simplify(expr - original_expr).subs(x_sample, S(1)) == 0):
++            expr = original_expr
+ 
+     # restore floats
+     if floats and rational is None:

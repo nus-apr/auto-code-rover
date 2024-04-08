@@ -1,0 +1,58 @@
+diff --git a/django/contrib/sessions/backends/db.py b/django/contrib/sessions/backends/db.py
+index 7c905a2c99..8b425e3e63 100644
+--- a/django/contrib/sessions/backends/db.py
++++ b/django/contrib/sessions/backends/db.py
+@@ -41,7 +41,13 @@ class SessionStore(SessionBase):
+ 
+     def load(self):
+         s = self._get_session_from_db()
+-        return self.decode(s.session_data) if s else {}
++        try:
++            return self.decode(s.session_data) if s else {}
++        except Exception as e:
++            # Log the exception for debugging purposes
++            logging.exception("Failed to decode session data: %s", e)
++            # Return an empty session if decoding fails
++            return {}
+ 
+     def exists(self, session_key):
+         return self.model.objects.filter(session_key=session_key).exists()
+diff --git a/django/core/signing.py b/django/core/signing.py
+index c6713c3033..9ee5ad0cf8 100644
+--- a/django/core/signing.py
++++ b/django/core/signing.py
+@@ -130,17 +130,23 @@ def loads(s, key=None, salt='django.core.signing', serializer=JSONSerializer, ma
+ 
+     The serializer is expected to accept a bytestring.
+     """
+-    # TimestampSigner.unsign() returns str but base64 and zlib compression
+-    # operate on bytes.
+-    base64d = TimestampSigner(key, salt=salt).unsign(s, max_age=max_age).encode()
+-    decompress = base64d[:1] == b'.'
+-    if decompress:
+-        # It's compressed; uncompress it first
+-        base64d = base64d[1:]
+-    data = b64_decode(base64d)
+-    if decompress:
+-        data = zlib.decompress(data)
+-    return serializer().loads(data)
++    try:
++        # TimestampSigner.unsign() returns str but base64 and zlib compression
++        # operate on bytes.
++        base64d = TimestampSigner(key, salt=salt).unsign(s, max_age=max_age).encode()
++        decompress = base64d[:1] == b'.'
++        if decompress:
++            # It's compressed; uncompress it first
++            base64d = base64d[1:]
++        data = b64_decode(base64d)
++        if decompress:
++            data = zlib.decompress(data)
++        return serializer().loads(data)
++    except Exception as e:
++        # Log the exception for debugging purposes
++        logging.exception("Failed to load signed data: %s", e)
++        # Return None or an appropriate default value indicating failure to load
++        return None
+ 
+ 
+ class Signer:

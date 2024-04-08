@@ -1,0 +1,52 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index b821c42845..1e0b392638 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -233,18 +233,37 @@ def transpose(self):
+         return self._eval_transpose()
+ 
+     def _entry(self, i, j, **kwargs):
+-        # Find row entry
+-        for row_block, numrows in enumerate(self.rowblocksizes):
+-            if (i < numrows) != False:
++        from sympy import Symbol
++        # Initialize variables to track the block and adjusted indices
++        row_block = None
++        col_block = None
++        adjusted_i = i
++        adjusted_j = j
++
++        # Determine the row block
++        cumulative_rows = 0
++        for idx, numrows in enumerate(self.rowblocksizes):
++            if isinstance(i, Symbol) or cumulative_rows + numrows > i:
++                row_block = idx
+                 break
+-            else:
+-                i -= numrows
+-        for col_block, numcols in enumerate(self.colblocksizes):
+-            if (j < numcols) != False:
++            cumulative_rows += numrows
++        adjusted_i -= cumulative_rows
++
++        # Determine the column block
++        cumulative_cols = 0
++        for idx, numcols in enumerate(self.colblocksizes):
++            if isinstance(j, Symbol) or cumulative_cols + numcols > j:
++                col_block = idx
+                 break
+-            else:
+-                j -= numcols
+-        return self.blocks[row_block, col_block][i, j]
++            cumulative_cols += numcols
++        adjusted_j -= cumulative_cols
++
++        # Check if the block was determined; otherwise, raise an error
++        if row_block is None or col_block is None:
++            raise IndexError("BlockMatrix index out of range")
++
++        # Fetch the element from the appropriate block
++        return self.blocks[row_block, col_block][adjusted_i, adjusted_j]
+ 
+     @property
+     def is_Identity(self):

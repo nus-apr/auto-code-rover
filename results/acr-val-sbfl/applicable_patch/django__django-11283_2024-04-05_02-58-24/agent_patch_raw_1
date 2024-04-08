@@ -1,0 +1,22 @@
+# modification 1
+```python
+<file>django/contrib/auth/migrations/0011_update_proxy_permissions.py</file>
+<original>Permission.objects.filter(
+    permissions_query,
+    content_type=old_content_type,
+).update(content_type=new_content_type)</original>
+<patched>permissions_to_update = Permission.objects.filter(
+    permissions_query,
+    content_type=old_content_type,
+)
+for permission in permissions_to_update:
+    # Check if a permission with the same codename but the new content type already exists
+    if not Permission.objects.filter(codename=permission.codename, content_type=new_content_type).exists():
+        permission.content_type = new_content_type
+        permission.save()
+    else:
+        # If a duplicate permission exists with the new content type, consider deleting or logging
+        print(f"Skipping update for existing permission: {permission.codename} for content type {new_content_type}")</patched>
+```
+
+This patch addresses the issue by modifying the `update_proxy_model_permissions` function in the `django/contrib/auth/migrations/0011_update_proxy_permissions.py` file. Instead of directly updating the `content_type` of permissions which could lead to duplicate key value violations, it iterates through each permission that matches the criteria. For each permission, it checks if a permission with the same codename and the new content type already exists. If it does not exist, the permission's `content_type` is updated to the new content type. If a duplicate permission exists, it logs a message (or you could choose to handle this case differently, such as by deleting the duplicate). This approach prevents the creation of duplicate permissions and addresses the integrity error described in the issue.

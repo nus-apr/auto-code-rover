@@ -1,0 +1,51 @@
+diff --git a/django/db/models/constraints.py b/django/db/models/constraints.py
+index 64bd60484e..8aa8428942 100644
+--- a/django/db/models/constraints.py
++++ b/django/db/models/constraints.py
+@@ -77,23 +77,29 @@ class Deferrable(Enum):
+ 
+ 
+ class UniqueConstraint(BaseConstraint):
+-    def __init__(self, *, fields, name, condition=None, deferrable=None):
+-        if not fields:
+-            raise ValueError('At least one field is required to define a unique constraint.')
+-        if not isinstance(condition, (type(None), Q)):
+-            raise ValueError('UniqueConstraint.condition must be a Q instance.')
+-        if condition and deferrable:
+-            raise ValueError(
+-                'UniqueConstraint with conditions cannot be deferred.'
+-            )
+-        if not isinstance(deferrable, (type(None), Deferrable)):
+-            raise ValueError(
+-                'UniqueConstraint.deferrable must be a Deferrable instance.'
+-            )
+-        self.fields = tuple(fields)
+-        self.condition = condition
+-        self.deferrable = deferrable
+-        super().__init__(name)
++    def __init__(self, *, fields, name, condition=None, deferrable=None, model=None):
++            if not fields:
++                raise ValueError('At least one field is required to define a unique constraint.')
++            if not isinstance(condition, (type(None), Q)):
++                raise ValueError('UniqueConstraint.condition must be a Q instance.')
++            if condition and deferrable:
++                raise ValueError(
++                    'UniqueConstraint with conditions cannot be deferred.'
++                )
++            if not isinstance(deferrable, (type(None), Deferrable)):
++                raise ValueError(
++                    'UniqueConstraint.deferrable must be a Deferrable instance.'
++                )
++            self.fields = tuple(fields)
++            self.condition = condition
++            self.deferrable = deferrable
++            # Validate that fields exist in the model
++            if model:
++                model_fields = {field.name for field in model._meta.get_fields()}
++                undefined_fields = set(fields) - model_fields
++                if undefined_fields:
++                    raise ValueError(f"Fields {undefined_fields} are not defined in model '{model._meta.object_name}'.")
++            super().__init__(name)
+ 
+     def _get_condition_sql(self, model, schema_editor):
+         if self.condition is None:

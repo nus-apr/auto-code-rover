@@ -1,0 +1,53 @@
+diff --git a/sympy/printing/pretty/pretty.py b/sympy/printing/pretty/pretty.py
+index 09e2b00735..fee0afc498 100644
+--- a/sympy/printing/pretty/pretty.py
++++ b/sympy/printing/pretty/pretty.py
+@@ -933,12 +933,15 @@ def _print_BasisDependent(self, expr):
+         strs = ['']
+         for i, partstr in enumerate(o1):
+             # XXX: What is this hack?
++            # Adjusting the baseline alignment for pretty printing
+             if '\n' in partstr:
+                 tempstr = partstr
+-                tempstr = tempstr.replace(vectstrs[i], '')
+-                tempstr = tempstr.replace(u'\N{RIGHT PARENTHESIS UPPER HOOK}',
+-                                          u'\N{RIGHT PARENTHESIS UPPER HOOK}'
+-                                          + ' ' + vectstrs[i])
++                # Determine the baseline index
++                baseline_index = tempstr.find(u'\N{RIGHT PARENTHESIS UPPER HOOK}')
++                if baseline_index != -1:
++                    # Calculate padding for alignment
++                    padding = ' ' * (baseline_index + len(vectstrs[i]) // 2)
++                    tempstr = tempstr.replace(vectstrs[i], padding + vectstrs[i] + padding)
+                 o1[i] = tempstr
+         o1 = [x.split('\n') for x in o1]
+         n_newlines = max([len(x) for x in o1])
+diff --git a/sympy/vector/basisdependent.py b/sympy/vector/basisdependent.py
+index 4252c4aadc..b4b588d92c 100755
+--- a/sympy/vector/basisdependent.py
++++ b/sympy/vector/basisdependent.py
+@@ -33,12 +33,22 @@ def __rsub__(self, other):
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__rmul__')
+     def __mul__(self, other):
+-        return self._mul_func(self, other)
++        from sympy.vector import Vector
++        if isinstance(other, (int, float)) and other == 1:
++            # Handle the case where the scalar is 1, to avoid breaking pretty printing
++            return self
++        else:
++            return self._mul_func(self, other)
+ 
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__mul__')
+     def __rmul__(self, other):
+-        return self._mul_func(other, self)
++        from sympy.vector import Vector
++        if isinstance(other, (int, float)) and other == 1:
++            # Handle the case where the scalar is 1, to avoid breaking pretty printing
++            return self
++        else:
++            return self._mul_func(other, self)
+ 
+     def __neg__(self):
+         return self._mul_func(S(-1), self)

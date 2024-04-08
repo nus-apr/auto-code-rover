@@ -1,0 +1,42 @@
+diff --git a/sympy/polys/polyoptions.py b/sympy/polys/polyoptions.py
+index 6e504a3057..6851446c1e 100644
+--- a/sympy/polys/polyoptions.py
++++ b/sympy/polys/polyoptions.py
+@@ -141,12 +141,12 @@ def preprocess_options(args):
+                 try:
+                     cls = self.__options__[option]
+                 except KeyError:
+-                    raise OptionError("'%s' is not a valid option" % option)
++                    raise OptionError("'%s' is not a valid option. Ensure the option name is correct and supported in the current context." % option)
+ 
+                 if issubclass(cls, Flag):
+                     if flags is None or option not in flags:
+                         if strict:
+-                            raise OptionError("'%s' flag is not allowed in this context" % option)
++                            raise OptionError("'%s' flag is not allowed in this context. Check the documentation for allowed flags in this operation." % option)
+ 
+                 if value is not None:
+                     self[option] = cls.preprocess(value)
+@@ -480,7 +480,21 @@ def preprocess(cls, domain):
+                 gens = list(map(sympify, r.groups()[1].split(',')))
+                 return sympy.polys.domains.QQ.algebraic_field(*gens)
+ 
+-        raise OptionError('expected a valid domain specification, got %s' % domain)
++        if '[' in domain and ']' in domain:
++            domain_elements = domain.strip('[]').split(',')
++            if domain.startswith('RR'):
++                base_domain = sympy.polys.domains.RR
++            elif domain.startswith('QQ'):
++                base_domain = sympy.polys.domains.QQ
++            else:
++                raise OptionError('Unsupported base domain in domain specification: %s' % domain)
++            try:
++                gens = [sympy.sympify(gen.strip()) for gen in domain_elements[1:]]
++                return base_domain.poly_ring(*gens)
++            except Exception as e:
++                raise OptionError('Error processing domain specification: %s' % str(e))
++        else:
++            raise OptionError('expected a valid domain specification, got %s' % domain)
+ 
+     @classmethod
+     def postprocess(cls, options):

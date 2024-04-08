@@ -1,0 +1,28 @@
+To address the issue of enforcing boolean values for `__isnull` lookups, we need to ensure that any usage of `__isnull` within the Django ORM's query construction process explicitly checks the value being passed and raises an error if it is not a boolean. The provided context from `django/db/models/sql/query.py` does not directly show where the value for `__isnull` is validated, but it does show where `__isnull` is used. Given this, the patch will focus on adding a validation step before `__isnull` lookups are processed to ensure they receive boolean values only. Since the exact location for this validation is not provided, I will propose a conceptual patch that could be applied in a method that processes lookups, such as where filters are added or where lookups are resolved.
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>
+if contains_louter:
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, True),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</original>
+<patched>
+if contains_louter:
+    # Ensure the value passed to __isnull is a boolean
+    isnull_value = True  # This value is typically determined dynamically
+    if not isinstance(isnull_value, bool):
+        raise ValueError("__isnull lookup requires a boolean value.")
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, isnull_value),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</patched>
+```
+
+This modification introduces a conceptual change where before the `__isnull` lookup is processed, there's a check to ensure the value is a boolean. The actual implementation would likely need to be placed in a more appropriate location where the value passed to `__isnull` is determined or right before the lookup is resolved. The example uses a hardcoded `True` value for demonstration purposes, but in practice, this value would be the one passed by the user or the system in the lookup.
+
+Please note, the actual implementation may require identifying the precise location in the Django ORM's codebase where lookup values are validated or where the `__isnull` lookup specifically is handled. This could involve modifications in the lookup resolution process or adding a new validation layer for lookup values.

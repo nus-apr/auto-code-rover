@@ -1,0 +1,43 @@
+# modification 1
+```python
+<file>seaborn/_stats/regression.py</file>
+<original>    def _fit_predict(self, data):
+
+        x = data["x"]
+        y = data["y"]
+        if x.nunique() <= self.order:
+            # TODO warn?
+            xx = yy = []
+        else:
+            p = np.polyfit(x, y, self.order)
+            xx = np.linspace(x.min(), x.max(), self.gridsize)
+            yy = np.polyval(p, xx)
+
+        return pd.DataFrame(dict(x=xx, y=yy))
+</original>
+<patched>    def _fit_predict(self, data):
+        import numpy as np
+        import pandas as pd
+
+        x = data["x"].dropna()
+        y = data["y"].dropna()
+        if len(x) == 0 or len(y) == 0:
+            xx = yy = np.array([])
+        elif x.nunique() <= self.order:
+            # TODO warn?
+            xx = yy = np.array([])
+        else:
+            # Ensure x and y are aligned after dropna
+            common_index = x.index.intersection(y.index)
+            x = x.loc[common_index]
+            y = y.loc[common_index]
+            
+            p = np.polyfit(x, y, self.order)
+            xx = np.linspace(x.min(), x.max(), self.gridsize)
+            yy = np.polyval(p, xx)
+
+        return pd.DataFrame(dict(x=xx, y=yy))
+</patched>
+```
+
+This patch addresses the issue by first dropping `NaN` values from both `x` and `y` data arrays. It then checks if either `x` or `y` is empty after dropping `NaN` values, in which case it returns empty arrays for both. If there are enough data points for a polynomial fit, it aligns `x` and `y` based on their common index to ensure that the data points correspond to each other after removing `NaN` values. This approach ensures that `np.polyfit` is called with data arrays that do not contain missing values, thus avoiding the `LinAlgError` due to missing data.

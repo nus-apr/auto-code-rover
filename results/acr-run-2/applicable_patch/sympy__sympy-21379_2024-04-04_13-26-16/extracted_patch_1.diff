@@ -1,0 +1,53 @@
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index 3894f4fd1c..a330b0abc9 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -946,7 +946,11 @@ def subs(self, *args, **kwargs):
+         else:
+             rv = self
+             for old, new in sequence:
+-                rv = rv._subs(old, new, **kwargs)
++                if isinstance(rv, Piecewise) and any(isinstance(arg, Piecewise) for arg in (old, new)):
++                    # Special handling for Piecewise expressions to ensure correct substitution
++                    rv = rv._eval_subs(old, new)
++                else:
++                    rv = rv._subs(old, new, **kwargs)
+                 if not isinstance(rv, Basic):
+                     break
+             return rv
+diff --git a/sympy/functions/elementary/piecewise.py b/sympy/functions/elementary/piecewise.py
+index 91bfceafaa..e6c2a6abf4 100644
+--- a/sympy/functions/elementary/piecewise.py
++++ b/sympy/functions/elementary/piecewise.py
+@@ -805,21 +805,21 @@ def _eval_power(self, s):
+         return self.func(*[(e**s, c) for e, c in self.args])
+ 
+     def _eval_subs(self, old, new):
+-        # this is strictly not necessary, but we can keep track
+-        # of whether True or False conditions arise and be
+-        # somewhat more efficient by avoiding other substitutions
+-        # and avoiding invalid conditions that appear after a
+-        # True condition
+         args = list(self.args)
+         args_exist = False
+         for i, (e, c) in enumerate(args):
+-            c = c._subs(old, new)
+-            if c != False:
++            new_c = c._subs(old, new)
++            new_e = e
++            if new_c != False and new_c != c:
+                 args_exist = True
+-                e = e._subs(old, new)
+-            args[i] = (e, c)
+-            if c == True:
++                new_e = e._subs(old, new)
++            elif c == True:
++                # If condition is unconditionally True, break early without substitution
+                 break
++            else:
++                # Perform substitution if condition didn't change to avoid missing cases
++                new_e = e._subs(old, new)
++            args[i] = (new_e, new_c)
+         if not args_exist:
+             args = ((Undefined, True),)
+         return self.func(*args)

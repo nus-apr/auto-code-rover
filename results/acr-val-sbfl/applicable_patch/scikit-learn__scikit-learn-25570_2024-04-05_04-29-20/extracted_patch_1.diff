@@ -1,0 +1,40 @@
+diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
+index a26145117..e28a951d2 100644
+--- a/sklearn/compose/_column_transformer.py
++++ b/sklearn/compose/_column_transformer.py
+@@ -865,11 +865,16 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                 transformer_names = [
+                     t[0] for t in self._iter(fitted=True, replace_strings=True)
+                 ]
+-                feature_names_outs = [X.columns for X in Xs]
+-                names_out = self._add_prefix_for_feature_names_out(
+-                    list(zip(transformer_names, feature_names_outs))
+-                )
+-                output.columns = names_out
++                feature_names_outs = [X.columns for X in Xs if hasattr(X, 'columns')]
++                # Only add prefixes if there are any feature names to process
++                if feature_names_outs:
++                    names_out = self._add_prefix_for_feature_names_out(
++                        list(zip(transformer_names, feature_names_outs))
++                    )
++                    output.columns = names_out
++                else:
++                    # Handle case with no features by setting an empty list
++                    output.columns = []
+                 return output
+ 
+             return np.hstack(Xs)
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..1cc2f2530 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -48,7 +48,8 @@ def _wrap_in_pandas_container(
+         try:
+             columns = columns()
+         except Exception:
+-            columns = None
++            # Ensure columns is set to an empty list if the callable fails and data_to_wrap is a DataFrame
++            columns = [] if isinstance(data_to_wrap, pd.DataFrame) else None
+ 
+     pd = check_pandas_support("Setting output container to 'pandas'")
+ 

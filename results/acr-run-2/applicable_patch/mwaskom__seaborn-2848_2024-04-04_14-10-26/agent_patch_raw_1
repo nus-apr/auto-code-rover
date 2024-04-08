@@ -1,0 +1,28 @@
+Given the context and the issue described, the problem seems to arise from passing the `hue` parameter directly in the `map` method of `PairGrid`, which is not handled as expected in the `scatterplot` function. The error suggests that seaborn's internal handling of the `hue` parameter, especially with categorical data, has changed in a way that breaks this usage pattern. Without access to the exact internal changes between seaborn versions 0.11.0 and 0.11.1, a precise patch cannot be guaranteed. However, a potential workaround could involve modifying the `scatterplot` function to handle the `hue` parameter more robustly when it's passed directly with categorical data.
+
+# modification 1
+```python
+<file>seaborn/relational.py</file>
+<original>
+p.map_hue(palette=palette, order=hue_order, norm=hue_norm)
+p.map_size(sizes=sizes, order=size_order, norm=size_norm)
+p.map_style(markers=markers, order=style_order)
+</original>
+<patched>
+# Check if 'hue' is directly passed as a Series or array and handle it before mapping
+if hue is not None and not isinstance(hue, (str, list)):
+    # Convert hue to a list if it's a pandas Series to avoid KeyErrors
+    hue = hue.tolist() if hasattr(hue, 'tolist') else hue
+    # Assign the converted hue back to the data to ensure it's correctly mapped
+    data['hue_temp'] = hue
+    hue = 'hue_temp'
+
+p.map_hue(palette=palette, order=hue_order, norm=hue_norm)
+p.map_size(sizes=sizes, order=size_order, norm=size_norm)
+p.map_style(markers=markers, order=style_order)
+</patched>
+```
+
+This modification attempts to address the issue by ensuring that if `hue` is passed directly to the `scatterplot` function (not as a column name from `data` but as an array or Series), it is first converted to a list (if necessary) and then temporarily added to the `data` DataFrame under a new column name. This approach aims to prevent the `KeyError` and `TypeError` seen in the traceback by ensuring that the `hue` values are correctly recognized and mapped within the plotting function. 
+
+Please note, this patch is speculative and based on the understanding of the issue from the provided context. It might require adjustments or further testing to ensure it fully resolves the issue without introducing new problems, especially considering the complexity of seaborn's plotting functions and the variety of data types they can handle.

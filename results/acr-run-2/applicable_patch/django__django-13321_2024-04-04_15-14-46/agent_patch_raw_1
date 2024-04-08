@@ -1,0 +1,67 @@
+# modification 1
+```python
+<file>django/contrib/sessions/backends/db.py</file>
+<original>    def load(self):
+        s = self._get_session_from_db()
+        return self.decode(s.session_data) if s else {}
+</original>
+<patched>    def load(self):
+        s = self._get_session_from_db()
+        try:
+            return self.decode(s.session_data) if s else {}
+        except Exception as e:
+            # Log the exception for debugging purposes
+            logging.getLogger("django.sessions").warning(f"Session decoding failed: {e}")
+            # Create a new session if there's a decoding error
+            self.create()
+        return {}
+</patched>
+```
+
+# modification 2
+```python
+<file>django/contrib/sessions/backends/signed_cookies.py</file>
+<original>    def load(self):
+        """
+        Load the data from the key itself instead of fetching from some
+        external data store. Opposite of _get_session_key(), raise BadSignature
+        if signature fails.
+        """
+        try:
+            return signing.loads(
+                self.session_key,
+                serializer=self.serializer,
+                # This doesn't handle non-default expiry dates, see #19201
+                max_age=self.get_session_cookie_age(),
+                salt='django.contrib.sessions.backends.signed_cookies',
+            )
+        except Exception:
+            # BadSignature, ValueError, or unpickling exceptions. If any of
+            # these happen, reset the session.
+            self.create()
+        return {}
+</original>
+<patched>    def load(self):
+        """
+        Load the data from the key itself instead of fetching from some
+        external data store. Opposite of _get_session_key(), raise BadSignature
+        if signature fails.
+        """
+        try:
+            return signing.loads(
+                self.session_key,
+                serializer=self.serializer,
+                # This doesn't handle non-default expiry dates, see #19201
+                max_age=self.get_session_cookie_age(),
+                salt='django.contrib.sessions.backends.signed_cookies',
+            )
+        except Exception as e:
+            # Log the exception for debugging purposes
+            logging.getLogger("django.sessions").warning(f"Session decoding failed: {e}")
+            # Reset the session if there's a decoding error
+            self.create()
+        return {}
+</patched>
+```
+
+These modifications aim to improve the handling of session decoding failures by logging the exceptions for better debugging and ensuring that a new session is created in case of decoding errors. This approach provides a more robust and informative way to deal with invalid or corrupted session data, potentially preventing crashes and improving the overall stability of the application.

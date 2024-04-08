@@ -1,0 +1,39 @@
+Given the issue and the analysis of the provided code snippets, the problem seems to stem from the interaction between `select_related` and `only` in scenarios involving reverse `OneToOneField` relations. The `select_related` method correctly sets up the data structure for selecting specific related models, and the `only` method correctly sets up fields for immediate loading. However, the issue arises because the combination of these methods does not respect the limitation imposed by `only` when used with `select_related` on reverse `OneToOneField` relations.
+
+To address this issue, we need to ensure that when `only` is used in conjunction with `select_related`, the query construction logic respects the fields specified by `only` even for related models. This might involve modifying the `add_select_related` and `add_immediate_loading` methods to better handle this specific case.
+
+However, without a deep dive into the Django ORM's internal query construction logic and without explicit guidance from the Django project on the intended behavior in this scenario, proposing a precise patch is challenging. A proper fix would likely involve adjustments to the internal query construction logic to ensure that `only` constraints are applied correctly to fields of related models specified via `select_related`.
+
+Given these constraints, a hypothetical patch might look like this:
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>def add_select_related(self, fields):
+    ...
+    for field in fields:
+        d = field_dict
+        for part in field.split(LOOKUP_SEP):
+            d = d.setdefault(part, {})
+    self.select_related = field_dict</original>
+<patched>def add_select_related(self, fields, only_fields=None):
+    ...
+    only_fields_set = set(only_fields.split(LOOKUP_SEP)) if only_fields else None
+    for field in fields:
+        d = field_dict
+        for part in field.split(LOOKUP_SEP):
+            if only_fields_set and part not in only_fields_set:
+                continue
+            d = d.setdefault(part, {})
+    self.select_related = field_dict</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>obj.query.add_select_related(fields)</original>
+<patched>only_fields = set([f.split('__')[0] for f in self.query._fields_to_load if '__' in f])
+obj.query.add_select_related(fields, only_fields=only_fields)</patched>
+```
+
+Please note, these modifications are speculative and aim to illustrate the type of changes that might be needed. The actual implementation would require a thorough understanding of Django's query construction logic and extensive testing to ensure that the changes do not introduce regressions or unintended behavior, especially considering the complexity of Django's ORM and the wide variety of use cases it supports.

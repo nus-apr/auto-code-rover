@@ -1,0 +1,43 @@
+Given the feedback, let's refine the approach to ensure that the `ensure_schema` method in the `MigrationRecorder` class respects the `allow_migrate` rules defined in custom database routers, while also ensuring that the solution does not introduce regressions that cause test failures. It's possible that the direct use of `router.allow_migrate` without considering all router configurations might have led to the issue. Let's adjust the approach to more accurately reflect Django's routing system's intended use.
+
+# modification 1
+```python
+<file>django/db/migrations/recorder.py</file>
+<original>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema."""
+        # If the table's there, that's fine - we've never changed its schema
+        # in the codebase.
+        if self.has_table():
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</original>
+<patched>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema, respecting db router allow_migrate rules."""
+        from django.db import connections, router
+        # If the table's there, that's fine - we've never changed its schema
+        # in the codebase.
+        if self.has_table():
+            return
+        # Dynamically get all routers to check if migration is allowed
+        allow = False
+        for alias in connections:
+            if router.allow_migrate(connection=connections[alias], model=self.Migration):
+                allow = True
+                break
+        if not allow:
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</patched>
+```
+
+This revised patch iterates over all database connections and checks with the configured routers if migration is allowed for any of them. This approach ensures that the `ensure_schema` method respects the `allow_migrate` rules across all configured routers, which should align better with Django's intended behavior for database migrations and routing. This method also ensures that the migration table is only created if at least one router allows it, which should prevent the issue from occurring while also avoiding the test failures reported previously.

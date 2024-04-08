@@ -1,0 +1,22 @@
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index d29a9e1f..184e6d9a 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -932,6 +932,17 @@ def dataset_update_method(
+ 
+     # use ds.coords and not ds.indexes, else str coords are cast to object
+     indexes = {key: dataset.coords[key] for key in dataset.indexes.keys()}
++    from dask.array.core import Array as DaskArray
++    
++    def preserve_dask_chunks(obj):
++        if isinstance(obj, DataArray) and isinstance(obj.data, DaskArray):
++            return obj.chunk(obj.data.chunksize)
++        else:
++            return obj
++    
++    if not isinstance(other, Dataset):
++        other = {k: preserve_dask_chunks(v) for k, v in other.items()}
++    
+     return merge_core(
+         [dataset, other],
+         priority_arg=1,

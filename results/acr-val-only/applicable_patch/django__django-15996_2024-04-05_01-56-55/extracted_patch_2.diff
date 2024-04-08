@@ -1,0 +1,37 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..6abdf3b519 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -123,8 +123,32 @@ class DictionarySerializer(BaseSerializer):
+ 
+ class EnumSerializer(BaseSerializer):
+     def serialize(self):
++        from enum import Enum
+         enum_class = self.value.__class__
+         module = enum_class.__module__
++
++        # Check if the value is an instance of Enum to handle single and combined flags
++        if issubclass(enum_class, Enum):
++            try:
++                # Handling combined enum flags or single enum flag
++                if isinstance(self.value, int):
++                    # Finding matching flags by bitwise AND operation
++                    matching_flags = [flag for flag in enum_class if flag.value & self.value]
++                    if matching_flags:
++                        # Constructing the combined flags expression
++                        combined_expression = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, flag.name) for flag in matching_flags])
++                        return (combined_expression, {"import %s" % module})
++                else:
++                    # Fallback for single enum value
++                    return (
++                        "%s.%s.%s" % (module, enum_class.__qualname__, self.value.name),
++                        {"import %s" % module},
++                    )
++            except AttributeError:
++                # In case of any unexpected attribute errors, fallback to original behavior
++                pass
++
++        # If not an enum or in case of any errors, fallback to the original serialization method
+         return (
+             "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+             {"import %s" % module},

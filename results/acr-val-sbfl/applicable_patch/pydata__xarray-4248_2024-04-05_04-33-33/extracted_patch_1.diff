@@ -1,0 +1,50 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 9fbaf747..afa3a1db 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -1659,7 +1659,9 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         )
+ 
+     def __repr__(self) -> str:
+-        return formatting.dataset_repr(self)
++            # No change in this method itself, but it relies on the updated formatting logic
++            # to include units in the dataset's representation.
++            return formatting.dataset_repr(self)
+ 
+     def _repr_html_(self):
+         if OPTIONS["display_style"] == "text":
+diff --git a/xarray/core/formatting.py b/xarray/core/formatting.py
+index 28eaae5f..cda329cc 100644
+--- a/xarray/core/formatting.py
++++ b/xarray/core/formatting.py
+@@ -254,18 +254,24 @@ def inline_sparse_repr(array):
+ 
+ 
+ def inline_variable_array_repr(var, max_width):
+-    """Build a one-line summary of a variable's data."""
++    """Build a one-line summary of a variable's data, including units if available."""
++    summary = ""
+     if var._in_memory:
+-        return format_array_flat(var, max_width)
++        summary = format_array_flat(var, max_width)
+     elif isinstance(var._data, dask_array_type):
+-        return inline_dask_repr(var.data)
++        summary = inline_dask_repr(var.data)
+     elif isinstance(var._data, sparse_array_type):
+-        return inline_sparse_repr(var.data)
++        summary = inline_sparse_repr(var.data)
+     elif hasattr(var._data, "__array_function__"):
+-        return maybe_truncate(repr(var._data).replace("\n", " "), max_width)
++        summary = maybe_truncate(repr(var._data).replace("\n", " "), max_width)
+     else:
+         # internal xarray array type
+-        return "..."
++        summary = "..."
++    # Append units to summary if available
++    units = var.attrs.get('units', None)
++    if units:
++        summary += f", in {units}"
++    return summary
+ 
+ 
+ def summarize_variable(

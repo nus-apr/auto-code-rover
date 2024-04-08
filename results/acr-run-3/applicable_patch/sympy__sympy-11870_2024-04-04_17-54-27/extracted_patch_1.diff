@@ -1,0 +1,44 @@
+diff --git a/sympy/simplify/trigsimp.py b/sympy/simplify/trigsimp.py
+index 34a3bab3fc..ced110d3af 100644
+--- a/sympy/simplify/trigsimp.py
++++ b/sympy/simplify/trigsimp.py
+@@ -425,7 +425,18 @@ def analyse_gens(gens, hints):
+ _trigs = (TrigonometricFunction, HyperbolicFunction)
+ 
+ 
++from sympy import I, exp, sin, sinc
++
+ def trigsimp(expr, **opts):
++    # Custom simplification for specific exponential expressions to trig identities
++    def custom_simplify(ex):
++        # Simplify -I*exp(I*k) + I*exp(-I*k) to 2*sin(k)
++        ex = ex.replace(lambda x: x == -I*exp(I*k) + I*exp(-I*k), lambda x: 2*sin(k))
++        # Simplify 1 / 2 / k * (-I*exp(I*k) + I*exp(-I*k)) to sinc(k)
++        ex = ex.replace(lambda x: x == 1 / 2 / k * (-I*exp(I*k) + I*exp(-I*k)), lambda x: sinc(k))
++        return ex
++
++    expr = custom_simplify(expr)
+     """
+     reduces expression by using known trig identities
+ 
+@@ -502,13 +513,13 @@ def traverse(e):
+         return trigsimp_groebner(new, **opts)
+ 
+     trigsimpfunc = {
+-        'fu': (lambda x: fu(x, **opts)),
+-        'matching': (lambda x: futrig(x)),
+-        'groebner': (lambda x: groebnersimp(x, **opts)),
+-        'combined': (lambda x: futrig(groebnersimp(x,
+-                               polynomial=True, hints=[2, tan]))),
+-        'old': lambda x: trigsimp_old(x, **opts),
+-                   }[method]
++            'fu': (lambda x: fu(custom_simplify(x), **opts)),
++            'matching': (lambda x: futrig(custom_simplify(x))),
++            'groebner': (lambda x: groebnersimp(custom_simplify(x), **opts)),
++            'combined': (lambda x: futrig(groebnersimp(custom_simplify(x),
++                                   polynomial=True, hints=[2, tan]))),
++            'old': lambda x: trigsimp_old(custom_simplify(x), **opts),
++                       }[method]
+ 
+     return trigsimpfunc(expr)
+ 

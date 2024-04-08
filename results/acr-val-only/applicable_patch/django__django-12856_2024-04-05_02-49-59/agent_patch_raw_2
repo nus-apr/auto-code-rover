@@ -1,0 +1,48 @@
+Given the complexity of the issue and the initial attempt not resolving the issue, let's focus on a more targeted approach that directly addresses the core problem: ensuring that `makemigrations` checks for the existence of fields specified in `UniqueConstraint` definitions, similar to how `unique_together` is validated.
+
+The original issue is that `makemigrations` does not validate the existence of fields referenced in `UniqueConstraint`. The initial approach attempted to patch the model's field validation and suggest a placeholder for handling `UniqueConstraint` in migrations. However, a more effective solution would involve directly integrating field existence checks for `UniqueConstraint` within the migration preparation process, specifically where migrations analyze model changes to generate operations.
+
+Given the context and the nature of the issue, a more appropriate patch would involve enhancing the migration autodetector's capability to validate `UniqueConstraint` field references before generating migration operations. Unfortunately, due to the constraints of this format, I cannot provide a real-time check or test the patch. However, I can suggest a conceptual approach to where and how this validation could be integrated.
+
+# Conceptual Patch
+
+This conceptual patch focuses on enhancing the migration autodetector to include field validation for `UniqueConstraint` during the migration preparation process.
+
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>def generate_created_models(self):
+    ...
+    for app_label, model_name in all_added_models:
+        model_state = self.to_state.models[app_label, model_name]
+        ...
+        constraints = model_state.options.pop('constraints')
+        ...
+</original>
+<patched>def generate_created_models(self):
+    ...
+    for app_label, model_name in all_added_models:
+        model_state = self.to_state.models[app_label, model_name]
+        ...
+        constraints = model_state.options.pop('constraints')
+        self._validate_constraints_fields(model_state, constraints)
+        ...
+
+def _validate_constraints_fields(self, model_state, constraints):
+    from django.core.exceptions import FieldDoesNotExist
+    for constraint in constraints:
+        if isinstance(constraint, models.UniqueConstraint):
+            for field_name in constraint.fields:
+                if field_name not in model_state.fields:
+                    raise FieldDoesNotExist(
+                        f"The field '{field_name}' specified in a UniqueConstraint "
+                        f"for model '{model_state.name}' does not exist."
+                    )
+</patched>
+```
+
+## Explanation
+
+- The patch introduces a new method `_validate_constraints_fields` in `autodetector.py`, which is called during the processing of newly created models (`generate_created_models`). This method iterates over each `UniqueConstraint` in the model's constraints, checking if the fields specified in the constraint exist in the model state. If a field does not exist, a `FieldDoesNotExist` exception is raised.
+- This approach ensures that before any migration operations are generated, all fields referenced in `UniqueConstraint` are validated for their existence. This mirrors the validation logic applied to `unique_together`, addressing the inconsistency mentioned in the issue.
+
+Note: This is a conceptual solution aimed at illustrating the approach to solving the reported issue. Actual implementation may require adjustments based on the full context of the Django migrations framework and testing to ensure compatibility and correctness.

@@ -1,0 +1,61 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 11aebbc59f..24ac88d0ce 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -233,18 +233,22 @@ def transpose(self):
+         return self._eval_transpose()
+ 
+     def _entry(self, i, j, **kwargs):
+-        # Find row entry
+-        for row_block, numrows in enumerate(self.rowblocksizes):
+-            if (i < numrows) != False:
+-                break
+-            else:
+-                i -= numrows
+-        for col_block, numcols in enumerate(self.colblocksizes):
+-            if (j < numcols) != False:
+-                break
+-            else:
+-                j -= numcols
+-        return self.blocks[row_block, col_block][i, j]
++        # Check if the BlockMatrix is essentially a single block
++        if len(self.blocks) == 1:
++            return self.blocks[0, 0][i, j]
++        else:
++            # Find row entry
++            for row_block, numrows in enumerate(self.rowblocksizes):
++                if (i < numrows) != False:
++                    break
++                else:
++                    i -= numrows
++            for col_block, numcols in enumerate(self.colblocksizes):
++                if (j < numcols) != False:
++                    break
++                else:
++                    j -= numcols
++            return self.blocks[row_block, col_block][i, j]
+ 
+     @property
+     def is_Identity(self):
+diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py
+index 2a1789fc9f..32a26d3335 100644
+--- a/sympy/matrices/expressions/matexpr.py
++++ b/sympy/matrices/expressions/matexpr.py
+@@ -342,9 +342,14 @@ def as_explicit(self):
+ 
+         """
+         from sympy.matrices.immutable import ImmutableDenseMatrix
+-        return ImmutableDenseMatrix([[    self[i, j]
+-                            for j in range(self.cols)]
+-                            for i in range(self.rows)])
++        # Check if the matrix expression is a BlockDiagMatrix with a single element
++        if isinstance(self, sympy.matrices.expressions.blockmatrix.BlockDiagMatrix) and len(self.blocks) == 1:
++            # Directly return the single block as explicit if it's the only one
++            return self.blocks[0, 0].as_explicit()
++        else:
++            return ImmutableDenseMatrix([[    self[i, j]
++                                for j in range(self.cols)]
++                                for i in range(self.rows)])
+ 
+     def as_mutable(self):
+         """

@@ -1,0 +1,37 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 03cf57a30b..0c8420f297 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -1264,8 +1264,16 @@ def __new__(cls, *args, **kwargs):
+ 
+         # Reduce sets using known rules
+         if evaluate:
++            # Before simplification, remove duplicates to ensure canonical processing
+             args = list(cls._new_args_filter(args))
+-            return simplify_intersection(args)
++            args = list(dict.fromkeys(args))  # Remove duplicates while preserving order
++            # Attempt simplification only if necessary
++            if len(args) > 1:
++                simplified = simplify_intersection(args)
++                if simplified is not None:
++                    return simplified
++            # If simplification did not change the result, return an unevaluated Intersection
++            return Basic.__new__(cls, *args)
+ 
+         args = list(ordered(args, Set._infimum_key))
+ 
+@@ -1321,10 +1329,13 @@ def _handle_finite_sets(args):
+             binary=True)
+         if not fs_args:
+             return
++        # Remove duplicates from fs_args and other before processing
++        fs_args = [list(dict.fromkeys(fs_arg)) for fs_arg in fs_args]
++        other = list(dict.fromkeys(other))
+         fs_args.sort(key=len)
+         s = fs_args[0]
+         fs_args = fs_args[1:]
+-
++        
+         res = []
+         unk = []
+         for x in s:

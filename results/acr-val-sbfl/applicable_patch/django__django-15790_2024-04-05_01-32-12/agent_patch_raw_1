@@ -1,0 +1,25 @@
+# modification 1
+```python
+<file>django/template/engine.py</file>
+<original>    def get_template_libraries(self, libraries):
+        loaded = {}
+        for name, path in libraries.items():
+            loaded[name] = import_library(path)
+        return loaded
+</original>
+<patched>    def get_template_libraries(self, libraries):
+        loaded = {}
+        duplicate_names = set()
+        for name, path in libraries.items():
+            if name in loaded:
+                if loaded[name].__name__ != import_library(path).__name__:
+                    duplicate_names.add(name)
+                continue  # Skip adding the duplicate to prevent overwriting
+            loaded[name] = import_library(path)
+        if duplicate_names:
+            raise ValueError(f"Duplicate library names detected for: {', '.join(duplicate_names)}. Each library name must be unique.")
+        return loaded
+</patched>
+```
+
+This patch introduces conflict detection in the `get_template_libraries` method of Django's template engine. It checks for duplicate library names with different paths in the `libraries` dictionary. If duplicates are found, it raises a `ValueError` with a message listing the duplicate library names, prompting the user to ensure each library name is unique. This approach prevents the silent overwriting of libraries with the same name but different paths, addressing the issue reported.

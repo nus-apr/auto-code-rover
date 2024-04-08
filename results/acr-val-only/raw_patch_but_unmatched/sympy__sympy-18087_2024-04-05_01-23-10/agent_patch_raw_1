@@ -1,0 +1,44 @@
+# modification 1
+```python
+<file>sympy/simplify/trigsimp.py</file>
+<original>def trigsimp(expr, **opts):
+    ...
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    return trigsimpfunc(expr)</original>
+<patched>from sympy import sqrt, sin, cos
+
+def trigsimp(expr, **opts):
+    ...
+    def correct_complex_simplification(ex):
+        """
+        Corrects simplification for expressions involving sqrt of trigonometric functions squared.
+        """
+        if ex.func == sqrt and ex.args[0].func == sin and ex.args[0].args[0].is_complex:
+            return abs(ex.args[0].args[0])
+        elif ex.func == sqrt and ex.args[0].func == cos and ex.args[0].args[0].is_complex:
+            return abs(ex.args[0].args[0])
+        else:
+            return ex
+
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    expr = correct_complex_simplification(expr)
+    return trigsimpfunc(expr)</patched>
+```
+
+This patch introduces a function `correct_complex_simplification` to handle the specific case of simplifying expressions like `sqrt(sin(x)**2)` and `sqrt(cos(x)**2)` when `x` is complex. This function checks if the expression matches the problematic pattern and, if so, applies the correct simplification by using the `abs` function, which is a more accurate representation for complex numbers. This function is called before the main simplification logic to ensure that expressions involving the square root of squared trigonometric functions are handled correctly for complex numbers.

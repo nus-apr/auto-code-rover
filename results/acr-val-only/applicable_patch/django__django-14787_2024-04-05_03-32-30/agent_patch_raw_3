@@ -1,0 +1,43 @@
+Given the constraints and the feedback, it appears that a direct modification of the existing code snippet provided might not be feasible without a more precise match to the original program's structure. However, understanding the core issue allows us to propose a conceptual patch that could be adapted to the specific structure and coding conventions of the project.
+
+The issue at hand involves ensuring that when `method_decorator` is used with functions (or methods) that are wrapped in such a way that they might become `functools.partial` objects, the resulting wrapped method still retains essential function attributes like `__name__`, `__module__`, etc. Since the direct application of the previous patches was not successful, let's outline a conceptual approach that could be adapted:
+
+### Conceptual Patch
+
+The goal is to modify the `method_decorator` in such a way that it checks if the object being decorated is a `functools.partial` object and, if so, ensures that the wrapper (`_wrapper`) created by `_multi_decorate` or similar functionality correctly copies over the necessary attributes from the original function.
+
+#### Conceptual Approach:
+
+1. **Detect Partial Objects**: Within the `_dec` function of `method_decorator`, after obtaining the `method` (which might be a partial object), check if it is an instance of `functools.partial`.
+
+2. **Use `update_wrapper` Correctly**: For partial objects, use `update_wrapper` to copy attributes from `method.func` (the underlying function of the partial object) to the wrapper. This step ensures that the wrapper mimics the original function as closely as possible.
+
+3. **Copy Additional Attributes**: If there are additional attributes on the partial object itself that need to be preserved (which are not part of the underlying function), explicitly copy those to the wrapper.
+
+#### Pseudocode (Conceptual):
+
+```python
+from functools import partial, update_wrapper
+
+def method_decorator(decorator, name=''):
+    def _dec(obj):
+        # Existing logic to obtain the method...
+        method = getattr(obj, name)
+        
+        # Decorate the method
+        _wrapper = _multi_decorate(decorator, method)
+        
+        # If the method is a partial object, update the wrapper with attributes from the underlying function
+        if isinstance(method, partial):
+            update_wrapper(_wrapper, method.func)
+            # Optionally, copy any additional attributes from the partial object to the wrapper
+            
+        # Existing logic to set the decorated method on the object...
+        setattr(obj, name, _wrapper)
+        return obj
+    
+    # Existing logic to update _dec and return...
+    return _dec
+```
+
+This conceptual approach outlines the necessary steps to address the issue with partial objects not retaining function attributes when decorated. It's important to adapt this approach to the specific coding conventions, structure, and requirements of the project.

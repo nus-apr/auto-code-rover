@@ -1,0 +1,20 @@
+# modification 1
+```python
+<file>django/contrib/admin/utils.py</file>
+<original>else:
+        return display_for_value(value, empty_value_display)</original>
+<patched>else:
+        # Special handling for JSONField to ensure it displays valid JSON strings in the admin interface.
+        if isinstance(field, models.JSONField):
+            from django.core.serializers.json import DjangoJSONEncoder
+            try:
+                return json.dumps(value, cls=DjangoJSONEncoder)
+            except TypeError:
+                # In case the value is not serializable, fall back to the default string representation.
+                # This ensures that the admin interface does not break due to unserializable JSON values.
+                return str(value)
+        else:
+            return display_for_value(value, empty_value_display)</patched>
+```
+
+**Explanation**: This modification specifically checks if the field is an instance of `models.JSONField`. If it is, it uses `json.dumps` with `DjangoJSONEncoder` to convert the field's value to a JSON string. `DjangoJSONEncoder` is used because it can handle more data types than the standard JSON encoder, including Django's `DateTimeField` and `DecimalField`, which are common in models. In case the value is not serializable (e.g., it contains custom objects), it catches the `TypeError` and falls back to using the default string representation. This ensures that the admin interface remains functional even if some JSON values cannot be serialized to JSON strings.

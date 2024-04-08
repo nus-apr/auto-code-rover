@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>labels_true, labels_pred = check_clusterings(labels_true, labels_pred)</original>
+<patched>labels_true, labels_pred = check_clusterings(np.asarray(labels_true), np.asarray(labels_pred))</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</original>
+<patched>if contingency is None:
+        # Convert labels to a numeric format if they are not already.
+        if not np.issubdtype(labels_true.dtype, np.number) or not np.issubdtype(labels_pred.dtype, np.number):
+            from sklearn.preprocessing import LabelEncoder
+            le_true = LabelEncoder()
+            labels_true = le_true.fit_transform(labels_true)
+            le_pred = LabelEncoder()
+            labels_pred = le_pred.fit_transform(labels_pred)
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</patched>
+```
+
+This patch addresses the issue by ensuring that both `labels_true` and `labels_pred` are converted to a numeric format before they are processed by `check_clusterings` and `contingency_matrix`. The use of `LabelEncoder` ensures that non-numeric labels are appropriately converted to a numeric format, thus avoiding the error encountered when the input labels are of type `object` containing strings. This approach maintains the functionality of `mutual_info_score` while accommodating the use case presented in the issue.

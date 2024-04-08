@@ -1,0 +1,64 @@
+# modification 1
+```python
+<file>src/_pytest/python.py</file>
+<original>def write_fixture(fixture_def):
+    argname = fixture_def.argname
+    if verbose <= 0 and argname.startswith("_"):
+        return
+    if verbose > 0:
+        bestrel = get_best_relpath(fixture_def.func)
+        funcargspec = "{} -- {}".format(argname, bestrel)
+    else:
+        funcargspec = argname
+    tw.line(funcargspec, green=True)
+    fixture_doc = fixture_def.func.__doc__
+    if fixture_doc:
+        write_docstring(tw, fixture_doc)
+    else:
+        tw.line("    no docstring available", red=True)</original>
+<patched>def write_fixture(fixture_def):
+    argname = fixture_def.argname
+    if verbose <= 0 and argname.startswith("_"):
+        return
+    fixture_scope = fixture_def.scope
+    if verbose > 0:
+        bestrel = get_best_relpath(fixture_def.func)
+        funcargspec = "{} -- {} -- scope:{}".format(argname, bestrel, fixture_scope)
+    else:
+        funcargspec = "{} -- scope:{}".format(argname, fixture_scope)
+    tw.line(funcargspec, green=True)
+    fixture_doc = fixture_def.func.__doc__
+    if fixture_doc:
+        write_docstring(tw, fixture_doc)
+    else:
+        tw.line("    no docstring available", red=True)</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/python.py</file>
+<original>if verbose > 0:
+    funcargspec = "%s -- %s" % (argname, bestrel)
+else:
+    funcargspec = argname
+tw.line(funcargspec, green=True)
+loc = getlocation(fixturedef.func, curdir)
+doc = fixturedef.func.__doc__ or ""
+if doc:
+    write_docstring(tw, doc)
+else:
+    tw.line("    %s: no docstring available" % (loc,), red=True)</original>
+<patched>if verbose > 0:
+    funcargspec = "%s -- %s -- scope:%s" % (argname, bestrel, fixturedef.scope)
+else:
+    funcargspec = "%s -- scope:%s" % (argname, fixturedef.scope)
+tw.line(funcargspec, green=True)
+loc = getlocation(fixturedef.func, curdir)
+doc = fixturedef.func.__doc__ or ""
+if doc:
+    write_docstring(tw, doc)
+else:
+    tw.line("    %s: no docstring available" % (loc,), red=True)</patched>
+```
+
+These modifications add the scope of each fixture next to its name in the output of `pytest --fixtures`. The scope is retrieved from the `fixture_def.scope` attribute and included in the string that is output to the terminal. This change ensures that users can see the scope of each fixture directly in the command line output, making it easier to understand the fixture's lifecycle and potential impact on tests.

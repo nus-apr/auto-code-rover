@@ -1,0 +1,22 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index a5b0f464a9..d211a1ac98 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1739,9 +1739,16 @@ class QuerySet(AltersData):
+             # That won't stop people trying to do this, so let's be explicit.
+             raise TypeError("Cannot pass None as an argument to only().")
+         for field in fields:
+-            field = field.split(LOOKUP_SEP, 1)[0]
++            split_field = field.split(LOOKUP_SEP, 1)
++            field = split_field[0]
+             if field in self.query._filtered_relations:
+                 raise ValueError("only() is not supported with FilteredRelation.")
++            # Check if the field is a reverse relation and handle appropriately
++            if len(split_field) > 1 and hasattr(self.model, split_field[1]):
++                related_field = getattr(self.model, split_field[1])
++                if isinstance(related_field, models.OneToOneRel):
++                    self.query.add_select_related([field])
++                    continue
+         clone = self._chain()
+         clone.query.add_immediate_loading(fields)
+         return clone

@@ -1,0 +1,83 @@
+# modification 1
+```python
+<file>django/utils/cache.py</file>
+<original>def _if_modified_since_passes(last_modified, if_modified_since):
+    """
+    Test the If-Modified-Since comparison as defined in section 3.3 of RFC 7232.
+    """
+    return not last_modified or last_modified > if_modified_since
+</original>
+<patched>def _if_modified_since_passes(last_modified, if_modified_since):
+    """
+    Test the If-Modified-Since comparison as defined in section 3.3 of RFC 7232.
+    Handle empty string for if_modified_since by treating it as a None value.
+    """
+    if if_modified_since == "":
+        if_modified_since = None
+    return not last_modified or not if_modified_since or last_modified > if_modified_since
+</patched>
+```
+
+# modification 2
+```python
+<file>django/views/static.py</file>
+<original>def was_modified_since(header=None, mtime=0, size=0):
+    """
+    Was something modified since the user last downloaded it?
+
+    header
+      This is the value of the If-Modified-Since header.  If this is None,
+      I'll just return True.
+
+    mtime
+      This is the modification time of the item we're talking about.
+
+    size
+      This is the size of the item we're talking about.
+    """
+    try:
+        if header is None:
+            raise ValueError
+        matches = re.match(r"^([^;]+)(; length=([0-9]+))?$", header, re.IGNORECASE)
+        header_mtime = parse_http_date(matches[1])
+        header_len = matches[3]
+        if header_len and int(header_len) != size:
+            raise ValueError
+        if int(mtime) > header_mtime:
+            raise ValueError
+    except (AttributeError, ValueError, OverflowError):
+        return True
+    return False
+</original>
+<patched>import re
+from django.utils.http import parse_http_date
+
+def was_modified_since(header=None, mtime=0, size=0):
+    """
+    Was something modified since the user last downloaded it?
+
+    header
+      This is the value of the If-Modified-Since header.  If this is None or an empty string,
+      I'll just return True.
+
+    mtime
+      This is the modification time of the item we're talking about.
+
+    size
+      This is the size of the item we're talking about.
+    """
+    if header is None or header == "":
+        return True
+    try:
+        matches = re.match(r"^([^;]+)(; length=([0-9]+))?$", header, re.IGNORECASE)
+        header_mtime = parse_http_date(matches[1])
+        header_len = matches[3]
+        if header_len and int(header_len) != size:
+            raise ValueError
+        if int(mtime) > header_mtime:
+            raise ValueError
+    except (AttributeError, ValueError, OverflowError):
+        return True
+    return False
+</patched>
+```

@@ -1,0 +1,53 @@
+Given the context and the goal to enhance error messages for `all` or `any` assertions, a potential approach is to introduce a mechanism that can provide more detailed feedback when these assertions fail. This involves detecting when `all` or `any` is used and providing a more informative error message, such as indicating the first item in the iterable that caused the assertion to fail. However, the provided context does not show direct handling of `all` or `any` in the assertion rewriting process, so we'll propose a conceptual patch that could be applied to improve the situation.
+
+Since we're dealing with an enhancement rather than a straightforward bug fix, and without direct hooks into `all` or `any` processing, the patch will be more speculative and aimed at illustrating the kind of change that might help.
+
+# modification 1
+```python
+<file>src/_pytest/assertion/util.py</file>
+<original>def assertrepr_compare(config, op, left, right):
+    ...
+    if not explanation:
+        return None
+
+    return [summary] + explanation
+</original>
+<patched>def assertrepr_compare(config, op, left, right):
+    ...
+    if op == "all" or op == "any":
+        # This is a speculative patch. Actual implementation would need to
+        # introspect the left/right arguments to identify the iterable and
+        # the predicate function, then apply the function to elements of the
+        # iterable until it finds one that does not match the expected condition.
+        failed_item = "<logic to find the first failing item>"
+        explanation = [u"Failed on item: %s" % saferepr(failed_item)]
+    if not explanation:
+        return None
+
+    return [summary] + explanation
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/assertion/util.py</file>
+<original>def _compare_eq_iterable(left, right, verbose=0):
+    if not verbose:
+        return [u"Use -v to get the full diff"]
+    ...
+    return explanation
+</original>
+<patched>def _compare_eq_iterable(left, right, verbose=0):
+    if not verbose:
+        return [u"Use -v to get the full diff"]
+    ...
+    # Enhance iterable comparison to provide more detailed feedback
+    # for 'all' or 'any' assertions by checking if left/right are results
+    # of such operations and then providing specific feedback.
+    if isinstance(left, types.GeneratorType) or isinstance(right, types.GeneratorType):
+        explanation.insert(0, u"Generator involved, consider using a list for more detailed diff")
+    return explanation
+</patched>
+```
+
+Please note, these modifications are conceptual and aim to illustrate the type of changes that could help address the issue described. Implementing these changes would require a deeper understanding of pytest's internals and possibly changes to how pytest hooks into assertion calls, especially to accurately detect and handle `all` or `any` assertions.

@@ -1,0 +1,36 @@
+{
+    "task_id": "scikit-learn__scikit-learn-13584",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/scikit-learn__scikit-learn/setup_scikit-learn__scikit-learn__0.21",
+        "env_name": "setup_scikit-learn__scikit-learn__0.21",
+        "pre_install": [],
+        "install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider sklearn/utils/tests/test_pprint.py"
+    },
+    "task_info": {
+        "instance_id": "scikit-learn__scikit-learn-13584",
+        "base_commit": "0e3c1879b06d839171b7d0a607d71bbb19a966a9",
+        "hints_text": "",
+        "created_at": "2019-04-05T23:09:48Z",
+        "test_patch": "diff --git a/sklearn/utils/tests/test_pprint.py b/sklearn/utils/tests/test_pprint.py\n--- a/sklearn/utils/tests/test_pprint.py\n+++ b/sklearn/utils/tests/test_pprint.py\n@@ -4,6 +4,7 @@\n import numpy as np\n \n from sklearn.utils._pprint import _EstimatorPrettyPrinter\n+from sklearn.linear_model import LogisticRegressionCV\n from sklearn.pipeline import make_pipeline\n from sklearn.base import BaseEstimator, TransformerMixin\n from sklearn.feature_selection import SelectKBest, chi2\n@@ -212,6 +213,9 @@ def test_changed_only():\n     expected = \"\"\"SimpleImputer()\"\"\"\n     assert imputer.__repr__() == expected\n \n+    # make sure array parameters don't throw error (see #13583)\n+    repr(LogisticRegressionCV(Cs=np.array([0.1, 1])))\n+\n     set_config(print_changed_only=False)\n \n \n",
+        "repo": "scikit-learn/scikit-learn",
+        "problem_statement": "bug in print_changed_only in new repr: vector values\n```python\r\nimport sklearn\r\nimport numpy as np\r\nfrom sklearn.linear_model import LogisticRegressionCV\r\nsklearn.set_config(print_changed_only=True)\r\nprint(LogisticRegressionCV(Cs=np.array([0.1, 1])))\r\n```\r\n> ValueError: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()\r\n\r\nping @NicolasHug \r\n\n",
+        "version": "0.21",
+        "FAIL_TO_PASS": [
+            "sklearn/utils/tests/test_pprint.py::test_changed_only",
+            "sklearn/utils/tests/test_pprint.py::test_deeply_nested",
+            "sklearn/utils/tests/test_pprint.py::test_gridsearch",
+            "sklearn/utils/tests/test_pprint.py::test_gridsearch_pipeline",
+            "sklearn/utils/tests/test_pprint.py::test_n_max_elements_to_show",
+            "sklearn/utils/tests/test_pprint.py::test_pipeline"
+        ],
+        "PASS_TO_PASS": [
+            "sklearn/utils/tests/test_pprint.py::test_basic",
+            "sklearn/utils/tests/test_pprint.py::test_builtin_prettyprinter",
+            "sklearn/utils/tests/test_pprint.py::test_length_constraint"
+        ],
+        "environment_setup_commit": "7813f7efb5b2012412888b69e73d76f2df2b50b6",
+        "patch": "diff --git a/sklearn/utils/_pprint.py b/sklearn/utils/_pprint.py\n--- a/sklearn/utils/_pprint.py\n+++ b/sklearn/utils/_pprint.py\n@@ -95,7 +95,7 @@ def _changed_params(estimator):\n     init_params = signature(init_func).parameters\n     init_params = {name: param.default for name, param in init_params.items()}\n     for k, v in params.items():\n-        if (v != init_params[k] and\n+        if (repr(v) != repr(init_params[k]) and\n                 not (is_scalar_nan(init_params[k]) and is_scalar_nan(v))):\n             filtered_params[k] = v\n     return filtered_params\n",
+        "pr_link": "https://github.com/scikit-learn/scikit-learn/pull/13584"
+    }
+}

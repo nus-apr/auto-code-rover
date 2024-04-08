@@ -1,0 +1,82 @@
+# modification 1
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def _entry(self, i, j, **kwargs):
+        # Find row entry
+        for row_block, numrows in enumerate(self.rowblocksizes):
+            if (i < numrows) != False:
+                break
+            else:
+                i -= numrows
+        for col_block, numcols in enumerate(self.colblocksizes):
+            if (j < numcols) != False:
+                break
+            else:
+                j -= numcols
+        return self.blocks[row_block, col_block][i, j]</original>
+<patched>    def _entry(self, i, j, **kwargs):
+        # Find row entry
+        for row_block, numrows in enumerate(self.rowblocksizes):
+            if (i < numrows) != False:
+                break
+            else:
+                i -= numrows
+        for col_block, numcols in enumerate(self.colblocksizes):
+            if (j < numcols) != False:
+                break
+            else:
+                j -= numcols
+        # Handle the case where blocks is a sympy 'One' object, not subscriptable
+        block = self.blocks[row_block, col_block]
+        if isinstance(block, sympy.One):
+            return block
+        else:
+            return block[i, j]</patched>
+```
+
+# modification 2
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>class BlockDiagMatrix(BlockMatrix):
+    """
+    A BlockDiagMatrix is a BlockMatrix with matrices only along the diagonal
+
+    >>> from sympy import MatrixSymbol, BlockDiagMatrix, symbols, Identity
+    >>> n, m, l = symbols('n m l')
+    >>> X = MatrixSymbol('X', n, n)
+    >>> Y = MatrixSymbol('Y', m ,m)
+    >>> BlockDiagMatrix(X, Y)
+    Matrix([
+    [X, 0],
+    [0, Y]])
+
+    See Also
+    ========
+    sympy.matrices.dense.diag
+    """
+    def __new__(cls, *mats):
+        return Basic.__new__(BlockDiagMatrix, *mats)</original>
+<patched>class BlockDiagMatrix(BlockMatrix):
+    """
+    A BlockDiagMatrix is a BlockMatrix with matrices only along the diagonal
+
+    >>> from sympy import MatrixSymbol, BlockDiagMatrix, symbols, Identity
+    >>> n, m, l = symbols('n m l')
+    >>> X = MatrixSymbol('X', n, n)
+    >>> Y = MatrixSymbol('Y', m ,m)
+    >>> BlockDiagMatrix(X, Y)
+    Matrix([
+    [X, 0],
+    [0, Y]])
+
+    See Also
+    ========
+    sympy.matrices.dense.diag
+    """
+    def __new__(cls, *mats):
+        if len(mats) == 1 and isinstance(mats[0], sympy.MatrixBase):
+            return mats[0]
+        return Basic.__new__(BlockDiagMatrix, *mats)</patched>
+```
+
+This patch addresses the issue by modifying the `_entry` method in `BlockDiagMatrix` to handle cases where the `blocks` attribute might be a `sympy.One` object, which is not subscriptable. Additionally, the `__new__` method of `BlockDiagMatrix` is updated to directly return the single matrix if only one matrix is provided to the constructor, avoiding the creation of a `BlockDiagMatrix` object that would lead to the conversion issue.

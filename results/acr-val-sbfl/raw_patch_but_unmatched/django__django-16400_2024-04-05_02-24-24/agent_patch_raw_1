@@ -1,0 +1,31 @@
+Given the nature of the issue, which involves the `migrate` command not respecting the database parameter for all operations, particularly when adding permissions, and based on the provided context, a direct patch to the provided code snippets might not address the root cause of the issue. The issue seems to be more related to how Django's migration system interacts with the database routing system, especially in a multi-tenant setup, rather than a straightforward bug in the methods provided.
+
+However, a potential approach to ensure that the specified database parameter is respected throughout the migration process, including when permissions are added, could involve ensuring that the database router (`TenantDatabaseRouter`) respects the database alias provided by the migration command. This might not be directly patchable in the provided methods without understanding the broader context of how they are called during migrations.
+
+A hypothetical patch might involve modifying the database router to ensure it respects a database alias set by the migration command. Since the actual implementation details of how the `migrate` command sets the database alias are not provided, and the database router's behavior is not fully shown, the following is a conceptual patch:
+
+# modification 1
+```python
+<file>utils/tenant_db_router.py</file>
+<original>def _default_db(self):
+    subdomain = getattr(local_state, "subdomain", None)
+    if subdomain is not None and subdomain in settings.TENANT_MAP:
+        db_name = settings.TENANT_MAP[local_state.subdomain]
+        return db_name
+    else:
+        raise InvalidTenantException()</original>
+<patched>def _default_db(self, **hints):
+    # Check if a database alias is provided in hints and respect it
+    if 'database' in hints:
+        return hints['database']
+    subdomain = getattr(local_state, "subdomain", None)
+    if subdomain is not None and subdomain in settings.TENANT_MAP:
+        db_name = settings.TENANT_MAP[local_state.subdomain]
+        return db_name
+    else:
+        raise InvalidTenantException()</patched>
+```
+
+This modification assumes that the `hints` dictionary, which is passed to various router methods (`db_for_read`, `db_for_write`, etc.), can carry a 'database' key specifying the database alias to use. This is a conceptual approach and would require further adjustments based on the actual implementation details of Django's migration system and how it interacts with database routers.
+
+Please note, this patch is hypothetical and based on the assumption that the migration system provides the database alias in the hints. Actual implementation might require a deeper dive into Django's source code and the specific project setup to ensure compatibility and effectiveness.

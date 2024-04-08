@@ -1,0 +1,44 @@
+# modification 1
+```python
+<file>django/db/backends/base/schema.py</file>
+<original>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        if len(constraint_names) != 1:
+            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                len(constraint_names),
+                model._meta.db_table,
+                ", ".join(columns),
+            ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+</original>
+<patched>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        # Allow deletion if there are exactly two constraints and one is a unique constraint
+        if len(constraint_names) == 2:
+            unique_constraints = {name for name in constraint_names if name.endswith('_uniq')}
+            if len(unique_constraints) == 1:
+                # Exclude the unique constraint and proceed with deleting the index
+                constraint_names = constraint_names - unique_constraints
+        elif len(constraint_names) != 1:
+            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                len(constraint_names),
+                model._meta.db_table,
+                ", ".join(columns),
+            ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names.pop()))
+</patched>
+```
+
+This patch modifies the `_delete_composed_index` method in the `BaseDatabaseSchemaEditor` class to handle a specific case where there are exactly two constraints for the fields in question, and one of them is a unique constraint (typically ending with `_uniq`). In such cases, the unique constraint is ignored for the purpose of deletion, allowing the method to proceed with deleting the index. This approach addresses the issue without disrupting the existing logic for other scenarios.

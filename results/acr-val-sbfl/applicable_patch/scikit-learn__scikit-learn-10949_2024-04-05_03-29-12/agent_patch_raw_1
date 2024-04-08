@@ -1,0 +1,20 @@
+# modification 1
+```python
+<file>sklearn/utils/validation.py</file>
+<original>if warn_on_dtype and dtype_orig is not None and array.dtype != dtype_orig:
+    msg = ("Data with input dtype %s was converted to %s%s."
+           % (dtype_orig, array.dtype, context))
+    warnings.warn(msg, DataConversionWarning)</original>
+<patched>if warn_on_dtype and dtype_orig is not None and array.dtype != dtype_orig:
+    # Check if the original data was a DataFrame and if so, compare dtypes more granularly
+    if hasattr(array_orig, 'dtypes') and not all(array_orig.dtypes == array.dtype):
+        msg = ("Data with input dtype(s) {} was converted to {}{}."
+               .format(array_orig.dtypes.to_dict(), array.dtype, context))
+    else:
+        msg = ("Data with input dtype %s was converted to %s%s."
+               % (dtype_orig, array.dtype, context))
+    warnings.warn(msg, DataConversionWarning)</patched>
+```
+
+Explanation:
+The patch addresses the issue where `warn_on_dtype=True` does not trigger a warning when the input is a pandas DataFrame, and its dtype is converted during the `check_array` process. The original code only compares the overall dtype of the input array with the resulting dtype, which may not be sufficient for DataFrames that can have multiple dtypes across different columns. The patched code adds a check to determine if the original input was a DataFrame (`array_orig`). If it was, it performs a more granular comparison of dtypes for each column (`array_orig.dtypes == array.dtype`). If there's a mismatch in any of the column dtypes, it constructs a warning message that includes the original dtypes of the DataFrame columns and the dtype it was converted to. This ensures that users are adequately warned about dtype conversions when working with DataFrames, addressing the reported issue.

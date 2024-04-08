@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>sklearn/feature_selection/mutual_info_.py</file>
+<original>if discrete_features == 'auto':
+    discrete_features = issparse(X)</original>
+<patched>if discrete_features == 'auto':
+    discrete_features = 'auto'
+elif isinstance(discrete_features, (list, np.ndarray)):
+    if len(discrete_features) == X.shape[1] and np.issubdtype(np.array(discrete_features).dtype, np.bool_):
+        # If discrete_features is a boolean mask
+        discrete_features = discrete_features
+    elif np.issubdtype(np.array(discrete_features).dtype, np.integer):
+        # If discrete_features is an array of indices
+        discrete_mask = np.zeros(X.shape[1], dtype=bool)
+        discrete_mask[discrete_features] = True
+        discrete_features = discrete_mask
+    else:
+        raise ValueError("discrete_features should be 'auto', a boolean mask, or an array of indices.")
+else:
+    discrete_features = issparse(X)</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/feature_selection/mutual_info_.py</file>
+<original>if isinstance(discrete_features, bool):
+    discrete_mask = np.empty(n_features, dtype=bool)
+    discrete_mask.fill(discrete_features)
+else:
+    discrete_features = np.asarray(discrete_features)
+    if discrete_features.dtype != 'bool':
+        discrete_mask = np.zeros(n_features, dtype=bool)
+        discrete_mask[discrete_features] = True
+    else:
+        discrete_mask = discrete_features</original>
+<patched># This section is removed because the handling of discrete_features has been moved and updated in the previous modification.</patched>
+```
+
+This patch addresses the issue by refining the handling of the `discrete_features` parameter in the `_estimate_mi` function. The first modification ensures that when `discrete_features` is not `'auto'`, it checks if it is a list or an array. If it is a boolean mask (with the same length as the number of features and of boolean type), it is used directly. If it is an array of indices, a new boolean mask is created accordingly. This approach ensures compatibility with different types of inputs for `discrete_features`. The second modification removes the now redundant code that was previously handling the `discrete_features` parameter in a less flexible manner.

@@ -1,0 +1,40 @@
+To address the issue of incorrect path display when the working directory is changed in a fixture, we need to ensure that the paths displayed in the terminal output are always relative to the original test directory, not the changed working directory. The modifications below aim to adjust the path handling in the terminal output methods.
+
+# modification 1
+```python
+<file>src/_pytest/terminal.py</file>
+<original>self._tw.write(content, flush=flush, **markup)</original>
+<patched>import os
+from _pytest.pathlib import Path
+original_dir = Path(os.getcwd()).relative_to(Path(self.config.rootdir))
+adjusted_content = content.replace(str(original_dir) + os.sep, "")
+self._tw.write(adjusted_content, flush=flush, **markup)</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/terminal.py</file>
+<original>self._tw.write(msg + "\n", **{main_color: True})</original>
+<patched>import os
+from _pytest.pathlib import Path
+original_dir = Path(os.getcwd()).relative_to(Path(self.config.rootdir))
+adjusted_msg = msg.replace(str(original_dir) + os.sep, "")
+self._tw.write(adjusted_msg + "\n", **{main_color: True})</patched>
+```
+
+# modification 3
+```python
+<file>src/_pytest/_io/terminalwriter.py</file>
+<original>self._file.write(msg)
+if flush:
+    self.flush()</original>
+<patched>import os
+from _pytest.pathlib import Path
+original_dir = Path(os.getcwd()).relative_to(Path(self.config.rootini))
+adjusted_msg = msg.replace(str(original_dir) + os.sep, "")
+self._file.write(adjusted_msg)
+if flush:
+    self.flush()</patched>
+```
+
+These modifications introduce a step to adjust the paths in the content being written to the terminal, ensuring they are relative to the original test directory (`self.config.rootdir` or `self.config.rootini` for the `TerminalWriter`). This approach uses the `Path` object from `_pytest.pathlib` for path manipulation, which is more reliable and cross-platform than string manipulation. The `os.sep` is used to ensure that directory separators are correctly handled across different operating systems.

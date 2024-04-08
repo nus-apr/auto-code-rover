@@ -1,0 +1,39 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..1568c83cf7 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,9 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Removed the check for duplicates in the case of cycles to allow non-disjoint cycles
++        if has_dups(temp) and not is_cycle:
++            raise ValueError('there were repeated elements.')
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +906,12 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
+-            for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++                    # Apply non-disjoint cycles in left-to-right order
++                    from sympy.combinatorics.perm_groups import PermutationGroup
++                    from sympy.combinatorics import Permutation as SymPermutation
++                    cycles = [SymPermutation(c) for c in args]
++                    perm_group = PermutationGroup(*cycles)
++                    aform = perm_group.identity().array_form
+         else:
+             aform = list(args)
+         if size and size > len(aform):

@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>django/forms/models.py</file>
+<original>    def clean(self, value):
+        value = self.prepare_value(value)
+        if self.required and not value:
+            raise ValidationError(self.error_messages['required'], code='required')
+        elif not self.required and not value:
+            return self.queryset.none()
+        if not isinstance(value, (list, tuple)):
+            raise ValidationError(
+                self.error_messages['invalid_list'],
+                code='invalid_list',
+            )
+        qs = self._check_values(value)
+        # Since this overrides the inherited ModelChoiceField.clean
+        # we run custom validators here
+        self.run_validators(value)
+        return qs</original>
+<patched>    def clean(self, value):
+        value = self.prepare_value(value)
+        if self.required and not value:
+            raise ValidationError(self.error_messages['required'], code='required')
+        elif not self.required and not value:
+            # Patch: Explicitly return an empty queryset using the model's none() method
+            # to ensure consistency in handling empty submissions across different queryset combinations.
+            return self.queryset.model.objects.none()
+        if not isinstance(value, (list, tuple)):
+            raise ValidationError(
+                self.error_messages['invalid_list'],
+                code='invalid_list',
+            )
+        qs = self._check_values(value)
+        # Since this overrides the inherited ModelChoiceField.clean
+        # we run custom validators here
+        self.run_validators(value)
+        return qs</patched>
+```
+
+This modification ensures that when a `ModelMultipleChoiceField` is cleaned with an empty value, it explicitly returns an empty queryset using the model's `none()` method. This approach aims to provide a consistent behavior for empty submissions, regardless of how the queryset was originally constructed (e.g., using `union()` or other methods). This change addresses the issue where submitting an empty form resulted in all objects being added instead of none, by ensuring that an explicitly empty queryset is returned for empty submissions.

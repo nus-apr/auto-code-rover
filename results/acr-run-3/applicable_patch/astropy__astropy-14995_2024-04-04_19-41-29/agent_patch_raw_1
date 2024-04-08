@@ -1,0 +1,25 @@
+Based on the issue description and the analysis of the `_arithmetic_mask` method, the problem arises when trying to perform a bitwise operation (`np.bitwise_or`) between an integer mask and a `None` value, which results in a `TypeError`. The current implementation correctly handles cases where one or both operands do not have a mask, but the issue seems to stem from how the `handle_mask` function is applied when one operand is missing a mask.
+
+To resolve this issue, we need to ensure that when `handle_mask` is a function that cannot handle `None` values (like `np.bitwise_or`), the code gracefully handles the scenario where one of the operands does not have a mask. We can introduce a check to ensure that if one of the masks is `None`, the `handle_mask` function is not called with `None` as one of its arguments, thus avoiding the `TypeError`.
+
+Here is a proposed patch:
+
+# modification 1
+```python
+<file>astropy/nddata/mixins/ndarithmetic.py</file>
+<original>        else:
+            # Now lets calculate the resulting mask (operation enforces copy)
+            return handle_mask(self.mask, operand.mask, **kwds)
+</original>
+<patched>        else:
+            # Check if either mask is None and handle_mask cannot handle None values
+            if self.mask is None or operand.mask is None:
+                # Fallback to logical_or if one of the masks is None to avoid TypeError
+                return np.logical_or(self.mask, operand.mask) if self.mask is not None or operand.mask is not None else None
+            else:
+                # Now lets calculate the resulting mask (operation enforces copy)
+                return handle_mask(self.mask, operand.mask, **kwds)
+</patched>
+```
+
+This patch introduces a fallback mechanism to use `np.logical_or` when one of the masks is `None`, which is a safe operation since `np.logical_or` can handle `None` values by treating them as `False`. This ensures that arithmetic operations that specify a `handle_mask` function like `np.bitwise_or`, which cannot handle `None` values, do not result in a `TypeError` when one operand lacks a mask. This approach maintains the intended behavior of propagating masks when both operands have them, while also gracefully handling cases where one operand does not have a mask.

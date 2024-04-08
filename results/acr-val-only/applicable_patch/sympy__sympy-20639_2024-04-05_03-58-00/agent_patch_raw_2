@@ -1,0 +1,43 @@
+Given the feedback, it seems the initial approach to directly handle the specific case of `pi**(1/E)` within the `_print_Pow` method might not be the most effective solution, especially considering the broader context of pretty printing in SymPy. A more generalized approach that ensures correct handling of constants and their powers without hardcoding specific cases would be preferable. Let's revise the patch with a focus on improving the handling of expressions involving constants more generically.
+
+# modification 1
+```python
+<file>sympy/printing/pretty/pretty.py</file>
+<original>    def _print_Pow(self, power):
+        from sympy.simplify.simplify import fraction
+        b, e = power.as_base_exp()
+        if power.is_commutative:
+            if e is S.NegativeOne:
+                return prettyForm("1")/self._print(b)
+            n, d = fraction(e)
+            if n is S.One and d.is_Atom and not e.is_Integer and self._settings['root_notation']:
+                return self._print_nth_root(b, e)
+            if e.is_Rational and e < 0:
+                return prettyForm("1")/self._print(Pow(b, -e, evaluate=False))
+
+        if b.is_Relational:
+            return prettyForm(*self._print(b).parens()).__pow__(self._print(e))
+
+        return self._print(b)**self._print(e)</original>
+<patched>    def _print_Pow(self, power):
+        from sympy.simplify.simplify import fraction
+        b, e = power.as_base_exp()
+        if power.is_commutative:
+            # Check if the exponent is a fraction where the numerator is 1 and the denominator is an atomic non-integer
+            # This includes cases like 1/E
+            n, d = fraction(e)
+            if n is S.One and d.is_Atom and not d.is_Integer:
+                # Use the root notation settings to decide how to print
+                if self._settings['root_notation']:
+                    return self._print_nth_root(b, e)
+                else:
+                    # Fallback to default power printing if root notation is disabled
+                    return self._print(b)**self._print(e)
+            if e.is_Rational and e < 0:
+                return prettyForm("1")/self._print(Pow(b, -e, evaluate=False))
+        if b.is_Relational:
+            return prettyForm(*self._print(b).parens()).__pow__(self._print(e))
+        return self._print(b)**self._print(e)</patched>
+```
+
+This modification refines the handling of power expressions in a more general manner. Instead of specifically checking for `pi**(1/E)`, it improves the logic that decides when to use root notation or direct power printing, especially for cases where the exponent is a fraction with a numerator of 1 and an atomic non-integer denominator. This approach should ensure that expressions like `pi**(1/E)` are printed correctly, leveraging the existing settings for root notation, without introducing case-specific logic that could lead to maintenance issues or conflicts with other parts of the pretty printing system.

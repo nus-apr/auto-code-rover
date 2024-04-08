@@ -1,0 +1,38 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 7d226955d5..98e6b6f578 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -90,13 +90,27 @@ class DeconstructableSerializer(BaseSerializer):
+ 
+     @staticmethod
+     def _serialize_path(path):
+-        module, name = path.rsplit(".", 1)
+-        if module == "django.db.models":
+-            imports = {"from django.db import models"}
+-            name = "models.%s" % name
++        # Check if the path represents an inner class by counting the occurrences of "."
++        if path.count('.') > 1:
++            # Handle inner class serialization
++            parts = path.split('.')
++            module = ".".join(parts[:-2])  # Module path without the inner class
++            inner_class_path = ".".join(parts[-2:])  # Inner class path including the outer class
++            if module == "django.db.models":
++                imports = {"from django.db import models"}
++                name = "models.%s" % inner_class_path
++            else:
++                imports = {"from %s import %s as %s" % (module, parts[-2], inner_class_path.replace('.', '_'))}
++                name = inner_class_path.replace('.', '_')
+         else:
+-            imports = {"import %s" % module}
+-            name = path
++            # Original handling for non-inner class paths
++            module, name = path.rsplit(".", 1)
++            if module == "django.db.models":
++                imports = {"from django.db import models"}
++                name = "models.%s" % name
++            else:
++                imports = {"import %s" % module}
++                name = path
+         return name, imports
+ 
+     def serialize(self):

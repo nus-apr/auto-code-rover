@@ -1,0 +1,42 @@
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..73c8c2a2dd 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -105,8 +105,36 @@ def get_total_scale_factor(expr):
+     if depmat is None:
+         return expr
+ 
++    # Adjust the approach to handle complex unit expressions more accurately
++    # This involves refining how scale factors are applied and ensuring that unit conversion is mathematically valid
++    
++    # First, ensure that the expression is fully expanded to simplify handling of complex unit combinations
++    expr = expr.expand()
++    
++    # Calculate the scale factor for the entire expression
+     expr_scale_factor = get_total_scale_factor(expr)
+-    return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))
++    
++    # Instead of directly applying the scale factor, decompose the expression and apply conversion where applicable
++    def apply_conversion(expr, target_units):
++        if isinstance(expr, Mul):
++            # For multiplication, apply conversion to each factor separately
++            return Mul(*(apply_conversion(arg, target_units) for arg in expr.args))
++        elif isinstance(expr, Pow):
++            # For exponentiation, apply conversion to the base and adjust the exponent accordingly
++            base_converted = apply_conversion(expr.base, target_units)
++            return Pow(base_converted, expr.exp)
++        elif isinstance(expr, Quantity):
++            # Directly convert quantities using the existing scale factor logic
++            return expr_scale_factor * (1/get_total_scale_factor(expr) * expr).simplify()
++        else:
++            # For any other type of expression, return it unmodified
++            return expr
++    
++    # Apply the refined conversion logic to the original expression
++    converted_expr = apply_conversion(expr, target_units)
++    
++    # Return the converted expression, ensuring it is simplified for readability
++    return converted_expr.simplify()
+ 
+ 
+ def quantity_simplify(expr):

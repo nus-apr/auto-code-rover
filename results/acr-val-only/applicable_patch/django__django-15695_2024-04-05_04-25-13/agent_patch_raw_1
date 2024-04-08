@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>        schema_editor.rename_index(model, old_index, new_index)</original>
+<patched>        # Check if the new index name already exists to prevent crash
+        existing_index_names = schema_editor._constraint_names(model, index=True)
+        if new_index.name not in existing_index_names:
+            schema_editor.rename_index(model, old_index, new_index)
+        else:
+            # Log or handle the case where the index name already exists
+            print(f"Index {new_index.name} already exists, skipping rename.")</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>        self.database_forwards(app_label, schema_editor, from_state, to_state)</original>
+<patched>        # Before calling database_forwards, ensure the index names are correctly set for re-application
+        # This ensures that if database_backwards was called, the names are reset correctly
+        self.new_name, self.old_name = self.old_name, self.new_name
+        try:
+            self.database_forwards(app_label, schema_editor, from_state, to_state)
+        finally:
+            # Reset the names back after the operation to maintain state consistency
+            self.new_name, self.old_name = self.old_name, self.new_name</patched>
+```
+
+These modifications aim to address the issue by adding a check before renaming an index to ensure the new index name does not already exist, which prevents the crash. Additionally, it ensures that the index names are correctly managed when `database_backwards` is called, especially before re-applying `database_forwards`, to avoid any inconsistencies that might lead to the error.

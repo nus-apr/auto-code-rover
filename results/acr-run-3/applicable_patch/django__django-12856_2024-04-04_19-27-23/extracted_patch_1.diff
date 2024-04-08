@@ -1,0 +1,26 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 7bb3fa4706..1bf24cba1f 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -1113,6 +1113,21 @@ class Model(metaclass=ModelBase):
+                     key = NON_FIELD_ERRORS
+                 errors.setdefault(key, []).append(self.unique_error_message(model_class, unique_check))
+ 
++        # Start of patch
++        # Check for fields in UniqueConstraint that do not exist
++        if hasattr(cls._meta, 'constraints'):
++            for constraint in cls._meta.constraints:
++                if isinstance(constraint, models.UniqueConstraint):
++                    for field_name in constraint.fields:
++                        if field_name not in forward_fields_map:
++                            errors.append(
++                                checks.Error(
++                                    "'UniqueConstraint' refers to the nonexistent field '%s'." % field_name,
++                                    obj=cls,
++                                    id='models.E012',
++                                )
++                            )
++        # End of patch
+         return errors
+ 
+     def _perform_date_checks(self, date_checks):

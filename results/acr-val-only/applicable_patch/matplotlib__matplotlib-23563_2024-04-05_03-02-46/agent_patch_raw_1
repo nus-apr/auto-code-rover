@@ -1,0 +1,96 @@
+# modification 1
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>    def draw(self, renderer):
+        xs3d, ys3d, zs3d = self._verts3d
+        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
+        self.set_data(xs, ys)
+        super().draw(renderer)
+        self.stale = False
+</original>
+<patched>    def draw(self, renderer):
+        if not hasattr(self, '_verts3d'):
+            self.set_3d_properties()  # Ensure _verts3d is initialized
+        xs3d, ys3d, zs3d = self._verts3d
+        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
+        self.set_data(xs, ys)
+        super().draw(renderer)
+        self.stale = False
+</patched>
+```
+
+# modification 2
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>    def set_3d_properties(self, zs=0, zdir='z'):
+        xs = self.get_xdata()
+        ys = self.get_ydata()
+        zs = np.broadcast_to(zs, len(xs))
+        self._verts3d = juggle_axes(xs, ys, zs, zdir)
+        self.stale = True
+</original>
+<patched>    def set_3d_properties(self, zs=0, zdir='z'):
+        xs = self.get_xdata()
+        ys = self.get_ydata()
+        if not isinstance(zs, np.ndarray):
+            zs = np.array(zs)
+        zs = np.broadcast_to(zs, len(xs))
+        self._verts3d = juggle_axes(xs, ys, zs, zdir)
+        self.stale = True
+</patched>
+```
+
+# modification 3
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>    def set_data_3d(self, *args):
+        """
+        Set the x, y and z data
+
+        Parameters
+        ----------
+        x : array-like
+            The x-data to be plotted.
+        y : array-like
+            The y-data to be plotted.
+        z : array-like
+            The z-data to be plotted.
+
+        Notes
+        -----
+        Accepts x, y, z arguments or a single array-like (x, y, z)
+        """
+        if len(args) == 1:
+            self._verts3d = args[0]
+        else:
+            self._verts3d = args
+        self.stale = True
+</original>
+<patched>    def set_data_3d(self, *args):
+        """
+        Set the x, y and z data
+
+        Parameters
+        ----------
+        x : array-like
+            The x-data to be plotted.
+        y : array-like
+            The y-data to be plotted.
+        z : array-like
+            The z-data to be plotted.
+
+        Notes
+        -----
+        Accepts x, y, z arguments or a single array-like (x, y, z)
+        """
+        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 3:
+            self._verts3d = args[0]
+        elif len(args) == 3:
+            self._verts3d = args
+        else:
+            raise ValueError("set_data_3d expects either three separate arrays (x, y, z) or a single array-like of shape (3, N).")
+        self.stale = True
+</patched>
+```
+
+These modifications aim to ensure that `_verts3d` is properly initialized and handled, improving the robustness of the `Line3D` class against changes in input data types and preventing the `AttributeError` from occurring.

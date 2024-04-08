@@ -1,0 +1,28 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 71a52fb754..7e3e0997d9 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1221,7 +1221,10 @@ class QuerySet:
+         if fields == (None,):
+             clone.query.clear_deferred_loading()
+         else:
+-            clone.query.add_deferred_loading(fields)
++            # Adjust the deferred fields considering the fields already set to be loaded immediately
++            immediate_fields = set(clone.query.immediate_loading)
++            new_fields = set(fields) - immediate_fields
++            clone.query.add_deferred_loading(new_fields)
+         return clone
+ 
+     def only(self, *fields):
+@@ -1242,7 +1245,10 @@ class QuerySet:
+             if field in self.query._filtered_relations:
+                 raise ValueError('only() is not supported with FilteredRelation.')
+         clone = self._chain()
+-        clone.query.add_immediate_loading(fields)
++        # Adjust the immediate loading fields considering the fields already deferred
++        deferred_fields = set(clone.query.deferred_loading[0])
++        new_fields = set(fields) - deferred_fields
++        clone.query.add_immediate_loading(new_fields)
+         return clone
+ 
+     def using(self, alias):

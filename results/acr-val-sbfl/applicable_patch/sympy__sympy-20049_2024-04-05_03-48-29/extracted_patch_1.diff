@@ -1,0 +1,27 @@
+diff --git a/sympy/physics/vector/point.py b/sympy/physics/vector/point.py
+index d4e3cfcc90..e29d9e35e2 100644
+--- a/sympy/physics/vector/point.py
++++ b/sympy/physics/vector/point.py
+@@ -519,8 +519,20 @@ def vel(self, frame):
+ 
+         _check_frame(frame)
+         if not (frame in self._vel_dict):
+-            raise ValueError('Velocity of point ' + self.name + ' has not been'
+-                             ' defined in ReferenceFrame ' + frame.name)
++            # Attempt to automatically calculate the velocity if not explicitly defined
++            for other_point, pos_vector in self._pos_dict.items():
++                if other_point in self._vel_dict:
++                    try:
++                        # Calculate the velocity based on the derivative of the position vector
++                        self.set_vel(frame, pos_vector.dt(frame))
++                        break
++                    except ValueError:
++                        # If unable to calculate the derivative, continue to the next point
++                        continue
++            # If still not defined, raise the original ValueError
++            if not (frame in self._vel_dict):
++                raise ValueError('Velocity of point ' + self.name + ' has not been'
++                                 ' defined in ReferenceFrame ' + frame.name)
+         return self._vel_dict[frame]
+ 
+     def partial_velocity(self, frame, *gen_speeds):

@@ -1,0 +1,27 @@
+diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py
+index 29c6ff0926..a4d37e3ba5 100644
+--- a/django/db/models/fields/json.py
++++ b/django/db/models/fields/json.py
+@@ -367,12 +367,20 @@ class KeyTransformIsNull(lookups.IsNull):
+     # key__isnull=False is the same as has_key='key'
+     def as_oracle(self, compiler, connection):
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
++            # Adjusted logic for Oracle to correctly handle the isnull=True condition
++            template = "NOT EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$' COLUMNS (exists_path VARCHAR2(4000) PATH '$.%s'))) OR JSON_VALUE(%s, '$.%s') IS NULL"
++            lhs, params = self.process_lhs(compiler, connection)
++            path = self.lhs.key_name
++            return template % (lhs, path, lhs, path), params + params
+         return super().as_sql(compiler, connection)
+ 
+     def as_sqlite(self, compiler, connection):
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
++            # Corrected approach to exclude keys that are present but set to null
++            template = "JSON_TYPE(%s, %%s) IS NULL OR JSON_TYPE(%s, %%s) NOT IN ('null', 'true', 'false', 'number', 'string', 'array', 'object')"
++            lhs, params = self.process_lhs(compiler, connection)
++            path = '$.' + self.lhs.key_name
++            return template % (lhs, lhs), (path, path)
+         return super().as_sql(compiler, connection)
+ 
+ 

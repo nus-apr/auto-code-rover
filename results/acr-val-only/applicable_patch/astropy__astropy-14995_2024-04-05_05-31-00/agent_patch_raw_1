@@ -1,0 +1,48 @@
+# modification 1
+```python
+<file>astropy/nddata/mixins/ndarithmetic.py</file>
+<original>if operand2 is not None and not issubclass(
+            operand2.__class__, NDArithmeticMixin
+        ):
+            # Let's try to convert operand2 to the class of operand to allow for
+            # arithmetic operations with numbers, lists, numpy arrays, numpy masked
+            # arrays, astropy quantities, masked quantities and of other subclasses
+            # of NDData.
+            operand2 = cls(operand2)
+
+            # Now call the _arithmetics method to do the arithmetic.
+            result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)
+        elif issubclass(operand2.__class__, NDArithmeticMixin):
+            # calling as class method:
+            result, init_kwds = cls._arithmetic(
+                operand,
+                operation,
+                operand2,
+                **kwargs,
+            )
+        else:
+            # otherwise call the _arithmetic method on self for a collapse operation:
+            # for collapse operations, use astropy.utils.masked rather than handle_mask
+            result, init_kwds = self_or_cls._arithmetic(
+                operation,
+                operand2,
+                **kwargs,
+            )</original>
+<patched># Before attempting to do arithmetic, check if operand2 is None and handle accordingly
+        if operand2 is None:
+            # If operand2 is None, it implies no mask is present. We should handle this case to avoid TypeError
+            # when attempting bitwise operations with None.
+            operand2 = np.zeros_like(operand.data, dtype=bool)
+
+        if not issubclass(operand2.__class__, NDArithmeticMixin):
+            # Let's try to convert operand2 to the class of operand to allow for
+            # arithmetic operations with numbers, lists, numpy arrays, numpy masked
+            # arrays, astropy quantities, masked quantities and of other subclasses
+            # of NDData.
+            operand2 = cls(operand2)
+
+        # Now call the _arithmetic method to do the arithmetic.
+        result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)</patched>
+```
+
+This patch addresses the issue by ensuring that when `operand2` is `None` (indicating the absence of a mask in one of the operands), it is replaced with a default mask of zeros (of the same shape as the operand's data and of boolean type) before proceeding with the arithmetic operation. This approach ensures that the `np.bitwise_or` operation (or any other mask handling operation specified) can be performed without encountering a `TypeError` due to one of the operands being `None`. This solution maintains the expected behavior of mask propagation and handling within arithmetic operations.

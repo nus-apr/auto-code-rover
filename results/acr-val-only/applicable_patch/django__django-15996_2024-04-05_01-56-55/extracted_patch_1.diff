@@ -1,0 +1,28 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..4ad8c12a38 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -123,8 +123,23 @@ class DictionarySerializer(BaseSerializer):
+ 
+ class EnumSerializer(BaseSerializer):
+     def serialize(self):
++        from enum import Enum
+         enum_class = self.value.__class__
+         module = enum_class.__module__
++
++        # Check if the value is a combination of Enum flags
++        if issubclass(enum_class, Enum) and isinstance(self.value, int):
++            # Attempt to decompose the value into individual flags
++            try:
++                flag_names = [flag.name for flag in enum_class if flag.value & self.value]
++                if flag_names:
++                    combined_flags = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, name) for name in flag_names])
++                    return (combined_flags, {"import %s" % module})
++            except AttributeError:
++                # Fallback to original behavior if decompose fails
++                pass
++
++        # Fallback to original serialization if not a combination of flags or decompose fails
+         return (
+             "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+             {"import %s" % module},

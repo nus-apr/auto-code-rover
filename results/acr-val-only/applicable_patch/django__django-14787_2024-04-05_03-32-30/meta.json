@@ -1,0 +1,48 @@
+{
+    "task_id": "django__django-14787",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__4.1",
+        "env_name": "setup_django__django__4.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 decorators.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-14787",
+        "base_commit": "004b4620f6f4ad87261e149898940f2dcd5757ef",
+        "hints_text": "",
+        "created_at": "2021-08-23T12:59:59Z",
+        "test_patch": "diff --git a/tests/decorators/tests.py b/tests/decorators/tests.py\n--- a/tests/decorators/tests.py\n+++ b/tests/decorators/tests.py\n@@ -425,6 +425,29 @@ class Test:\n                 def __module__(cls):\n                     return \"tests\"\n \n+    def test_wrapper_assignments(self):\n+        \"\"\"@method_decorator preserves wrapper assignments.\"\"\"\n+        func_name = None\n+        func_module = None\n+\n+        def decorator(func):\n+            @wraps(func)\n+            def inner(*args, **kwargs):\n+                nonlocal func_name, func_module\n+                func_name = getattr(func, '__name__', None)\n+                func_module = getattr(func, '__module__', None)\n+                return func(*args, **kwargs)\n+            return inner\n+\n+        class Test:\n+            @method_decorator(decorator)\n+            def method(self):\n+                return 'tests'\n+\n+        Test().method()\n+        self.assertEqual(func_name, 'method')\n+        self.assertIsNotNone(func_module)\n+\n \n class XFrameOptionsDecoratorsTests(TestCase):\n     \"\"\"\n",
+        "repo": "django/django",
+        "problem_statement": "method_decorator() should preserve wrapper assignments\nDescription\n\t\nthe function that is passed to the decorator is a partial object and does not have any of the attributes expected from a function i.e. __name__, __module__ etc...\nconsider the following case\ndef logger(func):\n\t@wraps(func)\n\tdef inner(*args, **kwargs):\n\t\ttry:\n\t\t\tresult = func(*args, **kwargs)\n\t\texcept Exception as e:\n\t\t\tresult = str(e)\n\t\tfinally:\n\t\t\tlogger.debug(f\"{func.__name__} called with args: {args} and kwargs: {kwargs} resulting: {result}\")\n\treturn inner\nclass Test:\n\t@method_decorator(logger)\n\tdef hello_world(self):\n\t\treturn \"hello\"\nTest().test_method()\nThis results in the following exception\nAttributeError: 'functools.partial' object has no attribute '__name__'\n",
+        "version": "4.1",
+        "FAIL_TO_PASS": [
+            "@method_decorator preserves wrapper assignments."
+        ],
+        "PASS_TO_PASS": [
+            "@method_decorator can accept a tuple of decorators.",
+            "@method_decorator can be used to decorate a class and its methods.",
+            "@method_decorator on a non-callable attribute raises an error.",
+            "@method_decorator on a nonexistent method raises an error.",
+            "A decorator that sets a new attribute on the method.",
+            "Built-in decorators set certain attributes of the wrapped function.",
+            "Ensures @xframe_options_deny properly sets the X-Frame-Options header.",
+            "Ensures @xframe_options_exempt properly instructs the",
+            "Ensures @xframe_options_sameorigin properly sets the X-Frame-Options",
+            "Test for the require_safe decorator.",
+            "The user_passes_test decorator can be applied multiple times (#9474).",
+            "test_argumented (decorators.tests.MethodDecoratorTests)",
+            "test_bad_iterable (decorators.tests.MethodDecoratorTests)",
+            "test_cache_control_decorator_http_request (decorators.tests.CacheControlDecoratorTest)",
+            "test_cache_page (decorators.tests.DecoratorsTest)",
+            "test_descriptors (decorators.tests.MethodDecoratorTests)",
+            "test_never_cache_decorator (decorators.tests.NeverCacheDecoratorTest)",
+            "test_never_cache_decorator_http_request (decorators.tests.NeverCacheDecoratorTest)",
+            "test_preserve_attributes (decorators.tests.MethodDecoratorTests)",
+            "test_preserve_signature (decorators.tests.MethodDecoratorTests)"
+        ],
+        "environment_setup_commit": "647480166bfe7532e8c471fef0146e3a17e6c0c9",
+        "patch": "diff --git a/django/utils/decorators.py b/django/utils/decorators.py\n--- a/django/utils/decorators.py\n+++ b/django/utils/decorators.py\n@@ -37,7 +37,7 @@ def _wrapper(self, *args, **kwargs):\n         # 'self' argument, but it's a closure over self so it can call\n         # 'func'. Also, wrap method.__get__() in a function because new\n         # attributes can't be set on bound method objects, only on functions.\n-        bound_method = partial(method.__get__(self, type(self)))\n+        bound_method = wraps(method)(partial(method.__get__(self, type(self))))\n         for dec in decorators:\n             bound_method = dec(bound_method)\n         return bound_method(*args, **kwargs)\n",
+        "pr_link": "https://github.com/django/django/pull/14787"
+    }
+}

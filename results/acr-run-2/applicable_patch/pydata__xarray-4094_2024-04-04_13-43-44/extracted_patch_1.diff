@@ -1,0 +1,28 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index b0df8749..e44ef263 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -1951,8 +1951,12 @@ class DataArray(AbstractArray, DataWithCoords):
+         """
+ 
+         idx = self.indexes[dim]
++        import pandas as pd
+         if not isinstance(idx, pd.MultiIndex):
+-            raise ValueError(f"'{dim}' is not a stacked coordinate")
++            # Handle the case where 'dim' is not a MultiIndex, which can occur with single-dimension variables
++            # Convert the Index to a MultiIndex with a single level to maintain consistency
++            idx = pd.MultiIndex.from_arrays([idx], names=[dim])
++            self[dim] = idx
+ 
+         level_number = idx._get_level_number(level)
+         variables = idx.levels[level_number]
+@@ -1961,7 +1965,8 @@ class DataArray(AbstractArray, DataWithCoords):
+         # pull variables out of datarray
+         data_dict = {}
+         for k in variables:
+-            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)
++            # Ensure that the selection does not drop dimensions that are single-dim in the original dataset
++            data_dict[k] = self.sel({variable_dim: k}).drop_vars(dim, errors='ignore')
+ 
+         # unstacked dataset
+         return Dataset(data_dict)

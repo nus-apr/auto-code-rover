@@ -1,0 +1,74 @@
+Given the context and the issue described, it seems the core problem is updating the colorbar after changing the norm instance of the colorbar to `LogNorm`, which is not directly found in the provided code snippets. However, based on the understanding of how norms and colorbars work in Matplotlib, a potential patch could involve ensuring that the colorbar is properly updated when the norm changes, especially to a logarithmic norm like `LogNorm`.
+
+Since the specific implementation details of `LogNorm` were not found, and given that the `update_normal` method in `Colorbar` does not seem to handle the change in norm to `LogNorm` effectively, a hypothetical patch could involve adding a check and handling for logarithmic norms directly within the `update_normal` method. This approach assumes that `LogNorm` behaves similarly to other norms in terms of needing `vmin` and `vmax` to be properly set and scaled.
+
+# modification 1
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>    def update_normal(self, mappable):
+        """
+        Update solid patches, lines, etc.
+
+        This is meant to be called when the norm of the image or contour plot
+        to which this colorbar belongs changes.
+
+        If the norm on the mappable is different than before, this resets the
+        locator and formatter for the axis, so if these have been customized,
+        they will need to be customized again.  However, if the norm only
+        changes values of *vmin*, *vmax* or *cmap* then the old formatter
+        and locator will be preserved.
+        """
+        _log.debug('colorbar update normal %r %r', mappable.norm, self.norm)
+        self.mappable = mappable
+        self.set_alpha(mappable.get_alpha())
+        self.cmap = mappable.cmap
+        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()
+
+        self._draw_all()
+        if isinstance(self.mappable, contour.ContourSet):
+            CS = self.mappable
+            if not CS.filled:
+                self.add_lines(CS)
+        self.stale = True
+</original>
+<patched>    def update_normal(self, mappable):
+        """
+        Update solid patches, lines, etc.
+
+        This is meant to be called when the norm of the image or contour plot
+        to which this colorbar belongs changes.
+
+        If the norm on the mappable is different than before, this resets the
+        locator and formatter for the axis, so if these have been customized,
+        they will need to be customized again.  However, if the norm only
+        changes values of *vmin*, *vmax* or *cmap* then the old formatter
+        and locator will be preserved.
+        
+        Added handling for LogNorm to ensure proper update.
+        """
+        import matplotlib.colors as mcolors
+        _log.debug('colorbar update normal %r %r', mappable.norm, self.norm)
+        self.mappable = mappable
+        self.set_alpha(mappable.get_alpha())
+        self.cmap = mappable.cmap
+        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            # Check if the norm is an instance of LogNorm
+            if isinstance(self.norm, mcolors.LogNorm):
+                # Ensure vmin and vmax are set and positive for LogNorm
+                if self.norm.vmin <= 0 or self.norm.vmax <= 0:
+                    raise ValueError("vmin and vmax must be positive for LogNorm")
+            self._reset_locator_formatter_scale()
+
+        self._draw_all()
+        if isinstance(self.mappable, contour.ContourSet):
+            CS = self.mappable
+            if not CS.filled:
+                self.add_lines(CS)
+        self.stale = True
+</patched>
+```
+
+This modification assumes the existence of `LogNorm` within `matplotlib.colors` and adds a specific check for it within the `update_normal` method of the `Colorbar` class. It ensures that `vmin` and `vmax` are set and positive, which is a requirement for logarithmic norms to function correctly. This patch is hypothetical and aims to address the issue based on the provided context and the general behavior of norms in Matplotlib. Further testing and validation would be necessary to ensure its effectiveness.

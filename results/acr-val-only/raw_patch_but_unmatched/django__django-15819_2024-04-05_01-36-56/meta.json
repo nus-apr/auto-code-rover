@@ -1,0 +1,46 @@
+{
+    "task_id": "django__django-15819",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__4.2",
+        "env_name": "setup_django__django__4.2",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 inspectdb.models inspectdb.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-15819",
+        "base_commit": "877c800f255ccaa7abde1fb944de45d1616f5cc9",
+        "hints_text": "FIrst solution variant was - \u200bhttps://github.com/django/django/pull/15816 But now I see it is not correct. I'll be back with new pull request",
+        "created_at": "2022-07-04T18:29:53Z",
+        "test_patch": "diff --git a/tests/inspectdb/models.py b/tests/inspectdb/models.py\n--- a/tests/inspectdb/models.py\n+++ b/tests/inspectdb/models.py\n@@ -9,6 +9,7 @@ class People(models.Model):\n \n class Message(models.Model):\n     from_field = models.ForeignKey(People, models.CASCADE, db_column=\"from_id\")\n+    author = models.ForeignKey(People, models.CASCADE, related_name=\"message_authors\")\n \n \n class PeopleData(models.Model):\ndiff --git a/tests/inspectdb/tests.py b/tests/inspectdb/tests.py\n--- a/tests/inspectdb/tests.py\n+++ b/tests/inspectdb/tests.py\n@@ -433,6 +433,15 @@ def test_introspection_errors(self):\n         # The error message depends on the backend\n         self.assertIn(\"# The error was:\", output)\n \n+    def test_same_relations(self):\n+        out = StringIO()\n+        call_command(\"inspectdb\", \"inspectdb_message\", stdout=out)\n+        self.assertIn(\n+            \"author = models.ForeignKey('InspectdbPeople', models.DO_NOTHING, \"\n+            \"related_name='inspectdbmessage_author_set')\",\n+            out.getvalue(),\n+        )\n+\n \n class InspectDBTransactionalTests(TransactionTestCase):\n     available_apps = [\"inspectdb\"]\n",
+        "repo": "django/django",
+        "problem_statement": "inspectdb should generate related_name on same relation links.\nDescription\n\t\nHi!\nAfter models generation with inspectdb command we have issue with relations to same enities\nmodule.Model.field1: (fields.E304) Reverse accessor for 'module.Model.field1' clashes with reverse accessor for 'module.Model.field2'.\nHINT: Add or change a related_name argument to the definition for 'module.Model.field1' or 'module.Model.field2'.\n*\nMaybe we can autogenerate\nrelated_name='attribute_name'\nto all fields in model if related Model was used for this table\n",
+        "version": "4.2",
+        "FAIL_TO_PASS": [
+            "test_same_relations (inspectdb.tests.InspectDBTestCase)"
+        ],
+        "PASS_TO_PASS": [
+            "By default the command generates models with `Meta.managed = False`.",
+            "Introspection errors should not crash the command, and the error should",
+            "Introspection of column names consist/start with digits (#16536/#17676)",
+            "Introspection of column names containing special characters,",
+            "Introspection of columns with a custom field (#21090)",
+            "Introspection of table names containing special characters,",
+            "Test introspection of various Django field types",
+            "inspectdb --include-views creates models for database views.",
+            "inspectdb can inspect a subset of tables by passing the table names as",
+            "test_attribute_name_not_python_keyword (inspectdb.tests.InspectDBTestCase)",
+            "test_char_field_db_collation (inspectdb.tests.InspectDBTestCase)",
+            "test_composite_primary_key (inspectdb.tests.InspectDBTransactionalTests)",
+            "test_foreign_key_to_field (inspectdb.tests.InspectDBTestCase)",
+            "test_json_field (inspectdb.tests.InspectDBTestCase)",
+            "test_stealth_table_name_filter_option (inspectdb.tests.InspectDBTestCase)",
+            "test_table_with_func_unique_constraint (inspectdb.tests.InspectDBTestCase)",
+            "test_text_field_db_collation (inspectdb.tests.InspectDBTestCase)",
+            "test_unique_together_meta (inspectdb.tests.InspectDBTestCase)"
+        ],
+        "environment_setup_commit": "0fbdb9784da915fce5dcc1fe82bac9b4785749e5",
+        "patch": "diff --git a/django/core/management/commands/inspectdb.py b/django/core/management/commands/inspectdb.py\n--- a/django/core/management/commands/inspectdb.py\n+++ b/django/core/management/commands/inspectdb.py\n@@ -127,12 +127,14 @@ def table2model(table_name):\n                     yield \"# The error was: %s\" % e\n                     continue\n \n+                model_name = table2model(table_name)\n                 yield \"\"\n                 yield \"\"\n-                yield \"class %s(models.Model):\" % table2model(table_name)\n-                known_models.append(table2model(table_name))\n+                yield \"class %s(models.Model):\" % model_name\n+                known_models.append(model_name)\n                 used_column_names = []  # Holds column names used in the table so far\n                 column_to_field_name = {}  # Maps column names to names of model fields\n+                used_relations = set()  # Holds foreign relations used in the table.\n                 for row in table_description:\n                     comment_notes = (\n                         []\n@@ -186,6 +188,12 @@ def table2model(table_name):\n                             field_type = \"%s(%s\" % (rel_type, rel_to)\n                         else:\n                             field_type = \"%s('%s'\" % (rel_type, rel_to)\n+                        if rel_to in used_relations:\n+                            extra_params[\"related_name\"] = \"%s_%s_set\" % (\n+                                model_name.lower(),\n+                                att_name,\n+                            )\n+                        used_relations.add(rel_to)\n                     else:\n                         # Calling `get_field_type` to get the field type string and any\n                         # additional parameters and notes.\n",
+        "pr_link": "https://github.com/django/django/pull/15819"
+    }
+}

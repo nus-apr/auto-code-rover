@@ -1,0 +1,35 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..3c3360fac 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -290,6 +290,9 @@ def type_of_target(y, input_name=""):
+         raise ValueError(
+             "Expected array-like (array or non-string sequence), got %r" % y
+         )
++    # Additional check for pandas nullable types to ensure they are handled correctly
++    if hasattr(y, "dtype") and str(y.dtype) in ["Int64", "Float64", "boolean"]:
++        y = y.to_numpy(dtype=str(y.dtype).lower())  # Convert to numpy with correct dtype
+ 
+     sparse_pandas = y.__class__.__name__ in ["SparseSeries", "SparseArray"]
+     if sparse_pandas:
+@@ -340,9 +343,17 @@ def type_of_target(y, input_name=""):
+             return "binary"  # []
+         # 2-D empty array: [[]]
+         return "unknown"
+-    if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+-        # [obj_1] and not ["label_1"]
+-        return "unknown"
++    if not issparse(y):
++        if y.dtype == object:
++            # Check if it's a pandas series with nullable type which gets converted to object
++            if hasattr(y, "dtype") and str(y.dtype) in ["Int64", "Float64", "boolean"]:
++                if str(y.dtype) == "boolean":
++                    return "binary"
++                else:
++                    return "multiclass"
++            if not isinstance(y.flat[0], str):
++                # [obj_1] and not ["label_1"]
++                return "unknown"
+ 
+     # Check if multioutput
+     if y.ndim == 2 and y.shape[1] > 1:

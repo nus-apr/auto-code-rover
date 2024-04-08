@@ -1,0 +1,38 @@
+The issue described involves the sorting logic for index entries, particularly how symbols are categorized, leading to two separate "Symbols" sections in the HTML output. The problem seems to stem from how entries starting with certain symbols (_@_, _£_, and _←_) are sorted and categorized. The relevant code snippet that likely needs adjustment is the sorting function `keyfunc`, which determines the order of entries and their categorization into sections, including the "Symbols" section.
+
+To resolve the issue, we need to adjust the sorting logic to ensure that all symbols are grouped together into a single "Symbols" section, rather than being split based on their ASCII values or other criteria. This involves modifying the `keyfunc` to treat all non-alphabetic and non-underscore characters as symbols and group them together.
+
+# modification 1
+```python
+<file>sphinx/environment/adapters/indexentries.py</file>
+<original>def keyfunc(entry: Tuple[str, List]) -> Tuple[str, str]:
+    key, (void, void, category_key) = entry
+    if category_key:
+        # using specified category key to sort
+        key = category_key
+    lckey = unicodedata.normalize('NFD', key.lower())
+    if lckey.startswith('\N{RIGHT-TO-LEFT MARK}'):
+        lckey = lckey[1:]
+    if lckey[0:1].isalpha() or lckey.startswith('_'):
+        lckey = chr(127) + lckey
+    # ensure a determinstic order *within* letters by also sorting on
+    # the entry itself
+    return (lckey, entry[0])</original>
+<patched>def keyfunc(entry: Tuple[str, List]) -> Tuple[str, str]:
+    key, (void, void, category_key) = entry
+    if category_key:
+        # using specified category key to sort
+        key = category_key
+    lckey = unicodedata.normalize('NFD', key.lower())
+    if lckey.startswith('\N{RIGHT-TO-LEFT MARK}'):
+        lckey = lckey[1:]
+    # Change here: Treat all non-alphabetic and non-underscore characters as symbols
+    if not (lckey[0:1].isalpha() or lckey.startswith('_')):
+        # Prefix symbols with a space to ensure they come before alphabetic entries
+        lckey = ' ' + lckey
+    # ensure a deterministic order *within* letters by also sorting on
+    # the entry itself
+    return (lckey, entry[0])</patched>
+```
+
+This modification changes the sorting logic so that all symbols are treated uniformly and grouped together at the beginning of the index, under a single "Symbols" section. By prefixing the sort key for symbols with a space (' '), we ensure that these entries come before any alphabetic entries, as space has a lower ASCII value than any letters or underscores. This approach should resolve the issue of having two separate "Symbols" sections in the HTML output.

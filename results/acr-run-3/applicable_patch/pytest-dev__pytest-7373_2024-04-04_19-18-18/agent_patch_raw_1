@@ -1,0 +1,110 @@
+# modification 1
+```python
+<file>src/_pytest/mark/evaluate.py</file>
+<original>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    default = {}  # type: Dict[str, object]
+    evalcache = config._store.setdefault(evalcache_key, default)
+    try:
+        return evalcache[expr]
+    except KeyError:
+        import _pytest._code
+
+        exprcode = _pytest._code.compile(expr, mode="eval")
+        evalcache[expr] = x = eval(exprcode, d)
+        return x
+</original>
+<patched>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    import _pytest._code
+
+    exprcode = _pytest._code.compile(expr, mode="eval")
+    return eval(exprcode, d)
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/mark/evaluate.py</file>
+<original>def _istrue(self) -> bool:
+        if hasattr(self, "result"):
+            result = getattr(self, "result")  # type: bool
+            return result
+        self._marks = self._get_marks()
+
+        if self._marks:
+            self.result = False
+            for mark in self._marks:
+                self._mark = mark
+                if "condition" not in mark.kwargs:
+                    args = mark.args
+                else:
+                    args = (mark.kwargs["condition"],)
+
+                for expr in args:
+                    self.expr = expr
+                    if isinstance(expr, str):
+                        d = self._getglobals()
+                        result = cached_eval(self.item.config, expr, d)
+                    else:
+                        if "reason" not in mark.kwargs:
+                            # XXX better be checked at collection time
+                            msg = (
+                                "you need to specify reason=STRING "
+                                "when using booleans as conditions."
+                            )
+                            fail(msg)
+                        result = bool(expr)
+                    if result:
+                        self.result = True
+                        self.reason = mark.kwargs.get("reason", None)
+                        self.expr = expr
+                        return self.result
+
+                if not args:
+                    self.result = True
+                    self.reason = mark.kwargs.get("reason", None)
+                    return self.result
+        return False
+</original>
+<patched>def _istrue(self) -> bool:
+        if hasattr(self, "result"):
+            result = getattr(self, "result")  # type: bool
+            return result
+        self._marks = self._get_marks()
+
+        if self._marks:
+            self.result = False
+            for mark in self._marks:
+                self._mark = mark
+                if "condition" not in mark.kwargs:
+                    args = mark.args
+                else:
+                    args = (mark.kwargs["condition"],)
+
+                for expr in args:
+                    self.expr = expr
+                    if isinstance(expr, str):
+                        d = self._getglobals()
+                        result = cached_eval(self.item.config, expr, d)
+                    else:
+                        if "reason" not in mark.kwargs:
+                            # XXX better be checked at collection time
+                            msg = (
+                                "you need to specify reason=STRING "
+                                "when using booleans as conditions."
+                            )
+                            fail(msg)
+                        result = bool(expr)
+                    if result:
+                        self.result = True
+                        self.reason = mark.kwargs.get("reason", None)
+                        self.expr = expr
+                        return self.result
+
+                if not args:
+                    self.result = True
+                    self.reason = mark.kwargs.get("reason", None)
+                    return self.result
+        return False
+</patched>
+```
+Note: The second modification retains the original code but is included to highlight that the primary change to address the issue is within the `cached_eval` function. By removing the caching mechanism in `cached_eval`, we ensure that the evaluation of expressions is always performed in the current context without relying on potentially outdated cached results. This change directly addresses the issue without needing to alter the logic within `_istrue`, as it now correctly evaluates expressions with the current global context.

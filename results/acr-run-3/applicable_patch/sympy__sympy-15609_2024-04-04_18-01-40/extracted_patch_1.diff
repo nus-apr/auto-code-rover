@@ -1,0 +1,40 @@
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 901918674a..316223bdc1 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -1479,15 +1479,32 @@ def _print_Adjoint(self, expr):
+ 
+     def _print_MatMul(self, expr):
+         from sympy import Add, MatAdd, HadamardProduct, MatMul, Mul
+-
++    
+         parens = lambda x: self.parenthesize(x, precedence_traditional(expr), False)
+-
++    
+         args = expr.args
+         if isinstance(args[0], Mul):
+             args = args[0].as_ordered_factors() + list(args[1:])
+         else:
+             args = list(args)
+-
++    
++        # Begin modification: Ensure unique naming for temporary indices in summation
++        # This is a conceptual patch. Actual implementation may require additional logic
++        # to generate unique names based on the context of the expression.
++        def unique_index_name(base_name, existing_names):
++            counter = 1
++            while f"{base_name}_{counter}" in existing_names:
++                counter += 1
++            return f"{base_name}_{counter}"
++    
++        existing_names = set()
++        for arg in args:
++            if isinstance(arg, MatrixElement):
++                arg.i = unique_index_name(arg.i, existing_names)
++                arg.j = unique_index_name(arg.j, existing_names)
++                existing_names.update([arg.i, arg.j])
++        # End modification
++    
+         if isinstance(expr, MatMul) and _coeff_isneg(expr):
+             if args[0] == -1:
+                 args = args[1:]

@@ -1,0 +1,30 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 180f4a41fc..e3ebfbb30d 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -798,6 +798,9 @@ class QuerySet:
+ 
+     def _values(self, *fields, **expressions):
+         clone = self._chain()
++        # Conceptually preserving initial GROUP BY fields for later use
++        if self.query.group_by:
++            clone._initial_group_by = self.query.group_by
+         if expressions:
+             clone = clone.annotate(**expressions)
+         clone._fields = fields
+@@ -1072,10 +1075,15 @@ class QuerySet:
+ 
+         for alias, annotation in clone.query.annotations.items():
+             if alias in annotations and annotation.contains_aggregate:
++                # Hypothetical patch to ensure GROUP BY fields are preserved after filtering
++                # This is a conceptual approach and needs thorough testing.
+                 if clone._fields is None:
+                     clone.query.group_by = True
+                 else:
+                     clone.query.set_group_by()
++                # Ensure GROUP BY fields from the initial values() call are preserved
++                if hasattr(clone, '_initial_group_by'):
++                    clone.query.group_by += clone._initial_group_by
+                 break
+ 
+         return clone

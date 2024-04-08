@@ -1,0 +1,38 @@
+diff --git a/src/_pytest/assertion/rewrite.py b/src/_pytest/assertion/rewrite.py
+index ecec2aa3d..509240033 100644
+--- a/src/_pytest/assertion/rewrite.py
++++ b/src/_pytest/assertion/rewrite.py
+@@ -190,9 +190,16 @@ class AssertionRewritingHook(importlib.abc.MetaPathFinder, importlib.abc.Loader)
+         state.trace("early skip of rewriting module: {}".format(name))
+         return True
+ 
++    import os
++    from pathlib import Path
++    
+     def _should_rewrite(self, name, fn, state):
++        # Convert fn to be relative to the original working directory
++        original_cwd = Path(self.config.rootdir) if self.config else Path(os.getcwd())
++        fn = original_cwd / Path(fn).relative_to(Path(fn).anchor)
++        
+         # always rewrite conftest files
+-        if os.path.basename(fn) == "conftest.py":
++        if os.path.basename(str(fn)) == "conftest.py":
+             state.trace("rewriting conftest file: {!r}".format(fn))
+             return True
+ 
+@@ -368,8 +375,15 @@ def _read_pyc(source, pyc, trace=lambda x: None):
+         return co
+ 
+ 
++import os
++from pathlib import Path
++
+ def rewrite_asserts(mod, source, module_path=None, config=None):
+     """Rewrite the assert statements in mod."""
++    # Ensure module_path is always relative to the original working directory
++    original_cwd = Path(config.rootdir) if config else Path(os.getcwd())
++    if module_path is not None:
++        module_path = original_cwd / Path(module_path).relative_to(Path(module_path).anchor)
+     AssertionRewriter(module_path, config, source).run(mod)
+ 
+ 

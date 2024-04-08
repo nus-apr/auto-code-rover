@@ -1,0 +1,36 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..60fd79c0c3 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -327,12 +327,18 @@ class FileSystemStorage(Storage):
+         return os.path.getsize(self.path(name))
+ 
+     def url(self, name):
++        from django.urls import get_script_prefix
+         if self.base_url is None:
+             raise ValueError("This file is not accessible via a URL.")
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        full_url = urljoin(self.base_url, url)
++        # Prepend the SCRIPT_NAME prefix
++        script_prefix = get_script_prefix()
++        if not full_url.startswith(script_prefix):
++            full_url = urljoin(script_prefix, full_url.lstrip('/'))
++        return full_url
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/urls/base.py b/django/urls/base.py
+index dd9b2e4c22..f5579d6f21 100644
+--- a/django/urls/base.py
++++ b/django/urls/base.py
+@@ -99,6 +99,7 @@ def clear_url_caches():
+ def set_script_prefix(prefix):
+     """
+     Set the script prefix for the current thread.
++    This function is modified to ensure that the SCRIPT_NAME is correctly applied across all URL generations.
+     """
+     if not prefix.endswith('/'):
+         prefix += '/'

@@ -1,0 +1,45 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 25c3b44250..3c34ffd959 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -251,14 +251,14 @@ class BaseReloader:
+     def watched_files(self, include_globs=True):
+         """
+         Yield all files that need to be watched, including module files and
+-        files within globs.
++        files within globs. Paths with null bytes are ignored to prevent errors.
+         """
+         yield from iter_all_python_module_files()
+-        yield from self.extra_files
++        yield from (f for f in self.extra_files if '\x00' not in str(f))
+         if include_globs:
+             for directory, patterns in self.directory_globs.items():
+                 for pattern in patterns:
+-                    yield from directory.glob(pattern)
++                    yield from (f for f in directory.glob(pattern) if '\x00' not in str(f))
+ 
+     def wait_for_apps_ready(self, app_reg, django_main_thread):
+         """
+@@ -353,15 +353,19 @@ class StatReloader(BaseReloader):
+ 
+     def snapshot_files(self):
+         # watched_files may produce duplicate paths if globs overlap.
++        # Added handling for ValueError to catch 'embedded null byte' errors.
+         seen_files = set()
+         for file in self.watched_files():
+             if file in seen_files:
+                 continue
+             try:
+                 mtime = file.stat().st_mtime
+-            except OSError:
+-                # This is thrown when the file does not exist.
+-                continue
++            except (OSError, ValueError) as e:
++                # This handles cases where the file does not exist or a 'embedded null byte' is encountered.
++                if isinstance(e, ValueError) and 'embedded null byte' in str(e):
++                    continue
++                else:
++                    continue
+             seen_files.add(file)
+             yield file, mtime
+ 

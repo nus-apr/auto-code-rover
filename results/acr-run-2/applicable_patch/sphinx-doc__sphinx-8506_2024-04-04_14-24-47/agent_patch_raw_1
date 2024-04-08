@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>sphinx/domains/std.py</file>
+<original># RE for option descriptions
+option_desc_re = re.compile(r'((?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')</original>
+<patched># RE for option descriptions, updated to include options starting with '['
+option_desc_re = re.compile(r'((?:\[)?(?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/domains/std.py</file>
+<original>if not m:
+    logger.warning(__('Malformed option description %r, should '
+                      'look like "opt", "-opt args", "--opt args", '
+                      '"/opt args" or "+opt args"'), potential_option,
+                   location=signode)
+    continue</original>
+<patched>if not m:
+    # Enhanced error handling to provide more detailed feedback
+    # and to allow certain patterns that do not strictly match but are valid
+    if '[' in potential_option and ']' in potential_option:
+        # Handle specific cases like '[enable=]PATTERN' more gracefully
+        optname, args = potential_option.split('=', 1) if '=' in potential_option else (potential_option, '')
+        args = ' ' + args if args else args
+    else:
+        logger.warning(__('Malformed option description %r, should '
+                          'look like "opt", "-opt args", "--opt args", '
+                          '"/opt args" or "+opt args"'), potential_option,
+                       location=signode)
+        continue
+    signode += addnodes.desc_addname(', ', ', ')
+    signode += addnodes.desc_name(optname, optname)
+    signode += addnodes.desc_addname(args, args)</patched>
+```
+
+These modifications aim to address the issue by:
+1. Adjusting the regular expression (`option_desc_re`) to allow option descriptions that start with `[`, making it more flexible to accommodate the reported use case.
+2. Enhancing the error handling in the `handle_signature` method to provide more detailed feedback and to allow for specific patterns that do not strictly match the original regex but are considered valid. This includes a special case handling for options like `[enable=]PATTERN`.

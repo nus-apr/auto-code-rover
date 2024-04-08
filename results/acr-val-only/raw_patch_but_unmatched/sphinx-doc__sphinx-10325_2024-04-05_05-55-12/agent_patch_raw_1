@@ -1,0 +1,46 @@
+To address the issue of supporting multiple classes in the `:inherited-members:` option, we need to modify the handling of this option to accept a list of classes and then update the logic that determines which inherited members to document. This involves changes in how options are parsed and how inherited members are filtered based on the specified classes.
+
+Given the context provided, the modifications would likely involve the `sphinx.ext.autodoc` extension, specifically in the parts of the code that handle the documentation of classes and their members. However, without direct access to the specific logic that processes the `:inherited-members:` option, we'll propose a conceptual patch that outlines the necessary changes.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>options = {'members': None,
+           'undoc-members': None,
+           'inherited-members': 'Base, list'}</original>
+<patched>options = {'members': None,
+           'undoc-members': None,
+           'inherited-members': ['Base', 'list']}</patched>
+```
+This modification updates the test case to reflect the desired change in how `:inherited-members:` option is specified. Instead of a comma-separated string, it should be a list of strings.
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>def process_member(self, member):
+    if self.options.inherited_members and member.is_inherited:
+        return False
+    return True</original>
+<patched>def process_member(self, member):
+    if self.options.inherited_members:
+        base_classes = self.options.inherited_members
+        if any(base_class in member.bases for base_class in base_classes) and member.is_inherited:
+            return False
+    return True</patched>
+```
+This hypothetical modification assumes there's a method `process_member` that decides whether to document a member based on its inheritance. The patched version checks if any of the member's base classes are in the list of classes to ignore. Note that `member.bases` and `member.is_inherited` are assumed properties for illustration purposes.
+
+# modification 3
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if 'inherited-members' in self.options:
+    self.env.temp_data['autodoc:inherited-members'] = self.options['inherited-members']</original>
+<patched>if 'inherited-members' in self.options:
+    inherited_members = self.options['inherited-members']
+    if isinstance(inherited_members, str):
+        inherited_members = [cls.strip() for cls in inherited_members.split(',')]
+    self.env.temp_data['autodoc:inherited-members'] = inherited_members</patched>
+```
+This modification ensures that the `:inherited-members:` option is always processed as a list, even if specified as a string, maintaining backward compatibility.
+
+Please note, these modifications are conceptual and based on the assumption of certain patterns in the codebase. Actual implementation may require adjustments based on the specific architecture and existing code patterns of the Sphinx project.

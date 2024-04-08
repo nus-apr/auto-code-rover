@@ -1,0 +1,40 @@
+Based on the issue described and the analysis of the `TypeSerializer.serialize` method, the problem seems to be with how imports are handled for custom model fields and mixins. The `TypeSerializer` does not include the necessary `models` import when serializing custom fields or mixins that extend `models.Model`. Here's a proposed patch to address this issue:
+
+# modification 1
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    def serialize(self):
+        special_cases = [
+            (models.Model, "models.Model", []),
+            (type(None), 'type(None)', []),
+        ]
+        for case, string, imports in special_cases:
+            if case is self.value:
+                return string, set(imports)
+        if hasattr(self.value, "__module__"):
+            module = self.value.__module__
+            if module == builtins.__name__:
+                return self.value.__name__, set()
+            else:
+                return "%s.%s" % (module, self.value.__qualname__), {"import %s" % module}
+</original>
+<patched>    def serialize(self):
+        special_cases = [
+            (models.Model, "models.Model", ["from django.db import models"]),
+            (type(None), 'type(None)', []),
+        ]
+        for case, string, imports in special_cases:
+            if case is self.value:
+                return string, set(["import %s" % imp for imp in imports])
+        if hasattr(self.value, "__module__"):
+            module = self.value.__module__
+            if module == "django.db.models":
+                return self.value.__name__, {"from django.db import models"}
+            elif module == builtins.__name__:
+                return self.value.__name__, set()
+            else:
+                return "%s.%s" % (module, self.value.__qualname__), {"import %s" % module}
+</patched>
+```
+
+This patch modifies the `TypeSerializer.serialize` method to explicitly include the necessary import statement for `models` when serializing types that are special cases, specifically `models.Model`. It also adds a check for when the module of the value being serialized is `"django.db.models"`, ensuring that the import `"from django.db import models"` is included. This should resolve the issue of missing import statements in generated migration files for custom model fields and mixins.

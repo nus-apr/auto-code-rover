@@ -1,0 +1,104 @@
+Given the feedback, let's refine the approach to ensure that the modifications directly address the creation of an empty `Array` without introducing regressions or failing existing tests. The goal is to ensure that when an empty iterable is passed to `Array`, it does not lead to an error due to unpacking issues or shape determination problems.
+
+# modification 1
+```python
+<file>sympy/tensor/array/ndim_array.py</file>
+<original>    def _scan_iterable_shape(cls, iterable):
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+
+            result = []
+            elems, shapes = zip(*[f(i) for i in pointer])
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</original>
+<patched>    def _scan_iterable_shape(cls, iterable):
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+            if not pointer:  # Check if the pointer is empty
+                return [], (0,)
+
+            result = []
+            try:
+                elems, shapes = zip(*[f(i) for i in pointer])
+            except ValueError:  # Handling empty iterable case
+                return [], (0,)
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/tensor/array/ndim_array.py</file>
+<original>    def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+        from sympy.matrices.matrices import MatrixBase
+        from sympy.tensor.array import SparseNDimArray
+
+        if shape is None:
+            if iterable is None:
+                shape = ()
+                iterable = ()
+            # Construction of a sparse array from a sparse array
+            elif isinstance(iterable, SparseNDimArray):
+                return iterable._shape, iterable._sparse_array
+
+            # Construct N-dim array from another N-dim array:
+            elif isinstance(iterable, NDimArray):
+                shape = iterable.shape
+
+            # Construct N-dim array from an iterable (numpy arrays included):
+            elif isinstance(iterable, Iterable):
+                iterable, shape = cls._scan_iterable_shape(iterable)
+
+            # Construct N-dim array from a Matrix:
+            elif isinstance(iterable, MatrixBase):
+                shape = iterable.shape
+
+            else:
+                shape = ()
+                iterable = (iterable,)
+</original>
+<patched>    def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+        from sympy.matrices.matrices import MatrixBase
+        from sympy.tensor.array import SparseNDimArray
+
+        if shape is None:
+            if iterable is None or (isinstance(iterable, Iterable) and not iterable):
+                shape = (0,)
+                iterable = ()
+            # Construction of a sparse array from a sparse array
+            elif isinstance(iterable, SparseNDimArray):
+                return iterable._shape, iterable._sparse_array
+
+            # Construct N-dim array from another N-dim array:
+            elif isinstance(iterable, NDimArray):
+                shape = iterable.shape
+
+            # Construct N-dim array from an iterable (numpy arrays included):
+            elif isinstance(iterable, Iterable):
+                iterable, shape = cls._scan_iterable_shape(iterable)
+
+            # Construct N-dim array from a Matrix:
+            elif isinstance(iterable, MatrixBase):
+                shape = iterable.shape
+
+            else:
+                shape = (0,)
+                iterable = (iterable,)
+</patched>
+```
+
+These refined modifications aim to more accurately handle the case of an empty iterable by ensuring that the shape is set to `(0,)` for an empty array, which should be a more appropriate representation for an empty array in terms of SymPy's internal handling. This approach also includes a catch for the `ValueError` thrown when attempting to unpack an empty iterable, directly addressing the root cause of the issue reported.

@@ -1,0 +1,54 @@
+Given the feedback that the initial patch did not resolve the issue completely and some tests have failed, let's revise the approach to address the problem more accurately. The goal is to ensure that the `solve_poly_system` function correctly handles cases with infinite solutions and that the test cases adequately cover these scenarios without causing failures for valid use cases.
+
+Considering the need for a more comprehensive solution, let's propose a refined patch that might address potential oversights or edge cases not covered by the initial patch.
+
+# modification 1 (Revised)
+```python
+<file>sympy/solvers/polysys.py</file>
+<original>
+univariate = list(filter(_is_univariate, basis))
+if len(univariate) == 1:
+    f = univariate.pop()
+else:
+    raise NotImplementedError(filldedent('''
+        only zero-dimensional systems supported (finite number of solutions)
+    '''))
+</original>
+<patched>
+univariate = list(filter(_is_univariate, basis))
+# Ensure that the system is treated as univariate only if there is exactly one generator
+# and the basis list does not imply an infinite number of solutions.
+if len(univariate) == 1 and len(gens) == len(system):
+    f = univariate.pop()
+else:
+    raise NotImplementedError(filldedent('''
+        only zero-dimensional systems supported (finite number of solutions)
+    '''))
+</patched>
+```
+
+This revision aims to refine the condition under which a system is considered for univariate solving. The condition now checks not only the number of univariate equations but also compares the length of `gens` with the length of the `system` to ensure that it's attempting to solve a system where the number of equations matches the number of variables, a characteristic of zero-dimensional systems.
+
+# modification 2 (Revised Test Cases)
+```python
+<file>sympy/solvers/tests/test_polysys.py</file>
+<original>
+def test_solve_poly_system():
+    assert solve_poly_system([x - 1], x) == [(S.One,)]
+</original>
+<patched>
+def test_solve_poly_system():
+    assert solve_poly_system([x - 1], x) == [(S.One,)]
+    # Test cases to ensure NotImplementedError is raised for systems implying infinite solutions
+    raises(NotImplementedError, lambda: solve_poly_system(
+        [x - 1], x, y))
+    raises(NotImplementedError, lambda: solve_poly_system(
+        [y - 1], x, y))
+    # Ensure that valid systems still solve correctly
+    assert solve_poly_system([x - 1, y - 2], x, y) == [(1, 2)]
+</patched>
+```
+
+The revised test cases include checks for scenarios where `NotImplementedError` should be raised due to the system implying infinite solutions. Additionally, a valid system with a finite number of solutions is included to ensure that the patch does not inadvertently break existing functionality.
+
+This revised patch aims to more accurately address the issue by refining the conditions under which systems are solved and expanding the test coverage to include both failure and success scenarios, thereby ensuring the robustness of the solution.

@@ -1,0 +1,58 @@
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
+    """Used to convert the :members: option to auto directives."""
+    if arg in (None, True):
+        return 'object'
+    else:
+        return arg</original>
+<patched>def inherited_members_option(arg: Any) -> Union[bool, Set[str]]:
+    """Used to convert the :members: option to auto directives."""
+    if arg in (None, True):
+        return True  # Changed 'object' to True to correctly indicate the inclusion of inherited members.
+    else:
+        return arg</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if no_docstring:
+            warnings.warn("The 'no_docstring' argument to %s.add_content() is deprecated."
+                          % self.__class__.__name__,
+                          RemovedInSphinx50Warning, stacklevel=2)
+
+        # set sourcename and add content from attribute documentation
+        sourcename = self.get_sourcename()
+        if self.analyzer:
+            attr_docs = self.analyzer.find_attr_docs()
+            if self.objpath:
+                key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+                if key in attr_docs:
+                    no_docstring = True
+                    # make a copy of docstring for attributes to avoid cache
+                    # the change of autodoc-process-docstring event.
+                    docstrings = [list(attr_docs[key])]</original>
+<patched>if no_docstring:
+            warnings.warn("The 'no_docstring' argument to %s.add_content() is deprecated."
+                          % self.__class__.__name__,
+                          RemovedInSphinx50Warning, stacklevel=2)
+        else:
+            # set sourcename and add content from attribute documentation
+            sourcename = self.get_sourcename()
+            if self.analyzer:
+                attr_docs = self.analyzer.find_attr_docs()
+                if self.objpath:
+                    key = ('.'.join(self.objpath[:-1]), self.objpath[-1])
+                    if key in attr_docs:
+                        # Changed logic to not set no_docstring to True here to ensure inherited docstrings are processed
+                        # make a copy of docstring for attributes to avoid cache
+                        # the change of autodoc-process-docstring event.
+                        docstrings = [list(attr_docs[key])]
+
+                        for i, line in enumerate(self.process_doc(docstrings)):
+                            self.add_line(line, sourcename, i)</patched>
+```
+
+These modifications aim to address the issue with inherited members being treated as undocumented by correcting the return value of the `inherited_members_option` function to accurately reflect the intention to include inherited members. Additionally, the adjustment in the `add_content` method ensures that the documentation process does not prematurely exclude inherited members' documentation based on the `no_docstring` flag.

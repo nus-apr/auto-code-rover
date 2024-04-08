@@ -1,0 +1,23 @@
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index fe1f7236e..1b87cbc8e 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -574,9 +574,15 @@ def check_array(array, accept_sparse=False, accept_large_sparse=True,
+                                 context))
+ 
+     if warn_on_dtype and dtype_orig is not None and array.dtype != dtype_orig:
+-        msg = ("Data with input dtype %s was converted to %s%s."
+-               % (dtype_orig, array.dtype, context))
+-        warnings.warn(msg, DataConversionWarning)
++        # Check if the original array is a pandas DataFrame and if so, compare dtypes more granularly
++        if hasattr(array_orig, 'dtypes') and not all(array_orig.dtypes == array.dtype):
++            msg = ("Data with input dtype(s) {} was converted to {}{}."
++                   .format(dict(array_orig.dtypes), array.dtype, context))
++            warnings.warn(msg, DataConversionWarning)
++        elif not hasattr(array_orig, 'dtypes') and array.dtype != dtype_orig:
++            msg = ("Data with input dtype %s was converted to %s%s."
++                   % (dtype_orig, array.dtype, context))
++            warnings.warn(msg, DataConversionWarning)
+ 
+     if copy and np.may_share_memory(array, array_orig):
+         array = np.array(array, dtype=dtype, order=order)

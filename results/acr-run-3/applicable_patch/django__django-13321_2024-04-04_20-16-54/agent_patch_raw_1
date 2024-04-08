@@ -1,0 +1,49 @@
+# modification 1
+```python
+<file>django/contrib/sessions/backends/base.py</file>
+<original>    def _legacy_decode(self, session_data):
+        # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.
+        encoded_data = base64.b64decode(session_data.encode('ascii'))
+        try:
+            # could produce ValueError if there is no ':'
+            hash, serialized = encoded_data.split(b':', 1)
+            expected_hash = self._hash(serialized)
+            if not constant_time_compare(hash.decode(), expected_hash):
+                raise SuspiciousSession("Session data corrupted")
+            else:
+                return self.serializer().loads(serialized)
+        except Exception as e:
+            # ValueError, SuspiciousOperation, unpickling exceptions. If any of
+            # these happen, just return an empty dictionary (an empty session).
+            if isinstance(e, SuspiciousOperation):
+                logger = logging.getLogger('django.security.%s' % e.__class__.__name__)
+                logger.warning(str(e))
+            return {}
+</original>
+<patched>    def _legacy_decode(self, session_data):
+        # RemovedInDjango40Warning: pre-Django 3.1 format will be invalid.
+        try:
+            encoded_data = base64.b64decode(session_data.encode('ascii'))
+        except binascii.Error as e:
+            logger = logging.getLogger('django.security.SuspiciousSession')
+            logger.warning(f"Failed to decode session data: {e}")
+            return {}
+        try:
+            # could produce ValueError if there is no ':'
+            hash, serialized = encoded_data.split(b':', 1)
+            expected_hash = self._hash(serialized)
+            if not constant_time_compare(hash.decode(), expected_hash):
+                raise SuspiciousSession("Session data corrupted")
+            else:
+                return self.serializer().loads(serialized)
+        except Exception as e:
+            # ValueError, SuspiciousOperation, unpickling exceptions. If any of
+            # these happen, just return an empty dictionary (an empty session).
+            if isinstance(e, SuspiciousOperation):
+                logger = logging.getLogger('django.security.%s' % e.__class__.__name__)
+                logger.warning(str(e))
+            return {}
+</patched>
+```
+
+This modification adds a try-except block specifically to catch `binascii.Error` exceptions, which occur when `base64.b64decode` encounters incorrect padding. This error is now caught and logged, and an empty dictionary is returned, indicating an empty session. This approach prevents the application from crashing due to malformed session data and allows for a graceful handling of the error.

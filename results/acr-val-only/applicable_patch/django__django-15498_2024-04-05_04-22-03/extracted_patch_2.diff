@@ -1,0 +1,30 @@
+diff --git a/django/utils/cache.py b/django/utils/cache.py
+index 90292ce4da..439b86d10b 100644
+--- a/django/utils/cache.py
++++ b/django/utils/cache.py
+@@ -258,11 +258,24 @@ def _if_none_match_passes(target_etag, etags):
+         return target_etag not in etags
+ 
+ 
++from datetime import datetime
++
+ def _if_modified_since_passes(last_modified, if_modified_since):
+     """
+     Test the If-Modified-Since comparison as defined in section 3.3 of RFC 7232.
++    Improved handling for empty string or improperly formatted If-Modified-Since header values.
+     """
+-    return not last_modified or last_modified > if_modified_since
++    # Early return if if_modified_since is empty or last_modified is not set.
++    if not if_modified_since or not last_modified:
++        return True
++
++    # Attempt to parse the If-Modified-Since header value. If parsing fails, treat it as passing the test.
++    try:
++        if_modified_since_parsed = datetime.strptime(if_modified_since, "%a, %d %b %Y %H:%M:%S GMT")
++    except ValueError:
++        return True
++
++    return last_modified > if_modified_since_parsed
+ 
+ 
+ def patch_response_headers(response, cache_timeout=None):

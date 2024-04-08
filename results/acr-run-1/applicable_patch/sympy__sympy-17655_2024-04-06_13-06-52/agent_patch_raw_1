@@ -1,0 +1,85 @@
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>    def __add__(self, other):
+        """Add other to self by incrementing self's coordinates by
+        those of other.
+
+        Notes
+        =====
+
+        >>> from sympy.geometry.point import Point
+
+        When sequences of coordinates are passed to Point methods, they
+        are converted to a Point internally. This __add__ method does
+        not do that so if floating point values are used, a floating
+        point result (in terms of SymPy Floats) will be returned.
+
+        >>> Point(1, 2) + (.1, .2)
+        Point2D(1.1, 2.2)
+
+        If this is not desired, the `translate` method can be used or
+        another Point can be added:
+
+        >>> Point(1, 2).translate(.1, .2)
+        Point2D(11/10, 11/5)
+        >>> Point(1, 2) + Point(.1, .2)
+        Point2D(11/10, 11/5)
+
+        See Also
+        ========
+
+        sympy.geometry.point.Point.translate
+
+        """
+        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</original>
+<patched>    def __add__(self, other):
+        """Add other to self by incrementing self's coordinates by
+        those of other.
+
+        Notes
+        =====
+
+        >>> from sympy.geometry.point import Point
+
+        When sequences of coordinates are passed to Point methods, they
+        are converted to a Point internally. This __add__ method does
+        not do that so if floating point values are used, a floating
+        point result (in terms of SymPy Floats) will be returned.
+
+        >>> Point(1, 2) + (.1, .2)
+        Point2D(1.1, 2.2)
+
+        If this is not desired, the `translate` method can be used or
+        another Point can be added:
+
+        >>> Point(1, 2).translate(.1, .2)
+        Point2D(11/10, 11/5)
+        >>> Point(1, 2) + Point(.1, .2)
+        Point2D(11/10, 11/5)
+
+        See Also
+        ========
+
+        sympy.geometry.point.Point.translate
+
+        """
+        from sympy.core.mul import Mul
+        if isinstance(other, Mul) and any(isinstance(arg, Point) for arg in other.args):
+            return NotImplemented
+        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</patched>
+```
+
+This patch adds a check at the beginning of the `__add__` method to return `NotImplemented` if the `other` operand is a `Mul` object containing a `Point`. This allows Python's method resolution order to attempt to call the `__radd__` method of the `Mul` object, if it exists, which may correctly handle the addition. This approach avoids modifying the behavior of existing operations while providing a way to handle the specific case described in the issue.

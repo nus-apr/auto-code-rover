@@ -1,0 +1,54 @@
+# modification 1
+```python
+<file>pylint/lint/expand_modules.py</file>
+<original>def get_python_path(filepath: str) -> str:
+    """TODO This get the python path with the (bad) assumption that there is always
+    an __init__.py.
+
+    This is not true since python 3.3 and is causing problem.
+    """
+    dirname = os.path.realpath(os.path.expanduser(filepath))
+    if not os.path.isdir(dirname):
+        dirname = os.path.dirname(dirname)
+    while True:
+        if not os.path.exists(os.path.join(dirname, "__init__.py")):
+            return dirname
+        old_dirname = dirname
+        dirname = os.path.dirname(dirname)
+        if old_dirname == dirname:
+            return os.getcwd()</original>
+<patched>def get_python_path(filepath: str) -> str:
+    """Updated to reflect that __init__.py is not required for packages since Python 3.3."""
+    dirname = os.path.realpath(os.path.expanduser(filepath))
+    if not os.path.isdir(dirname):
+        dirname = os.path.dirname(dirname)
+    while True:
+        init_py = os.path.join(dirname, "__init__.py")
+        py_cache = os.path.join(dirname, "__pycache__")
+        if not os.path.exists(init_py) and not os.path.isdir(py_cache):
+            return dirname
+        old_dirname = dirname
+        dirname = os.path.dirname(dirname)
+        if old_dirname == dirname:
+            return os.getcwd()</patched>
+```
+
+# modification 2
+```python
+<file>pylint/lint/expand_modules.py</file>
+<original>if os.path.isdir(something):
+                filepath = os.path.join(something, "__init__.py")
+            else:
+                filepath = something</original>
+<patched>if os.path.isdir(something):
+                init_py = os.path.join(something, "__init__.py")
+                if os.path.exists(init_py):
+                    filepath = init_py
+                else:
+                    # Handle namespace packages and regular directories without __init__.py
+                    filepath = something
+            else:
+                filepath = something</patched>
+```
+
+These modifications address the issue by removing the strict dependency on `__init__.py` for package identification, which aligns with Python's behavior since version 3.3. The first modification updates the `get_python_path` function to consider a directory a package if it either contains an `__init__.py` file or a `__pycache__` directory, acknowledging implicit namespace packages. The second modification ensures that when expanding modules, `pylint` does not automatically assume a directory is a package by the presence of `__init__.py`, allowing for proper handling of namespace packages and directories.

@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>            if bulk_return and on_conflict is None:
+                inserted_rows.extend(
+                    self._insert(
+                        item,
+                        fields=fields,
+                        using=self.db,
+                        returning_fields=self.model._meta.db_returning_fields,
+                    )
+                )
+            else:
+                self._insert(
+                    item,
+                    fields=fields,
+                    using=self.db,
+                    on_conflict=on_conflict,
+                    update_fields=update_fields,
+                    unique_fields=unique_fields,
+                )</original>
+<patched>            if bulk_return:
+                returning_fields = None
+                if on_conflict is None or (on_conflict and update_fields):
+                    returning_fields = self.model._meta.db_returning_fields
+                inserted_rows.extend(
+                    self._insert(
+                        item,
+                        fields=fields,
+                        using=self.db,
+                        on_conflict=on_conflict,
+                        update_fields=update_fields,
+                        unique_fields=unique_fields,
+                        returning_fields=returning_fields,
+                    )
+                )</patched>
+```
+
+This patch modifies the `_batched_insert` method to support returning IDs (or other specified returning fields) when `update_conflicts` is true, by adjusting the condition to allow `returning_fields` to be specified not only when `on_conflict` is None but also when `on_conflict` is true and `update_fields` are specified. This change ensures that the `RETURNING` clause is included in the SQL query for these cases, allowing the database to return the IDs of inserted or updated rows.

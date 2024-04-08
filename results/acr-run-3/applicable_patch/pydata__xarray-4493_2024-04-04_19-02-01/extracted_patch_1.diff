@@ -1,0 +1,26 @@
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index d29a9e1f..304ffcd3 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -932,6 +932,21 @@ def dataset_update_method(
+ 
+     # use ds.coords and not ds.indexes, else str coords are cast to object
+     indexes = {key: dataset.coords[key] for key in dataset.indexes.keys()}
++    # Before merging, check if 'other' contains chunked dask arrays and preserve their chunking
++    from dask.array.core import Array as DaskArray
++    
++    def preserve_chunking(target, source):
++        """Ensure that chunking in 'source' is applied to 'target' if both are dask arrays."""
++        if isinstance(target.data, DaskArray) and isinstance(source.data, DaskArray):
++            target = target.chunk(source.chunks)
++        return target
++    
++    # Apply chunk preservation logic
++    if isinstance(other, Dataset):
++        for var_name, data_array in other.data_vars.items():
++            if var_name in dataset.data_vars:
++                dataset[var_name] = preserve_chunking(dataset[var_name], data_array)
++    
+     return merge_core(
+         [dataset, other],
+         priority_arg=1,

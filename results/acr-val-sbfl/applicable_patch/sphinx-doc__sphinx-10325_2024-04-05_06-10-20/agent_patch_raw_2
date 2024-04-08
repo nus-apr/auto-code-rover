@@ -1,0 +1,52 @@
+Given the feedback that the initial patch did not resolve the issue and caused some tests to fail, I will revise the approach to ensure compatibility and correctness. The goal remains to enable the `:inherited-members:` option to accept a list of classes whose members should be ignored during documentation. Let's refine the modifications with a focus on ensuring that the changes are more robust and considerate of various use cases.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
+    """Used to convert the :members: option to auto directives."""
+    if arg in (None, True):
+        return 'object'
+    else:
+        return arg
+</original>
+<patched>from typing import Union, Set, List
+def inherited_members_option(arg: Any) -> Union[object, Set[str], List[str]]:
+    """Used to convert the :members: and :inherited-members: options to auto directives."""
+    if arg in (None, True):
+        return 'object'
+    elif isinstance(arg, str) and ',' in arg:
+        # Allow specifying multiple classes as a comma-separated list, trimming whitespace around class names
+        return set(map(str.strip, arg.split(',')))
+    else:
+        return arg
+</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if cls.__name__ == self.options.inherited_members and cls != self.object:
+</original>
+<patched>if isinstance(self.options.inherited_members, set) and cls.__name__ in self.options.inherited_members and cls != self.object:
+</patched>
+```
+
+# modification 3
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>elif self.options.inherited_members:
+            return False, list(members.values())
+</original>
+<patched>elif self.options.inherited_members:
+            if isinstance(self.options.inherited_members, set):
+                # Filter out members from the specified classes to be ignored
+                filtered_members = [m for m in members.values() if m.class_.__name__ not in self.options.inherited_members]
+                return False, filtered_members
+            else:
+                # If inherited_members is not a set, it means no specific classes were specified to be ignored
+                return False, list(members.values())
+</patched>
+```
+
+These revised modifications aim to address the issue more accurately by ensuring that the `:inherited-members:` option can accept a list of class names to ignore, represented as a comma-separated string. The changes include better handling of the option's value by converting it into a set of class names, ensuring compatibility with the existing logic that checks for membership in this set. Additionally, the modifications are designed to be more cautious in their approach to modifying existing functionality, aiming to minimize the impact on other parts of the system and avoid causing test failures.

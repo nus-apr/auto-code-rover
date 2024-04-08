@@ -1,0 +1,32 @@
+Given the feedback, it seems the initial approach might not fully address the issue or align with the expected behavior for all scenarios. Let's consider an alternative strategy that focuses on the specific behavior of `BoundaryNorm` within the `format_cursor_data` method. Since `BoundaryNorm` is explicitly not invertible, and this property is causing the crash, we can modify the handling in `format_cursor_data` to bypass the inverse operation for `BoundaryNorm` instances, or provide a meaningful fallback that doesn't rely on inversion.
+
+# modification 1
+```python
+<file>lib/matplotlib/artist.py</file>
+<original>            if np.isfinite(normed):
+                # Midpoints of neighboring color intervals.
+                neighbors = self.norm.inverse(
+                    (int(self.norm(data) * n) + np.array([0, 1])) / n)
+                delta = abs(neighbors - data).max()
+                g_sig_digits = cbook._g_sig_digits(data, delta)
+            else:
+                g_sig_digits = 3  # Consistent with default below.
+            return "[{:-#.{}g}]".format(data, g_sig_digits)</original>
+<patched>            if np.isfinite(normed):
+                # Check if the norm is BoundaryNorm and skip inverse calculation if it is
+                from matplotlib.colors import BoundaryNorm
+                if not isinstance(self.norm, BoundaryNorm):
+                    # Midpoints of neighboring color intervals.
+                    neighbors = self.norm.inverse(
+                        (int(self.norm(data) * n) + np.array([0, 1])) / n)
+                    delta = abs(neighbors - data).max()
+                    g_sig_digits = cbook._g_sig_digits(data, delta)
+                else:
+                    # For BoundaryNorm, use a default significant digits value
+                    g_sig_digits = 3
+            else:
+                g_sig_digits = 3  # Consistent with default below.
+            return "[{:-#.{}g}]".format(data, g_sig_digits)</patched>
+```
+
+This modification introduces a check to determine if the `norm` is an instance of `BoundaryNorm`. If it is, the method bypasses the inverse calculation, which is not applicable for `BoundaryNorm`, and uses a default value for significant digits. This approach avoids the error by not attempting an operation that `BoundaryNorm` explicitly does not support, while still providing a fallback behavior that allows the application to continue running smoothly.

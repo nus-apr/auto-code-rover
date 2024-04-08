@@ -1,0 +1,58 @@
+Given the complexity of the issue, which involves both the `DraggableLegend` and `FigureCanvasQTAgg` classes, a direct patch to enable pickling of figures with draggable legends might not be straightforward without a deeper understanding of the entire Matplotlib architecture and how it interacts with the Qt backend. However, I can propose a conceptual approach that might guide towards a solution.
+
+The core issue seems to be that the `FigureCanvasQTAgg` object, and possibly the `DraggableLegend` object, contain state or references that are not serializable through the standard Python pickling process. A potential workaround could involve implementing custom serialization methods for these objects that manually handle the serialization of their state.
+
+### modification 1
+Implementing a custom `__getstate__` method in `DraggableLegend` to allow for custom pickling.
+
+```python
+<file>lib/matplotlib/legend.py</file>
+<original>
+class DraggableLegend(DraggableOffsetBox):
+    def __init__(self, legend, use_blit=False, update="loc"):
+        ...
+</original>
+<patched>
+class DraggableLegend(DraggableOffsetBox):
+    def __init__(self, legend, use_blit=False, update="loc"):
+        ...
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the unpicklable entries.
+        del state['legend']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Restore the unpicklable entries.
+        self.legend = None  # Placeholder or method to reinitialize the legend
+</patched>
+```
+
+### modification 2
+For the `FigureCanvasQTAgg` class, since the issue is likely related to Qt objects, a similar approach could be taken. However, given the complexity and potential side effects, this modification is more conceptual and would need thorough testing.
+
+```python
+<file>lib/matplotlib/backends/backend_qtagg.py</file>
+<original>
+class FigureCanvasQTAgg(FigureCanvasAgg, FigureCanvasQT):
+    ...
+</original>
+<patched>
+class FigureCanvasQTAgg(FigureCanvasAgg, FigureCanvasQT):
+    ...
+    def __getstate__(self):
+        # Serialize only the necessary parts of the state.
+        state = super().__getstate__()
+        # Exclude Qt-specific or non-serializable parts.
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state, and reinitialize Qt-specific parts as needed.
+        super().__setstate__(state)
+        # Reinitialize or recreate Qt-specific attributes.
+</patched>
+```
+
+### Note:
+These modifications are conceptual and aim to illustrate a potential approach to solving the pickling issue. Implementing these changes would require a deep understanding of the Matplotlib and Qt internals, thorough testing, and consideration of potential side effects, especially regarding the restoration of the full state of the objects upon unpickling.

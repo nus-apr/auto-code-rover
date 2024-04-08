@@ -1,0 +1,40 @@
+Based on the context provided and the analysis of the issue, here is a proposed patch for the bug related to handling multi-line text labels with empty lines when saving figures using the PostScript backend in Matplotlib. This patch aims to prevent the `TypeError: cannot unpack non-iterable NoneType object` by ensuring that the `stream` variable does not contain `None` entries before attempting to unpack them in the `RendererPS.draw_text` method.
+
+```python
+<file>lib/matplotlib/backends/backend_ps.py</file>
+<original>
+        for ps_name, xs_names in stream:
+            self.set_font(ps_name, prop.get_size_in_points(), False)
+            thetext = "\n".join(f"{x:g} 0 m /{name:s} glyphshow"
+                                for x, name in xs_names)
+            self._pswriter.write(f"""\
+gsave
+{self._get_clip_cmd(gc)}
+{x:g} {y:g} translate
+{angle:g} rotate
+{thetext}
+grestore
+""")
+</original>
+<patched>
+        for stream_entry in stream:
+            if stream_entry is None:
+                continue  # Skip None entries to prevent TypeError
+            ps_name, xs_names = stream_entry
+            self.set_font(ps_name, prop.get_size_in_points(), False)
+            thetext = "\n".join(f"{x:g} 0 m /{name:s} glyphshow"
+                                for x, name in xs_names)
+            self._pswriter.write(f"""\
+gsave
+{self._get_clip_cmd(gc)}
+{x:g} {y:g} translate
+{angle:g} rotate
+{thetext}
+grestore
+""")
+</patched>
+```
+
+This patch modifies the iteration over the `stream` variable to first check if an entry is `None` and skip such entries if found. This approach prevents the `TypeError` by avoiding attempts to unpack `None` types, which cannot be unpacked into `ps_name` and `xs_names`. This solution is designed to address the symptom as described in the issue, ensuring that the figure can be saved without encountering the error when it contains multi-line text labels with empty lines.
+
+Please note, this patch is based on the provided context and simulated environment. For a comprehensive solution, further testing and review by the Matplotlib development team or contributors would be necessary to ensure compatibility and non-regression.

@@ -1,0 +1,30 @@
+# modification 1
+```python
+<file>sklearn/utils/_set_output.py</file>
+<original>if isinstance(data_to_wrap, pd.DataFrame):
+    if columns is not None:
+        data_to_wrap.columns = columns
+    if index is not None:
+        data_to_wrap.index = index
+    return data_to_wrap
+
+return pd.DataFrame(data_to_wrap, index=index, columns=columns)</original>
+<patched>if isinstance(data_to_wrap, pd.DataFrame):
+    if columns is not None:
+        data_to_wrap.columns = columns
+    # Adjust the index only if its length matches the number of rows in the DataFrame
+    if index is not None and len(index) == len(data_to_wrap):
+        data_to_wrap.index = index
+    elif index is not None and len(index) != len(data_to_wrap):
+        warnings.warn("The provided index length does not match the number of rows in the DataFrame. Ignoring the index.", UserWarning)
+    return data_to_wrap
+
+# When creating a new DataFrame, ensure the provided index matches the data's length
+if index is not None and len(index) != len(data_to_wrap):
+    warnings.warn("The provided index length does not match the number of rows in the DataFrame. Ignoring the index.", UserWarning)
+    index = None
+
+return pd.DataFrame(data_to_wrap, index=index, columns=columns)</patched>
+```
+
+This patch addresses the issue by adding a check to ensure that the length of the provided index matches the number of rows in the DataFrame before attempting to set the index. If the lengths do not match, a warning is issued, and the index setting operation is skipped to avoid the `ValueError`. This approach maintains the functionality of `_wrap_in_pandas_container` while providing a safeguard against index length mismatches, which was the root cause of the reported issue.

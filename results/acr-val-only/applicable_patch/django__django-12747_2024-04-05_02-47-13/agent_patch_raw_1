@@ -1,0 +1,21 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>        deleted, _rows_count = collector.delete()
+
+        # Clear the result cache, in case this QuerySet gets reused.
+        self._result_cache = None
+        return deleted, _rows_count</original>
+<patched>        deleted, _rows_count = collector.delete()
+
+        # Ensure consistency in the result format when no objects are deleted
+        if deleted == 0:
+            model_labels = set(self.model._meta.label for self in self.query.get_meta())
+            _rows_count = {label: 0 for label in model_labels}
+
+        # Clear the result cache, in case this QuerySet gets reused.
+        self._result_cache = None
+        return deleted, _rows_count</patched>
+```
+
+This patch ensures that when no objects are deleted, the result format remains consistent across models with and without foreign keys. It initializes the `_rows_count` dictionary with zero values for all models involved in the query if the total number of deleted objects is zero. This approach aligns with the expectation that the result format should not differ based on the presence of foreign keys in the models.

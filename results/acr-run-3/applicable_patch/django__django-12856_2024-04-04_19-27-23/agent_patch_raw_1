@@ -1,0 +1,31 @@
+To address the issue of `makemigrations` not checking that the fields named in `UniqueConstraint` actually exist, we can extend the `_check_local_fields` method in `django/db/models/base.py` to include a check for fields referenced in `UniqueConstraint`. This method currently checks for the existence of fields referenced in options like `unique_together` and raises `models.E012` if the fields don't exist. We will add a similar check for `UniqueConstraint`.
+
+Since the original issue description mentions that `makemigrations` does not perform this check for `UniqueConstraint`, we can infer that adding a similar validation mechanism for `UniqueConstraint` fields as is done for `unique_together` fields would resolve the issue.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>django/db/models/base.py</file>
+<original>        return errors</original>
+<patched>        # Start of patch
+        # Check for fields in UniqueConstraint that do not exist
+        if hasattr(cls._meta, 'constraints'):
+            for constraint in cls._meta.constraints:
+                if isinstance(constraint, models.UniqueConstraint):
+                    for field_name in constraint.fields:
+                        if field_name not in forward_fields_map:
+                            errors.append(
+                                checks.Error(
+                                    "'UniqueConstraint' refers to the nonexistent field '%s'." % field_name,
+                                    obj=cls,
+                                    id='models.E012',
+                                )
+                            )
+        # End of patch
+        return errors</patched>
+```
+
+This patch adds a check for each `UniqueConstraint` defined in the model's meta `constraints` attribute. For each field listed in a `UniqueConstraint`, it verifies if the field exists in the `forward_fields_map` (which maps field names to field objects). If a field does not exist, it appends an error to the `errors` list with the ID `models.E012`, consistent with the error raised for nonexistent fields in `unique_together`.
+
+This solution assumes that `UniqueConstraint` objects are stored in the `constraints` attribute of the model's `_meta` and that each `UniqueConstraint` has a `fields` attribute listing the names of the fields it includes. This approach aligns with Django's model meta options and constraint definitions.

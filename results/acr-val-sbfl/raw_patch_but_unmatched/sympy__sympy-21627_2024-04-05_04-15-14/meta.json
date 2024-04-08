@@ -1,0 +1,54 @@
+{
+    "task_id": "sympy__sympy-21627",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.9",
+        "env_name": "setup_sympy__sympy__1.9",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/functions/elementary/tests/test_complexes.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-21627",
+        "base_commit": "126f80578140e752ad5135aac77b8ff887eede3e",
+        "hints_text": "The problem is with `Abs`:\r\n```python\r\nIn [7]: e = S(\"im(acos(-i + acosh(-g + i)))\")                                                        \r\n\r\nIn [8]: abs(e)\r\n```\r\nThat leads to this:\r\nhttps://github.com/sympy/sympy/blob/126f80578140e752ad5135aac77b8ff887eede3e/sympy/functions/elementary/complexes.py#L616-L621\r\nand then `sqrt` leads here:\r\nhttps://github.com/sympy/sympy/blob/126f80578140e752ad5135aac77b8ff887eede3e/sympy/core/power.py#L336\r\nwhich goes to here:\r\nhttps://github.com/sympy/sympy/blob/126f80578140e752ad5135aac77b8ff887eede3e/sympy/core/power.py#L418\r\nAnd then that's trying to compute the same abs again.\r\n\r\nI'm not sure where the cycle should be broken but the code in `Abs.eval` seems excessively complicated.\r\n\n> That leads to this:\r\n\r\nThe test should be changed to:\r\n```python\r\n_arg = signsimp(arg, evaluate=False)\r\nif _arg != conj or _arg != -conj:\r\n```\n We should probably never come to this test when the argument is real. There should be something like `if arg.is_extended_real` before `conj` is computed.\nThere are tests for nonnegative, nonpositive and imaginary. So an additional test before coming to this part would be\r\n```python\r\nif arg.is_extended_real:\r\n    return\r\n...\r\n_arg = signsimp(arg, evaluate=False)\r\nif _arg not in (conj, -conj):\r\n...\r\n```",
+        "created_at": "2021-06-16T17:29:41Z",
+        "test_patch": "diff --git a/sympy/functions/elementary/tests/test_complexes.py b/sympy/functions/elementary/tests/test_complexes.py\n--- a/sympy/functions/elementary/tests/test_complexes.py\n+++ b/sympy/functions/elementary/tests/test_complexes.py\n@@ -464,6 +464,8 @@ def test_Abs():\n     # issue 19627\n     f = Function('f', positive=True)\n     assert sqrt(f(x)**2) == f(x)\n+    # issue 21625\n+    assert unchanged(Abs, S(\"im(acos(-i + acosh(-g + i)))\"))\n \n \n def test_Abs_rewrite():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Bug: maximum recusion depth error when checking is_zero of cosh expression\nThe following code causes a `RecursionError: maximum recursion depth exceeded while calling a Python object` error when checked if it is zero:\r\n```\r\nexpr =sympify(\"cosh(acos(-i + acosh(-g + i)))\")\r\nexpr.is_zero\r\n```\n",
+        "version": "1.9",
+        "FAIL_TO_PASS": [
+            "test_Abs"
+        ],
+        "PASS_TO_PASS": [
+            "test_Abs_properties",
+            "test_Abs_real",
+            "test_Abs_rewrite",
+            "test_abs",
+            "test_adjoint",
+            "test_arg",
+            "test_arg_rewrite",
+            "test_as_real_imag",
+            "test_conjugate",
+            "test_conjugate_transpose",
+            "test_derivatives_issue_4757",
+            "test_im",
+            "test_issue_11413",
+            "test_issue_14216",
+            "test_issue_14238",
+            "test_issue_3206",
+            "test_issue_4035",
+            "test_issue_4754_derivative_conjugate",
+            "test_periodic_argument",
+            "test_polarify",
+            "test_principal_branch",
+            "test_re",
+            "test_sign",
+            "test_transpose",
+            "test_unpolarify",
+            "test_zero_assumptions"
+        ],
+        "environment_setup_commit": "f9a6f50ec0c74d935c50a6e9c9b2cb0469570d91",
+        "patch": "diff --git a/sympy/functions/elementary/complexes.py b/sympy/functions/elementary/complexes.py\n--- a/sympy/functions/elementary/complexes.py\n+++ b/sympy/functions/elementary/complexes.py\n@@ -607,6 +607,8 @@ def eval(cls, arg):\n             arg2 = -S.ImaginaryUnit * arg\n             if arg2.is_extended_nonnegative:\n                 return arg2\n+        if arg.is_extended_real:\n+            return\n         # reject result if all new conjugates are just wrappers around\n         # an expression that was already in the arg\n         conj = signsimp(arg.conjugate(), evaluate=False)\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/21627"
+    }
+}

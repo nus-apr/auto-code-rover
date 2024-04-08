@@ -1,0 +1,44 @@
+{
+    "task_id": "django__django-15061",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.1",
+        "env_name": "setup_django__django__4.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 forms_tests.field_tests.test_multivaluefield forms_tests.field_tests.test_splitdatetimefield postgres_tests.test_ranges"
+    },
+    "task_info": {
+        "instance_id": "django__django-15061",
+        "base_commit": "2c01ebb4be5d53cbf6450f356c10e436025d6d07",
+        "hints_text": "I agree that we should remove for from MultiWidget's <label> but not because \"It has not sense\" but to improve accessibility when using a screen reader, see also #32338. It should be enough to return an empty string: def id_for_label(self, id_): return ''\n\u200bPR",
+        "created_at": "2021-11-04T17:15:53Z",
+        "test_patch": "diff --git a/tests/forms_tests/field_tests/test_multivaluefield.py b/tests/forms_tests/field_tests/test_multivaluefield.py\n--- a/tests/forms_tests/field_tests/test_multivaluefield.py\n+++ b/tests/forms_tests/field_tests/test_multivaluefield.py\n@@ -141,7 +141,7 @@ def test_form_as_table(self):\n         self.assertHTMLEqual(\n             form.as_table(),\n             \"\"\"\n-            <tr><th><label for=\"id_field1_0\">Field1:</label></th>\n+            <tr><th><label>Field1:</label></th>\n             <td><input type=\"text\" name=\"field1_0\" id=\"id_field1_0\" required>\n             <select multiple name=\"field1_1\" id=\"id_field1_1\" required>\n             <option value=\"J\">John</option>\n@@ -164,7 +164,7 @@ def test_form_as_table_data(self):\n         self.assertHTMLEqual(\n             form.as_table(),\n             \"\"\"\n-            <tr><th><label for=\"id_field1_0\">Field1:</label></th>\n+            <tr><th><label>Field1:</label></th>\n             <td><input type=\"text\" name=\"field1_0\" value=\"some text\" id=\"id_field1_0\" required>\n             <select multiple name=\"field1_1\" id=\"id_field1_1\" required>\n             <option value=\"J\" selected>John</option>\ndiff --git a/tests/forms_tests/field_tests/test_splitdatetimefield.py b/tests/forms_tests/field_tests/test_splitdatetimefield.py\n--- a/tests/forms_tests/field_tests/test_splitdatetimefield.py\n+++ b/tests/forms_tests/field_tests/test_splitdatetimefield.py\n@@ -1,7 +1,7 @@\n import datetime\n \n from django.core.exceptions import ValidationError\n-from django.forms import SplitDateTimeField\n+from django.forms import Form, SplitDateTimeField\n from django.forms.widgets import SplitDateTimeWidget\n from django.test import SimpleTestCase\n \n@@ -60,3 +60,16 @@ def test_splitdatetimefield_changed(self):\n         self.assertTrue(f.has_changed(datetime.datetime(2008, 5, 6, 12, 40, 00), ['2008-05-06', '12:40:00']))\n         self.assertFalse(f.has_changed(datetime.datetime(2008, 5, 6, 12, 40, 00), ['06/05/2008', '12:40']))\n         self.assertTrue(f.has_changed(datetime.datetime(2008, 5, 6, 12, 40, 00), ['06/05/2008', '12:41']))\n+\n+    def test_form_as_table(self):\n+        class TestForm(Form):\n+            datetime = SplitDateTimeField()\n+\n+        f = TestForm()\n+        self.assertHTMLEqual(\n+            f.as_table(),\n+            '<tr><th><label>Datetime:</label></th><td>'\n+            '<input type=\"text\" name=\"datetime_0\" required id=\"id_datetime_0\">'\n+            '<input type=\"text\" name=\"datetime_1\" required id=\"id_datetime_1\">'\n+            '</td></tr>',\n+        )\ndiff --git a/tests/postgres_tests/test_ranges.py b/tests/postgres_tests/test_ranges.py\n--- a/tests/postgres_tests/test_ranges.py\n+++ b/tests/postgres_tests/test_ranges.py\n@@ -665,7 +665,7 @@ class SplitForm(forms.Form):\n         self.assertHTMLEqual(str(form), '''\n             <tr>\n                 <th>\n-                <label for=\"id_field_0\">Field:</label>\n+                <label>Field:</label>\n                 </th>\n                 <td>\n                     <input id=\"id_field_0_0\" name=\"field_0_0\" type=\"text\">\n@@ -700,7 +700,7 @@ class DateTimeRangeForm(forms.Form):\n             form.as_table(),\n             \"\"\"\n             <tr><th>\n-            <label for=\"id_datetime_field_0\">Datetime field:</label>\n+            <label>Datetime field:</label>\n             </th><td>\n             <input type=\"text\" name=\"datetime_field_0\" id=\"id_datetime_field_0\">\n             <input type=\"text\" name=\"datetime_field_1\" id=\"id_datetime_field_1\">\n@@ -717,7 +717,7 @@ class DateTimeRangeForm(forms.Form):\n             form.as_table(),\n             \"\"\"\n             <tr><th>\n-            <label for=\"id_datetime_field_0\">Datetime field:</label>\n+            <label>Datetime field:</label>\n             </th><td>\n             <input type=\"text\" name=\"datetime_field_0\"\n             value=\"2010-01-01 11:13:00\" id=\"id_datetime_field_0\">\n@@ -754,7 +754,7 @@ class RangeForm(forms.Form):\n \n         self.assertHTMLEqual(str(RangeForm()), '''\n         <tr>\n-            <th><label for=\"id_ints_0\">Ints:</label></th>\n+            <th><label>Ints:</label></th>\n             <td>\n                 <input id=\"id_ints_0\" name=\"ints_0\" type=\"number\">\n                 <input id=\"id_ints_1\" name=\"ints_1\" type=\"number\">\n",
+        "repo": "django/django",
+        "problem_statement": "Remove \"for = ...\" from MultiWidget's <label>.\nDescription\n\t\nThe instance from Raw MultiWidget class generate id_for_label like f'{id_}0'\nIt has not sense.\nFor example ChoiceWidget has self.add_id_index and I can decide it myself, how I will see label_id - with or without index.\nI think, it is better to remove completely id_for_label method from MultiWidget Class.\n",
+        "version": "4.1",
+        "FAIL_TO_PASS": [
+            "test_form_as_table (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_form_as_table (forms_tests.field_tests.test_splitdatetimefield.SplitDateTimeFieldTest)",
+            "test_form_as_table_data (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)"
+        ],
+        "PASS_TO_PASS": [
+            "If insufficient data is provided, None is substituted.",
+            "Test when the first widget's data has changed.",
+            "Test when the last widget's data has changed. This ensures that it is",
+            "test_bad_choice (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_clean (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_clean_disabled_multivalue (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_disabled_has_changed (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_form_cleaned_data (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_has_changed_no_initial (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_has_changed_same (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_render_required_attributes (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)",
+            "test_splitdatetimefield_1 (forms_tests.field_tests.test_splitdatetimefield.SplitDateTimeFieldTest)",
+            "test_splitdatetimefield_2 (forms_tests.field_tests.test_splitdatetimefield.SplitDateTimeFieldTest)",
+            "test_splitdatetimefield_changed (forms_tests.field_tests.test_splitdatetimefield.SplitDateTimeFieldTest)"
+        ],
+        "environment_setup_commit": "647480166bfe7532e8c471fef0146e3a17e6c0c9",
+        "patch": "diff --git a/django/forms/widgets.py b/django/forms/widgets.py\n--- a/django/forms/widgets.py\n+++ b/django/forms/widgets.py\n@@ -849,9 +849,7 @@ def get_context(self, name, value, attrs):\n         return context\n \n     def id_for_label(self, id_):\n-        if id_:\n-            id_ += '_0'\n-        return id_\n+        return ''\n \n     def value_from_datadict(self, data, files, name):\n         return [\n",
+        "pr_link": "https://github.com/django/django/pull/15061"
+    }
+}

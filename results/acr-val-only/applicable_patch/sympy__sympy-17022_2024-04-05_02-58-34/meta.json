@@ -1,0 +1,36 @@
+{
+    "task_id": "sympy__sympy-17022",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.5",
+        "env_name": "setup_sympy__sympy__1.5",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/printing/tests/test_numpy.py sympy/printing/tests/test_pycode.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-17022",
+        "base_commit": "f91de695585c1fbc7d4f49ee061f64fcb1c2c4d8",
+        "hints_text": "If the shape is an explicit number, we can just print `eye(n)`. For unknown shape, it's harder. We can raise an exception for now. It's better to raise an exception than give a wrong answer. ",
+        "created_at": "2019-06-12T21:54:57Z",
+        "test_patch": "diff --git a/sympy/printing/tests/test_numpy.py b/sympy/printing/tests/test_numpy.py\n--- a/sympy/printing/tests/test_numpy.py\n+++ b/sympy/printing/tests/test_numpy.py\n@@ -1,6 +1,6 @@\n from sympy import (\n     Piecewise, lambdify, Equality, Unequality, Sum, Mod, cbrt, sqrt,\n-    MatrixSymbol, BlockMatrix\n+    MatrixSymbol, BlockMatrix, Identity\n )\n from sympy import eye\n from sympy.abc import x, i, j, a, b, c, d\n@@ -11,7 +11,7 @@\n from sympy.printing.lambdarepr import NumPyPrinter\n \n from sympy.utilities.pytest import warns_deprecated_sympy\n-from sympy.utilities.pytest import skip\n+from sympy.utilities.pytest import skip, raises\n from sympy.external import import_module\n \n np = import_module('numpy')\n@@ -252,3 +252,21 @@ def test_16857():\n \n     printer = NumPyPrinter()\n     assert printer.doprint(A) == 'numpy.block([[a_1, a_2], [a_3, a_4]])'\n+\n+\n+def test_issue_17006():\n+    if not np:\n+        skip(\"NumPy not installed\")\n+\n+    M = MatrixSymbol(\"M\", 2, 2)\n+\n+    f = lambdify(M, M + Identity(2))\n+    ma = np.array([[1, 2], [3, 4]])\n+    mr = np.array([[2, 2], [3, 5]])\n+\n+    assert (f(ma) == mr).all()\n+\n+    from sympy import symbols\n+    n = symbols('n', integer=True)\n+    N = MatrixSymbol(\"M\", n, n)\n+    raises(NotImplementedError, lambda: lambdify(N, N + Identity(n)))\ndiff --git a/sympy/printing/tests/test_pycode.py b/sympy/printing/tests/test_pycode.py\n--- a/sympy/printing/tests/test_pycode.py\n+++ b/sympy/printing/tests/test_pycode.py\n@@ -7,7 +7,7 @@\n from sympy.core.numbers import pi\n from sympy.functions import acos, Piecewise, sign\n from sympy.logic import And, Or\n-from sympy.matrices import SparseMatrix, MatrixSymbol\n+from sympy.matrices import SparseMatrix, MatrixSymbol, Identity\n from sympy.printing.pycode import (\n     MpmathPrinter, NumPyPrinter, PythonCodePrinter, pycode, SciPyPrinter\n )\n@@ -49,6 +49,7 @@ def test_NumPyPrinter():\n     A = MatrixSymbol(\"A\", 2, 2)\n     assert p.doprint(A**(-1)) == \"numpy.linalg.inv(A)\"\n     assert p.doprint(A**5) == \"numpy.linalg.matrix_power(A, 5)\"\n+    assert p.doprint(Identity(3)) == \"numpy.eye(3)\"\n \n \n def test_SciPyPrinter():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Lambdify misinterprets some matrix expressions\nUsing lambdify on an expression containing an identity matrix gives us an unexpected result:\r\n\r\n```python\r\n>>> import numpy as np\r\n>>> n = symbols('n', integer=True)\r\n>>> A = MatrixSymbol(\"A\", n, n)\r\n>>> a = np.array([[1, 2], [3, 4]])\r\n>>> f = lambdify(A, A + Identity(n))\r\n>>> f(a)\r\narray([[1.+1.j, 2.+1.j],\r\n       [3.+1.j, 4.+1.j]])\r\n```\r\n\r\nInstead, the output should be  `array([[2, 2], [3, 5]])`, since we're adding an identity matrix to the array. Inspecting the globals and source code of `f` shows us why we get the result:\r\n\r\n```python\r\n>>> import inspect\r\n>>> print(inspect.getsource(f))\r\ndef _lambdifygenerated(A):\r\n    return (I + A)\r\n>>> f.__globals__['I']\r\n1j\r\n```\r\n\r\nThe code printer prints `I`, which is currently being interpreted as a Python built-in complex number. The printer should support printing identity matrices, and signal an error for unsupported expressions that might be misinterpreted.\n",
+        "version": "1.5",
+        "FAIL_TO_PASS": [
+            "test_NumPyPrinter"
+        ],
+        "PASS_TO_PASS": [
+            "test_MpmathPrinter",
+            "test_PythonCodePrinter",
+            "test_SciPyPrinter",
+            "test_codegen_ast_nodes",
+            "test_issue_14283",
+            "test_numpy_piecewise_regression",
+            "test_printmethod",
+            "test_pycode_reserved_words"
+        ],
+        "environment_setup_commit": "70381f282f2d9d039da860e391fe51649df2779d",
+        "patch": "diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py\n--- a/sympy/printing/pycode.py\n+++ b/sympy/printing/pycode.py\n@@ -608,6 +608,13 @@ def _print_MatrixBase(self, expr):\n             func = self._module_format('numpy.array')\n         return \"%s(%s)\" % (func, self._print(expr.tolist()))\n \n+    def _print_Identity(self, expr):\n+        shape = expr.shape\n+        if all([dim.is_Integer for dim in shape]):\n+            return \"%s(%s)\" % (self._module_format('numpy.eye'), self._print(expr.shape[0]))\n+        else:\n+            raise NotImplementedError(\"Symbolic matrix dimensions are not yet supported for identity matrices\")\n+\n     def _print_BlockMatrix(self, expr):\n         return '{0}({1})'.format(self._module_format('numpy.block'),\n                                  self._print(expr.args[0].tolist()))\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/17022"
+    }
+}

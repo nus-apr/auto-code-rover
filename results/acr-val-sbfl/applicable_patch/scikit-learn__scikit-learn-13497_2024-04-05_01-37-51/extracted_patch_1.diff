@@ -1,0 +1,37 @@
+diff --git a/sklearn/feature_selection/mutual_info_.py b/sklearn/feature_selection/mutual_info_.py
+index d5d1b7fb5..1347c3368 100644
+--- a/sklearn/feature_selection/mutual_info_.py
++++ b/sklearn/feature_selection/mutual_info_.py
+@@ -249,17 +249,22 @@ def _estimate_mi(X, y, discrete_features='auto', discrete_target=False,
+ 
+     if discrete_features == 'auto':
+         discrete_features = issparse(X)
+-
+-    if isinstance(discrete_features, bool):
+-        discrete_mask = np.empty(n_features, dtype=bool)
+-        discrete_mask.fill(discrete_features)
++    
++    # Ensure discrete_features is an array to simplify further processing
++    discrete_features = np.asarray(discrete_features)
++    
++    if discrete_features.dtype == 'bool' and discrete_features.size == 1:
++        # If a single boolean value is provided, interpret it as applying to all features
++        discrete_mask = np.full(n_features, fill_value=discrete_features[0], dtype=bool)
++    elif discrete_features.dtype == 'bool' and discrete_features.size != 1:
++        # If a boolean mask is provided, use it directly
++        if discrete_features.size != n_features:
++            raise ValueError("Boolean mask for discrete_features must have the same length as the number of features")
++        discrete_mask = discrete_features
+     else:
+-        discrete_features = np.asarray(discrete_features)
+-        if discrete_features.dtype != 'bool':
+-            discrete_mask = np.zeros(n_features, dtype=bool)
+-            discrete_mask[discrete_features] = True
+-        else:
+-            discrete_mask = discrete_features
++        # If indices are provided, create a mask with True at those indices
++        discrete_mask = np.zeros(n_features, dtype=bool)
++        discrete_mask[discrete_features] = True
+ 
+     continuous_mask = ~discrete_mask
+     if np.any(continuous_mask) and issparse(X):

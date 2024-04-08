@@ -1,0 +1,57 @@
+{
+    "task_id": "django__django-15347",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__4.1",
+        "env_name": "setup_django__django__4.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 messages_tests.test_cookie"
+    },
+    "task_info": {
+        "instance_id": "django__django-15347",
+        "base_commit": "7c4f3965098baad2396e24501e09237425a7bd6f",
+        "hints_text": "",
+        "created_at": "2022-01-22T01:56:48Z",
+        "test_patch": "diff --git a/tests/messages_tests/test_cookie.py b/tests/messages_tests/test_cookie.py\n--- a/tests/messages_tests/test_cookie.py\n+++ b/tests/messages_tests/test_cookie.py\n@@ -52,6 +52,12 @@ class CookieTests(BaseTests, SimpleTestCase):\n     def stored_messages_count(self, storage, response):\n         return stored_cookie_messages_count(storage, response)\n \n+    def encode_decode(self, *args, **kwargs):\n+        storage = self.get_storage()\n+        message = Message(constants.DEBUG, *args, **kwargs)\n+        encoded = storage._encode(message)\n+        return storage._decode(encoded)\n+\n     def test_get(self):\n         storage = self.storage_class(self.get_request())\n         # Set initial data.\n@@ -168,12 +174,23 @@ def test_safedata(self):\n         A message containing SafeData is keeping its safe status when\n         retrieved from the message storage.\n         \"\"\"\n-        def encode_decode(data):\n-            message = Message(constants.DEBUG, data)\n-            encoded = storage._encode(message)\n-            decoded = storage._decode(encoded)\n-            return decoded.message\n+        self.assertIsInstance(\n+            self.encode_decode(mark_safe('<b>Hello Django!</b>')).message,\n+            SafeData,\n+        )\n+        self.assertNotIsInstance(\n+            self.encode_decode('<b>Hello Django!</b>').message,\n+            SafeData,\n+        )\n \n-        storage = self.get_storage()\n-        self.assertIsInstance(encode_decode(mark_safe(\"<b>Hello Django!</b>\")), SafeData)\n-        self.assertNotIsInstance(encode_decode(\"<b>Hello Django!</b>\"), SafeData)\n+    def test_extra_tags(self):\n+        \"\"\"\n+        A message's extra_tags attribute is correctly preserved when retrieved\n+        from the message storage.\n+        \"\"\"\n+        for extra_tags in ['', None, 'some tags']:\n+            with self.subTest(extra_tags=extra_tags):\n+                self.assertEqual(\n+                    self.encode_decode('message', extra_tags=extra_tags).extra_tags,\n+                    extra_tags,\n+                )\n",
+        "repo": "django/django",
+        "problem_statement": "Messages framework incorrectly serializes/deserializes extra_tags when it's an empty string\nDescription\n\t\nWhen a message is serialised and then deserialised with any of the built in storage backends, then extra_tags==\"\" is converted to extra_tags==None. This is because MessageEncoder checks for the truthyness of extra_tags rather than checking it is not None.\nTo replicate this bug\n>>> from django.conf import settings\n>>> settings.configure() # Just to allow the following import\n>>> from django.contrib.messages.storage.base import Message\n>>> from django.contrib.messages.storage.cookie import MessageEncoder, MessageDecoder\n>>> original_message = Message(10, \"Here is a message\", extra_tags=\"\")\n>>> encoded_message = MessageEncoder().encode(original_message)\n>>> decoded_message = MessageDecoder().decode(encoded_message)\n>>> original_message.extra_tags == \"\"\nTrue\n>>> decoded_message.extra_tags is None\nTrue\nEffect of the bug in application behaviour\nThis error occurred in the wild with a template tag similar to the following:\n{% if x not in message.extra_tags %}\nWhen the message was displayed as part of a redirect, it had been serialised and deserialized which meant that extra_tags was None instead of the empty string. This caused an error.\nIt's important to note that this bug affects all of the standard API (messages.debug, messages.info etc. all have a default value of extra_tags equal to \"\").\n",
+        "version": "4.1",
+        "FAIL_TO_PASS": [
+            "A message's extra_tags attribute is correctly preserved when retrieved"
+        ],
+        "PASS_TO_PASS": [
+            "A complex nested data structure containing Message",
+            "A message containing SafeData is keeping its safe status when",
+            "CookieStorage honors SESSION_COOKIE_DOMAIN, SESSION_COOKIE_SECURE, and",
+            "If the data exceeds what is allowed in a cookie, older messages are",
+            "Messages persist properly when multiple POSTs are made before a GET.",
+            "Reading the existing storage doesn't cause the data to be lost.",
+            "When the middleware is disabled, an exception is not raised",
+            "When the middleware is disabled, an exception is raised when one",
+            "With the message middleware enabled, messages are properly stored and",
+            "test_add (messages_tests.test_cookie.CookieTests)",
+            "test_add_lazy_translation (messages_tests.test_cookie.CookieTests)",
+            "test_add_update (messages_tests.test_cookie.CookieTests)",
+            "test_context_processor_message_levels (messages_tests.test_cookie.CookieTests)",
+            "test_custom_tags (messages_tests.test_cookie.CookieTests)",
+            "test_default_level (messages_tests.test_cookie.CookieTests)",
+            "test_existing_add (messages_tests.test_cookie.CookieTests)",
+            "test_existing_add_read_update (messages_tests.test_cookie.CookieTests)",
+            "test_existing_read_add_update (messages_tests.test_cookie.CookieTests)",
+            "test_get (messages_tests.test_cookie.CookieTests)",
+            "test_get_bad_cookie (messages_tests.test_cookie.CookieTests)",
+            "test_high_level (messages_tests.test_cookie.CookieTests)",
+            "test_level_tag (messages_tests.test_cookie.CookieTests)",
+            "test_low_level (messages_tests.test_cookie.CookieTests)",
+            "test_message_rfc6265 (messages_tests.test_cookie.CookieTests)",
+            "test_no_update (messages_tests.test_cookie.CookieTests)",
+            "test_repr (messages_tests.test_cookie.CookieTests)",
+            "test_settings_level (messages_tests.test_cookie.CookieTests)",
+            "test_tags (messages_tests.test_cookie.CookieTests)",
+            "test_with_template_response (messages_tests.test_cookie.CookieTests)"
+        ],
+        "environment_setup_commit": "647480166bfe7532e8c471fef0146e3a17e6c0c9",
+        "patch": "diff --git a/django/contrib/messages/storage/cookie.py b/django/contrib/messages/storage/cookie.py\n--- a/django/contrib/messages/storage/cookie.py\n+++ b/django/contrib/messages/storage/cookie.py\n@@ -19,7 +19,7 @@ def default(self, obj):\n             # Using 0/1 here instead of False/True to produce more compact json\n             is_safedata = 1 if isinstance(obj.message, SafeData) else 0\n             message = [self.message_key, is_safedata, obj.level, obj.message]\n-            if obj.extra_tags:\n+            if obj.extra_tags is not None:\n                 message.append(obj.extra_tags)\n             return message\n         return super().default(obj)\n",
+        "pr_link": "https://github.com/django/django/pull/15347"
+    }
+}

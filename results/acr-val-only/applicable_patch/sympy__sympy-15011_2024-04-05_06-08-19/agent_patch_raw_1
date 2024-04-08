@@ -1,0 +1,53 @@
+# modification 1
+```python
+<file>sympy/utilities/lambdify.py</file>
+<original>if hasattr(var, 'name'):
+    names.append(var.name)
+else:
+    # It's an iterable. Try to get name by inspection of calling frame.
+    name_list = [var_name for var_name, var_val in callers_local_vars
+            if var_val is var]
+    if len(name_list) == 1:
+        names.append(name_list[0])
+    else:
+        # Cannot infer name with certainty. arg_# will have to do.
+        names.append('arg_' + str(n))</original>
+<patched>if hasattr(var, 'name'):
+    # Ensure the variable name is a valid Python identifier
+    var_name = var.name
+    if not var_name.isidentifier() or keyword.iskeyword(var_name):
+        # Use a valid placeholder name for non-identifier symbols or Python keywords
+        names.append('dummy_var_' + str(n))
+    else:
+        names.append(var_name)
+else:
+    # It's an iterable. Try to get name by inspection of calling frame.
+    name_list = [var_name for var_name, var_val in callers_local_vars
+            if var_val is var]
+    if len(name_list) == 1:
+        names.append(name_list[0])
+    else:
+        # Cannot infer name with certainty. arg_# will have to do.
+        names.append('arg_' + str(n))</patched>
+```
+
+# modification 2
+```python
+<file>sympy/utilities/lambdify.py</file>
+<original>for term in syms:
+    namespace.update({str(term): term})</original>
+<patched>for term in syms:
+    term_str = str(term)
+    # Replace invalid characters in symbol names for the namespace
+    if not term_str.isidentifier() or keyword.iskeyword(term_str):
+        sanitized_term_str = re.sub(r'\W|^(?=\d)', '_', term_str)
+        namespace.update({sanitized_term_str: term})
+    else:
+        namespace.update({term_str: term})</patched>
+```
+
+**Explanation**:
+- **Modification 1** addresses the issue where symbol names that are not valid Python identifiers (such as those containing curly braces) or are Python keywords, could lead to a `SyntaxError` when used in the generated lambda function. This patch ensures that all variable names used in the lambda function are valid Python identifiers by replacing invalid names with a placeholder name (`dummy_var_#`).
+- **Modification 2** further ensures that symbols extracted from the expression and added to the namespace are also sanitized. If a symbol name is not a valid Python identifier or is a Python keyword, it replaces invalid characters with underscores and prefixes numbers to make it a valid identifier, ensuring the generated code is syntactically correct.
+
+These modifications aim to resolve the issue with `lambdify` failing when `MatrixSymbol` names contain special characters, even with `dummify=True`, by ensuring all symbols are represented by valid Python identifiers in the generated lambda function.

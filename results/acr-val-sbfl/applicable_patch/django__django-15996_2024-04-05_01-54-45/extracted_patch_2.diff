@@ -1,0 +1,39 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..b6d83f90de 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -123,12 +123,30 @@ class DictionarySerializer(BaseSerializer):
+ 
+ class EnumSerializer(BaseSerializer):
+     def serialize(self):
++        from enum import Enum
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        return (
+-            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+-            {"import %s" % module},
+-        )
++        if issubclass(enum_class, Enum):
++            # Check if the value is a combination of flags
++            if isinstance(self.value, enum.Flag) and not isinstance(self.value, enum.Enum):
++                # Handling combined Enum flags
++                combined_names = []
++                for flag in enum_class:
++                    if self.value & flag == flag:
++                        combined_names.append(flag.name)
++                combined_expression = " | ".join("%s.%s.%s" % (module, enum_class.__qualname__, name) for name in combined_names)
++                return (
++                    combined_expression,
++                    {"import %s" % module},
++                )
++            else:
++                # Handling single Enum value
++                return (
++                    "%s.%s.%s" % (module, enum_class.__qualname__, self.value.name),
++                    {"import %s" % module},
++                )
++        else:
++            raise ValueError("The provided value is not an Enum instance.")
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):

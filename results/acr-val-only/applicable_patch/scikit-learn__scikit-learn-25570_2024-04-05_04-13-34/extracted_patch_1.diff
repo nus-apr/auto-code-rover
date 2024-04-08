@@ -1,0 +1,39 @@
+diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
+index a26145117..21a5a97ad 100644
+--- a/sklearn/compose/_column_transformer.py
++++ b/sklearn/compose/_column_transformer.py
+@@ -574,9 +574,13 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                 "verbose_feature_names_out=True to add prefixes to feature names"
+             )
+ 
+-        return np.concatenate(
+-            [name for _, name in transformer_with_feature_names_out],
+-        )
++        # Ensure concatenation only occurs if there are names to concatenate
++        if transformer_with_feature_names_out:
++            return np.concatenate(
++                [name for _, name in transformer_with_feature_names_out if name],
++            )
++        else:
++            return np.array([], dtype=object)
+ 
+     def _update_fitted_transformers(self, transformers):
+         # transformers are fitted; excludes 'drop' cases
+@@ -866,9 +870,14 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                     t[0] for t in self._iter(fitted=True, replace_strings=True)
+                 ]
+                 feature_names_outs = [X.columns for X in Xs]
+-                names_out = self._add_prefix_for_feature_names_out(
+-                    list(zip(transformer_names, feature_names_outs))
+-                )
++                # Ensure we only include transformers that had features to transform
++                valid_transformers_and_features = [
++                    (name, features) for name, features in zip(transformer_names, feature_names_outs) if len(features) > 0
++                ]
++                if not valid_transformers_and_features:
++                    # If no transformers had features to transform, return the output as is
++                    return output
++                names_out = self._add_prefix_for_feature_names_out(valid_transformers_and_features)
+                 output.columns = names_out
+                 return output
+ 

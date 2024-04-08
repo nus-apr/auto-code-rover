@@ -1,0 +1,26 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 6f26dff0e0..2646265f50 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1151,6 +1151,8 @@ class Subquery(BaseExpression, Combinable):
+         # Allow the usage of both QuerySet and sql.Query objects.
+         self.query = getattr(queryset, 'query', queryset)
+         self.extra = extra
++        # Explicitly mark this query as a subquery
++        self.query.subquery = True
+         super().__init__(output_field)
+ 
+     def get_source_expressions(self):
+@@ -1179,7 +1181,11 @@ class Subquery(BaseExpression, Combinable):
+         template_params = {**self.extra, **extra_context}
+         query = query or self.query
+         subquery_sql, sql_params = query.as_sql(compiler, connection)
+-        template_params['subquery'] = subquery_sql[1:-1]
++        # Check if explicit subquery marking is present and adjust SQL accordingly
++        if hasattr(self.query, 'subquery') and self.query.subquery:
++            template_params['subquery'] = subquery_sql
++        else:
++            template_params['subquery'] = subquery_sql[1:-1]
+ 
+         template = template or template_params.get('template', self.template)
+         sql = template % template_params

@@ -1,0 +1,18 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index ab611afca7..8c02e4e556 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1323,7 +1323,12 @@ class ModelMultipleChoiceField(ModelChoiceField):
+         if self.required and not value:
+             raise ValidationError(self.error_messages['required'], code='required')
+         elif not self.required and not value:
+-            return self.queryset.none()
++            # Explicitly handle union() querysets by evaluating them to list
++            # This ensures that an empty form submission results in no objects being added
++            if hasattr(self.queryset, 'union'):
++                return self.queryset.model.objects.none()
++            else:
++                return self.queryset.none()
+         if not isinstance(value, (list, tuple)):
+             raise ValidationError(
+                 self.error_messages['invalid_list'],

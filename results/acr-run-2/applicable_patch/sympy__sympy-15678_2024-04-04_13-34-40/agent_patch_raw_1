@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>sympy/geometry/util.py</file>
+<original>elif isinstance(y, Symbol):
+        dep = {y}</original>
+<patched>elif isinstance(y, Symbol) or (hasattr(y, 'func') and y.func == Function):
+        dep = {y} if isinstance(y, Symbol) else {y.args[0]}</patched>
+```
+
+# modification 2
+```python
+<file>sympy/geometry/util.py</file>
+<original>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</original>
+<patched>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol) or (hasattr(y, 'func') and y.func == Function):
+        dep = {y} if isinstance(y, Symbol) else {y.args[0]}
+    else:
+        # Support for Eq objects
+        if isinstance(eq, Eq):
+            eq = eq.lhs - eq.rhs
+        else:
+            raise ValueError("expecting x-dependent symbol(s) or Eq object but got: %s" % y)</patched>
+```
+
+These modifications aim to address the issues with `idiff` function in `sympy/geometry/util.py`:
+
+1. **Support for Function Symbols as Dependent Variables**: The first modification allows `idiff` to recognize function symbols (e.g., `f(x)`) as valid dependent variables. This is done by checking if `y` has a `func` attribute equal to `Function`, indicating it's a function symbol, and then extracting the symbol part of `f(x)` to use as the dependent variable.
+
+2. **Enhanced Support for `Eq` Objects**: The second modification ensures that if an `Eq` object is passed as the equation (`eq` parameter), it is converted into an expression by subtracting the right-hand side from the left-hand side. This allows `idiff` to work with equations defined using the `Eq` class, addressing the issue where `idiff` could not handle `Eq` objects directly.
+
+Together, these changes should resolve the reported issues with the `idiff` function not supporting `Eq` objects and not being able to handle function symbols as dependent variables.

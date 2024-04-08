@@ -1,0 +1,72 @@
+# modification 1
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>    def get_facecolor(self):
+        return self._facecolors2d</original>
+<patched>    def get_facecolor(self):
+        # Ensure _facecolors2d is initialized before returning it
+        if hasattr(self, '_facecolors2d'):
+            return self._facecolors2d
+        else:
+            # Initialize _facecolors2d with the current facecolor
+            self._facecolors2d = PolyCollection.get_facecolor(self)
+            return self._facecolors2d</patched>
+```
+
+# modification 2
+```python
+<file>lib/mpl_toolkits/mplot3d/art3d.py</file>
+<original>    def do_3d_projection(self):
+        """
+        Perform the 3D projection for this object.
+        """
+        if self._A is not None:
+            # force update of color mapping because we re-order them
+            # below.  If we do not do this here, the 2D draw will call
+            # this, but we will never port the color mapped values back
+            # to the 3D versions.
+            #
+            # We hold the 3D versions in a fixed order (the order the user
+            # passed in) and sort the 2D version by view depth.
+            self.update_scalarmappable()
+            if self._face_is_mapped:
+                self._facecolor3d = self._facecolors
+            if self._edge_is_mapped:
+                self._edgecolor3d = self._edgecolors
+        txs, tys, tzs = proj3d._proj_transform_vec(self._vec, self.axes.M)
+        xyzlist = [(txs[sl], tys[sl], tzs[sl]) for sl in self._segslices]
+        ...
+        else:
+            segments_2d = []
+            self._facecolors2d = np.empty((0, 4))
+            self._edgecolors2d = np.empty((0, 4))
+            idxs = []</original>
+<patched>    def do_3d_projection(self):
+        """
+        Perform the 3D projection for this object.
+        """
+        if self._A is not None:
+            # force update of color mapping because we re-order them
+            # below.  If we do not do this here, the 2D draw will call
+            # this, but we will never port the color mapped values back
+            # to the 3D versions.
+            #
+            # We hold the 3D versions in a fixed order (the order the user
+            # passed in) and sort the 2D version by view depth.
+            self.update_scalarmappable()
+            if self._face_is_mapped:
+                self._facecolor3d = self._facecolors
+            if self._edge_is_mapped:
+                self._edgecolor3d = self._edgecolors
+        txs, tys, tzs = proj3d._proj_transform_vec(self._vec, self.axes.M)
+        xyzlist = [(txs[sl], tys[sl], tzs[sl]) for sl in self._segslices]
+        ...
+        else:
+            segments_2d = []
+            # Ensure _facecolors2d and _edgecolors2d are initialized to prevent AttributeError
+            self._facecolors2d = PolyCollection.get_facecolor(self)
+            self._edgecolors2d = PolyCollection.get_edgecolor(self)
+            idxs = []</patched>
+```
+
+These modifications ensure that `_facecolors2d` and `_edgecolors2d` are properly initialized before they are accessed, which should resolve the AttributeError. The first modification directly addresses the issue by initializing `_facecolors2d` in the `get_facecolor` method if it hasn't been initialized yet. The second modification preemptively initializes these attributes in the `do_3d_projection` method to ensure they are always available, aligning with the existing pattern of initializing attributes in this method.

@@ -1,0 +1,35 @@
+{
+    "task_id": "sphinx-doc__sphinx-8273",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sphinx-doc__sphinx/setup_sphinx-doc__sphinx__3.3",
+        "env_name": "setup_sphinx-doc__sphinx__3.3",
+        "pre_install": [
+            "sed -i 's/pytest/pytest -rA/' tox.ini",
+            "sed -i 's/Jinja2>=2.3/Jinja2<3.1/' setup.py"
+        ],
+        "install": "python -m pip install -e .[test]",
+        "test_cmd": "tox -epy39 -v -- tests/test_build_manpage.py"
+    },
+    "task_info": {
+        "instance_id": "sphinx-doc__sphinx-8273",
+        "base_commit": "88b81a06eb635a1596617f8971fa97a84c069e93",
+        "hints_text": "I think that users should copy the generated man file to the appropriate directory. The build directory is not an appropriate directory to manage man pages. So no section directory is needed, AFAIK. I don't know why do you want to set `MANPATH` to the output directory. To check the output, you can give the path to the man file for man command like `man _build/man/sphinx-build.1`. Please let me know your purpose in detail.\nFrom a [separate github thread](https://github.com/flux-framework/flux-core/pull/3033#issuecomment-662515605) that describes the specific use case in some more detail:\r\n> When run in a builddir, `src/cmd/flux` sets `MANPATH` such that `man flux` will display the current builddir version of `flux.1`. This is done so that documentation matches the version of Flux being run.\r\n\r\nEssentially, we are trying to make running in-tree look as similar to running an installed version as possible.\r\n\r\n---\r\n\r\n> I think that users should copy the generated man file to the appropriate directory.\r\n\r\nOn `make install`, we do have the automake setup to copy the manpages to `$prefix/man/man1`, `$prefix/man/man3`, etc.  This did require some extra work though, since each source file and its destination has to be explicitly enumerated in the automake file.  If the man pages were built into their respective sections, a recursive copy would work too.  Not a huge deal, but just another factor I wanted to bring up.\nUnderstandable. +1 to change the structure of output directory. As commented, it causes a breaking change for users. So I propose you to add a configuration `man_make_section_directory = (True | False)` for migration. During 3.x, it defaults to False, and it will default to True on 4.0 release. What do you think?\r\n\r\n>I\u2019m happy to take a crack at implementing a fix, though this change in behavior may break some people who expect everything to appear in a man/ directory.\r\n\r\nIt would be very nice if you send us a PR :-)\r\n",
+        "created_at": "2020-10-03T13:31:13Z",
+        "test_patch": "diff --git a/tests/test_build_manpage.py b/tests/test_build_manpage.py\n--- a/tests/test_build_manpage.py\n+++ b/tests/test_build_manpage.py\n@@ -30,6 +30,13 @@ def test_all(app, status, warning):\n     assert 'Footnotes' not in content\n \n \n+@pytest.mark.sphinx('man', testroot='basic',\n+                    confoverrides={'man_make_section_directory': True})\n+def test_man_make_section_directory(app, status, warning):\n+    app.build()\n+    assert (app.outdir / '1' / 'python.1').exists()\n+\n+\n @pytest.mark.sphinx('man', testroot='directive-code')\n def test_captioned_code_block(app, status, warning):\n     app.builder.build_all()\n",
+        "repo": "sphinx-doc/sphinx",
+        "problem_statement": "Generate man page section directories\n**Current man page generation does not conform to `MANPATH` search functionality**\r\nCurrently, all generated man pages are placed in to a single-level directory: `<build-dir>/man`. Unfortunately, this cannot be used in combination with the unix `MANPATH` environment variable. The `man` program explicitly looks for man pages in section directories (such as `man/man1`, etc.). \r\n\r\n**Describe the solution you'd like**\r\nIt would be great if sphinx would automatically create the section directories (e.g., `man/man1/`, `man/man3/`, etc.) and place each generated man page within appropriate section.\r\n\r\n**Describe alternatives you've considered**\r\nThis problem can be over come within our project\u2019s build system, ensuring the built man pages are installed in a correct location, but it would be nice if the build directory had the proper layout.\r\n\r\nI\u2019m happy to take a crack at implementing a fix, though this change in behavior may break some people who expect everything to appear in a `man/` directory. \r\n\n",
+        "version": "3.3",
+        "FAIL_TO_PASS": [
+            "tests/test_build_manpage.py::test_man_make_section_directory"
+        ],
+        "PASS_TO_PASS": [
+            "tests/test_build_manpage.py::test_all",
+            "tests/test_build_manpage.py::test_captioned_code_block",
+            "tests/test_build_manpage.py::test_default_man_pages",
+            "tests/test_build_manpage.py::test_rubric"
+        ],
+        "environment_setup_commit": "3b85187ffa3401e88582073c23188c147857a8a3",
+        "patch": "diff --git a/sphinx/builders/manpage.py b/sphinx/builders/manpage.py\n--- a/sphinx/builders/manpage.py\n+++ b/sphinx/builders/manpage.py\n@@ -24,7 +24,7 @@\n from sphinx.util import progress_message\n from sphinx.util.console import darkgreen  # type: ignore\n from sphinx.util.nodes import inline_all_toctrees\n-from sphinx.util.osutil import make_filename_from_project\n+from sphinx.util.osutil import ensuredir, make_filename_from_project\n from sphinx.writers.manpage import ManualPageWriter, ManualPageTranslator\n \n \n@@ -80,7 +80,12 @@ def write(self, *ignored: Any) -> None:\n             docsettings.authors = authors\n             docsettings.section = section\n \n-            targetname = '%s.%s' % (name, section)\n+            if self.config.man_make_section_directory:\n+                ensuredir(path.join(self.outdir, str(section)))\n+                targetname = '%s/%s.%s' % (section, name, section)\n+            else:\n+                targetname = '%s.%s' % (name, section)\n+\n             logger.info(darkgreen(targetname) + ' { ', nonl=True)\n             destination = FileOutput(\n                 destination_path=path.join(self.outdir, targetname),\n@@ -115,6 +120,7 @@ def setup(app: Sphinx) -> Dict[str, Any]:\n \n     app.add_config_value('man_pages', default_man_pages, None)\n     app.add_config_value('man_show_urls', False, None)\n+    app.add_config_value('man_make_section_directory', False, None)\n \n     return {\n         'version': 'builtin',\n",
+        "pr_link": "https://github.com/sphinx-doc/sphinx/pull/8273"
+    }
+}

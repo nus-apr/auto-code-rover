@@ -1,0 +1,65 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 10a4072328..6c45e0a7c2 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -2543,7 +2543,11 @@ None}, default: None
+         self._set_artist_props(self.patch)
+         self.patch.set_antialiased(False)
+ 
+-        FigureCanvasBase(self)  # Set self.canvas.
++        # FigureCanvasBase(self)  # Set self.canvas.
++        # Reattach the canvas if it was previously detached
++        if "canvas" in state and state["canvas"] is None:
++            from matplotlib.backends.backend_agg import FigureCanvasAgg
++            self.canvas = FigureCanvasAgg(self)
+ 
+         if subplotpars is None:
+             subplotpars = SubplotParams()
+@@ -3162,13 +3166,20 @@ None}, default: None
+         # The canvas cannot currently be pickled, but this has the benefit
+         # of meaning that a figure can be detached from one canvas, and
+         # re-attached to another.
+-        state.pop("canvas")
++        # state.pop("canvas")
++        # Instead of removing canvas, replace it with None to maintain the structure
++        state["canvas"] = None
+ 
+         # discard any changes to the dpi due to pixel ratio changes
+         state["_dpi"] = state.get('_original_dpi', state['_dpi'])
+ 
+         # add version information to the state
+         state['__mpl_version__'] = mpl.__version__
++        
++        # Serialize draggable legends by storing their state
++        draggable_legends = [leg for leg in self.legends if getattr(leg, '_is_draggable', False)]
++        if draggable_legends:
++            state['_draggable_legends_state'] = [leg.__getstate__() for leg in draggable_legends]
+ 
+         # check whether the figure manager (if any) is registered with pyplot
+         from matplotlib import _pylab_helpers
+@@ -3200,6 +3211,12 @@ None}, default: None
+             mgr = backend.new_figure_manager_given_figure(num, self)
+             pylab_helpers.Gcf._set_new_active_manager(mgr)
+             plt.draw_if_interactive()
++        
++        # Restore draggable legends if they were serialized
++        if '_draggable_legends_state' in state:
++            for legend_state in state.pop('_draggable_legends_state'):
++                legend = self.legend()
++                legend.__setstate__(legend_state)
+ 
+         self.stale = True
+ 
+diff --git a/lib/matplotlib/legend.py b/lib/matplotlib/legend.py
+index ff6abdb958..c1ff0c9b32 100644
+--- a/lib/matplotlib/legend.py
++++ b/lib/matplotlib/legend.py
+@@ -52,6 +52,8 @@ from . import legend_handler
+ 
+ class DraggableLegend(DraggableOffsetBox):
+     def __init__(self, legend, use_blit=False, update="loc"):
++        # Add an attribute to track draggable state
++        self._is_draggable = True
+         """
+         Wrapper around a `.Legend` to support mouse dragging.
+ 

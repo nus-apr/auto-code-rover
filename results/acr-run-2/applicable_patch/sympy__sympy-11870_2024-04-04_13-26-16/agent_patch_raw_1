@@ -1,0 +1,43 @@
+# modification 1
+```python
+<file>sympy/simplify/trigsimp.py</file>
+<original>def trigsimp(expr, **opts):
+    ...
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    return trigsimpfunc(expr)</original>
+<patched>from sympy import I, exp, sin, sinc
+
+def trigsimp(expr, **opts):
+    ...
+    # Custom handler for exponential to trigonometric simplification
+    def exp_to_trig(ex):
+        ex = ex.rewrite(exp, sin)
+        ex = ex.rewrite(exp, sinc)
+        return ex
+
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+        'exp_to_trig': exp_to_trig,  # Add custom handler to the dictionary
+                   }[method]
+
+    # Apply the custom handler if the method is not specified or is 'exp_to_trig'
+    if method == 'exp_to_trig' or method not in trigsimpfunc:
+        expr = exp_to_trig(expr)
+
+    return trigsimpfunc.get(method, lambda x: x)(expr)</patched>
+```
+
+This patch introduces a new simplification method `exp_to_trig` to the `trigsimp` function in SymPy, which specifically targets expressions involving exponentials that can be rewritten into trigonometric forms, including the `sin` and `sinc` functions. This method is added to the dictionary of available simplification methods and is applied to the expression if the method is explicitly set to `'exp_to_trig'` or if no method is specified, allowing for more flexible and targeted simplification.

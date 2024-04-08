@@ -1,0 +1,54 @@
+Given the constraints and the feedback that the previous patches did not match the original program or resolve the issue, let's refine our approach. The core of the issue seems to be the handling of duplicate entries for the same library, which might not be correctly filtered out in the current implementation. We'll focus on ensuring that the accumulation of library paths does not introduce duplicates and that the final check for duplicates correctly identifies only true conflicts (different paths for the same library name).
+
+# modification 1
+```python
+<file>django/core/checks/templates.py</file>
+<original>for conf in settings.TEMPLATES:
+    custom_libraries = conf.get("OPTIONS", {}).get("libraries", {})
+    for module_name, module_path in custom_libraries.items():
+        libraries[module_name].append(module_path)
+
+for module_name, module_path in get_template_tag_modules():
+    libraries[module_name].append(module_path)
+
+for library_name, items in libraries.items():
+    if len(items) > 1:
+        errors.append(
+            Error(
+                E003.msg.format(
+                    repr(library_name),
+                    ", ".join(repr(item) for item in items),
+                ),
+                id=E003.id,
+            )
+        )</original>
+<patched>for conf in settings.TEMPLATES:
+    custom_libraries = conf.get("OPTIONS", {}).get("libraries", {})
+    for module_name, module_path in custom_libraries.items():
+        if module_path not in libraries[module_name]:
+            libraries[module_name].append(module_path)
+
+for module_name, module_path in get_template_tag_modules():
+    if module_path not in libraries[module_name]:
+        libraries[module_name].append(module_path)
+
+for library_name, items in libraries.items():
+    # Using a set to remove any duplicate paths before checking for true duplicates
+    unique_items = set(items)
+    if len(unique_items) > 1:
+        errors.append(
+            Error(
+                E003.msg.format(
+                    repr(library_name),
+                    ", ".join(repr(item) for item in unique_items),
+                ),
+                id=E003.id,
+            )
+        )</patched>
+```
+
+This modification ensures that:
+- When adding module paths to the `libraries` dictionary, it checks if the path is already present for the given module name. This prevents the same path from being added multiple times, which could lead to false positives in the duplicate check.
+- Before evaluating for duplicates, it converts the list of module paths to a set, effectively removing any duplicate paths that might have been added. This ensures that the duplicate check only flags true conflicts where a template tag library name maps to multiple distinct paths.
+
+This approach directly addresses the issue's core by preventing the accumulation of duplicate paths for the same library name and ensuring that the duplicate check is based on unique paths, thus avoiding false positives.

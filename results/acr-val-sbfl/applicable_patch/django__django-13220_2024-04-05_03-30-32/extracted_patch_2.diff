@@ -1,0 +1,59 @@
+diff --git a/django/core/exceptions.py b/django/core/exceptions.py
+index dc084b8692..c324b0815b 100644
+--- a/django/core/exceptions.py
++++ b/django/core/exceptions.py
+@@ -96,8 +96,54 @@ class FieldError(Exception):
+ NON_FIELD_ERRORS = '__all__'
+ 
+ 
++import collections
++
+ class ValidationError(Exception):
+     """An error while validating data."""
++    
++    def __eq__(self, other):
++        if not isinstance(other, ValidationError):
++            return NotImplemented
++        
++        # Deep comparison of error_dict if both instances have it
++        if hasattr(self, 'error_dict') and hasattr(other, 'error_dict'):
++            return self._deep_dict_eq(self.error_dict, other.error_dict)
++        
++        # Deep comparison of error_list if both instances have it
++        if hasattr(self, 'error_list') and hasattr(other, 'error_list'):
++            return self._deep_list_eq(self.error_list, other.error_list)
++        
++        # Attempt to compare using messages as a last resort
++        return self.messages == other.messages
++
++    @staticmethod
++    def _deep_dict_eq(d1, d2):
++        """Perform a deep comparison of two dictionaries."""
++        if d1.keys() != d2.keys():
++            return False
++        for key in d1:
++            if isinstance(d1[key], collections.abc.Mapping) and isinstance(d2[key], collections.abc.Mapping):
++                if not ValidationError._deep_dict_eq(d1[key], d2[key]):
++                    return False
++            elif d1[key] != d2[key]:
++                return False
++        return True
++
++    @staticmethod
++    def _deep_list_eq(l1, l2):
++        """Perform a deep comparison of two lists."""
++        if len(l1) != len(l2):
++            return False
++        for item1, item2 in zip(l1, l2):
++            if isinstance(item1, collections.abc.Mapping) and isinstance(item2, collections.abc.Mapping):
++                if not ValidationError._deep_dict_eq(item1, item2):
++                    return False
++            elif isinstance(item1, list) and isinstance(item2, list):
++                if not ValidationError._deep_list_eq(item1, item2):
++                    return False
++            elif item1 != item2:
++                return False
++        return True
+     def __init__(self, message, code=None, params=None):
+         """
+         The `message` argument can be a single error, a list of errors, or a

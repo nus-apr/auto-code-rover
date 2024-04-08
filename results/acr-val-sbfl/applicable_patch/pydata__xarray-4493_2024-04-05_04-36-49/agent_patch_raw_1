@@ -1,0 +1,37 @@
+Given the context and the issue at hand, the primary goal of the patch would be to ensure that the chunked nature of `dask` `DataArray` objects is preserved during the update process. The issue seems to stem from the handling of `DataArray` objects within the `dataset_update_method`, particularly when merging datasets or other mappings into the existing dataset. The provided code does not explicitly address the preservation of chunked `dask` arrays, which could lead to their evaluation.
+
+To address this, a potential patch could involve adding logic to check for `dask` arrays and ensure their chunking information is preserved during the update. However, without altering the core functionality and logic of the `dataset_update_method`, it's challenging to provide a precise patch without a deeper understanding of all potential side effects. 
+
+That said, a hypothetical patch might look like this, focusing on preserving chunking by explicitly handling `dask` arrays during the merge process:
+
+# modification 1
+```python
+<file>xarray/core/merge.py</file>
+<original>return merge_core(
+        [dataset, other],
+        priority_arg=1,
+        indexes=indexes,
+        combine_attrs="override",
+    )</original>
+<patched>from dask.array.core import Array as DaskArray
+
+def preserve_dask_chunks(obj):
+    if isinstance(obj, DataArray) and isinstance(obj.data, DaskArray):
+        return obj.chunk(obj.data.chunksize)
+    else:
+        return obj
+
+if not isinstance(other, Dataset):
+    other = {k: preserve_dask_chunks(v) for k, v in other.items()}
+
+return merge_core(
+    [dataset, other],
+    priority_arg=1,
+    indexes=indexes,
+    combine_attrs="override",
+)</patched>
+```
+
+This modification introduces a function `preserve_dask_chunks` that checks if an object is a `DataArray` with a `dask` array as its data. If so, it ensures that the `DataArray` is returned with its chunking preserved. This function is then used to preprocess the `other` mapping before it is merged with the existing dataset. 
+
+Please note, this patch is hypothetical and focuses on the concept of preserving chunking. The actual implementation may require adjustments based on the broader context of `xarray`'s design and how it handles `dask` arrays throughout the library. Testing and validation would be crucial to ensure that this patch does not introduce unintended side effects, especially in terms of performance and compatibility with other `xarray` functionalities.

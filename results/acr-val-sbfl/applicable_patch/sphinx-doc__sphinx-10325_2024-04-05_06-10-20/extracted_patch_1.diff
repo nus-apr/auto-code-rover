@@ -1,0 +1,70 @@
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 62631f7ff..c7d403b39 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -109,10 +109,13 @@ def exclude_members_option(arg: Any) -> Union[object, Set[str]]:
+     return {x.strip() for x in arg.split(',') if x.strip()}
+ 
+ 
+-def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
+-    """Used to convert the :members: option to auto directives."""
++def inherited_members_option(arg: Any) -> Union[object, Set[str], List[str]]:
++    """Used to convert the :members: and :inherited-members: options to auto directives."""
+     if arg in (None, True):
+         return 'object'
++    elif isinstance(arg, str) and ',' in arg:
++        # Allow specifying multiple classes as a comma-separated list
++        return set(arg.split(','))
+     else:
+         return arg
+ 
+@@ -680,19 +683,19 @@ class Documenter:
+         ``autodoc-skip-member`` event.
+         """
+         def is_filtered_inherited_member(name: str, obj: Any) -> bool:
+-            if inspect.isclass(self.object):
+-                for cls in self.object.__mro__:
+-                    if cls.__name__ == self.options.inherited_members and cls != self.object:
+-                        # given member is a member of specified *super class*
+-                        return True
+-                    elif name in cls.__dict__:
+-                        return False
+-                    elif name in self.get_attr(cls, '__annotations__', {}):
+-                        return False
+-                    elif isinstance(obj, ObjectMember) and obj.class_ is cls:
+-                        return False
+-
+-            return False
++                    if inspect.isclass(self.object) and isinstance(self.options.inherited_members, (set, list)):
++                        for cls in self.object.__mro__:
++                            if cls.__name__ in self.options.inherited_members and cls != self.object:
++                                # given member is a member of specified *super classes*
++                                return True
++                            elif name in cls.__dict__:
++                                return False
++                            elif name in self.get_attr(cls, '__annotations__', {}):
++                                return False
++                            elif isinstance(obj, ObjectMember) and obj.class_ is cls:
++                                return False
++        
++                    return False
+ 
+         ret = []
+ 
+@@ -1710,7 +1713,15 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
+                                    (name, self.fullname), type='autodoc')
+             return False, selected
+         elif self.options.inherited_members:
+-            return False, list(members.values())
++                    if isinstance(self.options.inherited_members, (set, list)):
++                        # Exclude members from specified inherited classes
++                        filtered_members = []
++                        for member in members.values():
++                            if member.class_.__name__ not in self.options.inherited_members:
++                                filtered_members.append(member)
++                        return False, filtered_members
++                    else:
++                        return False, list(members.values())
+         else:
+             return False, [m for m in members.values() if m.class_ == self.object]
+ 

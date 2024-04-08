@@ -1,0 +1,38 @@
+diff --git a/seaborn/axisgrid.py b/seaborn/axisgrid.py
+index 75349099..ca0f9fb0 100644
+--- a/seaborn/axisgrid.py
++++ b/seaborn/axisgrid.py
+@@ -1258,6 +1258,10 @@ class PairGrid(Grid):
+         if np.isscalar(y_vars):
+             y_vars = [y_vars]
+ 
++        # Handle MultiIndex by flattening it for x_vars and y_vars
++        if isinstance(data.columns, pd.MultiIndex):
++            x_vars = ['_'.join(col).strip() for col in x_vars]
++            y_vars = ['_'.join(col).strip() for col in y_vars]
+         self.x_vars = x_vars = list(x_vars)
+         self.y_vars = y_vars = list(y_vars)
+         self.square_grid = self.x_vars == self.y_vars
+@@ -1487,7 +1491,11 @@ class PairGrid(Grid):
+             else:
+                 plt.sca(ax)
+ 
+-            vector = self.data[var]
++            # Adjust for MultiIndex columns
++            if isinstance(self.data.columns, pd.MultiIndex):
++                vector = self.data['_'.join(var).strip()] if isinstance(var, tuple) else self.data[var]
++            else:
++                vector = self.data[var]
+             if self._hue_var is not None:
+                 hue = self.data[self._hue_var]
+             else:
+@@ -2097,6 +2105,9 @@ def pairplot(
+     if not isinstance(data, pd.DataFrame):
+         raise TypeError(
+             f"'data' must be pandas DataFrame object, not: {type(data)}")
++    # Flatten MultiIndex for compatibility with PairGrid plotting
++    if isinstance(data.columns, pd.MultiIndex):
++        data.columns = ['_'.join(col).strip() for col in data.columns.values]
+ 
+     plot_kws = {} if plot_kws is None else plot_kws.copy()
+     diag_kws = {} if diag_kws is None else diag_kws.copy()

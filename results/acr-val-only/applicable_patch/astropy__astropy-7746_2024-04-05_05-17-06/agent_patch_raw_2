@@ -1,0 +1,26 @@
+Given the feedback, let's refine the approach to specifically address the issue when empty lists or arrays are passed to the `wcs_pix2world` method. The goal is to ensure that the method can gracefully handle these cases by returning an empty array of the appropriate shape without proceeding to the transformation logic that leads to errors. This refined patch will focus on modifying the `_array_converter` method to correctly handle empty inputs by immediately returning an appropriately shaped empty array, thus avoiding any downstream errors related to WCSLIB calls.
+
+# modification 1
+```python
+<file>astropy/wcs/wcs.py</file>
+<original>def _array_converter(self, func, sky, *args, ra_dec_order=False):
+        """
+        A helper function to support reading either a pair of arrays
+        or a single Nx2 array.
+        """
+</original>
+<patched>def _array_converter(self, func, sky, *args, ra_dec_order=False):
+        """
+        A helper function to support reading either a pair of arrays
+        or a single Nx2 array.
+        """
+        # Check if any of the input arrays are empty and handle accordingly
+        if any(len(arg) == 0 for arg in args if isinstance(arg, (list, np.ndarray))):
+            # Determine the expected output shape based on the WCS naxis
+            output_shape = (0, self.naxis) if len(args) == 2 else ([[] for _ in range(self.naxis)])
+            return output_shape
+</patched>
+```
+
+Explanation:
+This revised patch introduces a check at the beginning of the `_array_converter` method to detect if any of the input arguments are empty lists or arrays. If such a case is detected, the method now determines the expected output shape based on the WCS `naxis` attribute, which represents the number of dimensions in the WCS projection. This ensures that an empty array or list of arrays with the correct dimensions is returned immediately, bypassing any further processing or transformation logic that could lead to errors when interfacing with WCSLIB. This approach is more targeted and directly addresses the issue described, ensuring compatibility with the expected behavior of the `wcs_pix2world` method when faced with empty inputs.

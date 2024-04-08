@@ -1,0 +1,27 @@
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index c9e77a901f..e1aa08b19a 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -5928,10 +5928,21 @@ def _symbolic_factor_list(expr, opt, method):
+ 
+             _coeff, _factors = func()
+             if _coeff is not S.One:
++                # Ensure that the multiplicities are correctly adjusted for all factors,
++                # including handling cases where the exponent is not an integer more gracefully.
+                 if exp.is_Integer:
+                     coeff *= _coeff**exp
+                 elif _coeff.is_positive:
+-                    factors.append((_coeff, exp))
++                    if exp.is_Rational and exp.q != 1:
++                        # Handle rational exponents by adjusting multiplicities accordingly
++                        adjusted_factors = [(f, k * exp) for f, k in _factors if not f.is_Number]
++                        factors.extend(adjusted_factors)
++                        # Adjust the coefficient for number factors separately
++                        number_factors = [f for f, k in _factors if f.is_Number]
++                        if number_factors:
++                            coeff *= Mul(*[f**exp for f in number_factors])
++                    else:
++                        factors.append((_coeff, exp))
+                 else:
+                     _factors.append((_coeff, S.One))
+ 

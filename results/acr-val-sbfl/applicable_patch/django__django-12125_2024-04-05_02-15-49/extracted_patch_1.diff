@@ -1,0 +1,30 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 7d226955d5..536242d00a 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -90,13 +90,22 @@ class DeconstructableSerializer(BaseSerializer):
+ 
+     @staticmethod
+     def _serialize_path(path):
+-        module, name = path.rsplit(".", 1)
++        # Split the path to handle inner class paths correctly
++        path_parts = path.split(".")
++        if len(path_parts) > 2:
++            # Handle inner class by joining with the correct module and class name
++            module = ".".join(path_parts[:-2])
++            name = ".".join(path_parts[-2:])
++        else:
++            module, name = path.rsplit(".", 1)
++        
+         if module == "django.db.models":
+             imports = {"from django.db import models"}
+             name = "models.%s" % name
+         else:
+-            imports = {"import %s" % module}
+-            name = path
++            # Adjusted to import the module directly for inner classes
++            imports = {"from %s import %s" % (module, path_parts[-2]) if len(path_parts) > 2 else "import %s" % module}
++            name = name
+         return name, imports
+ 
+     def serialize(self):

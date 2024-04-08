@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>django/utils/html.py</file>
+<original>def json_script(value, element_id=None):
+    """
+    Escape all the HTML/XML special characters with their unicode escapes, so
+    value is safe to be output anywhere except for inside a tag attribute. Wrap
+    the escaped JSON in a script tag.
+    """
+    from django.core.serializers.json import DjangoJSONEncoder
+
+    json_str = json.dumps(value, cls=DjangoJSONEncoder).translate(_json_script_escapes)
+    if element_id:
+        template = '<script id="{}" type="application/json">{}</script>'
+        args = (element_id, mark_safe(json_str))
+    else:
+        template = '<script type="application/json">{}</script>'
+        args = (mark_safe(json_str),)
+    return format_html(template, *args)</original>
+<patched>def json_script(value, element_id=None, encoder=None):
+    """
+    Escape all the HTML/XML special characters with their unicode escapes, so
+    value is safe to be output anywhere except for inside a tag attribute. Wrap
+    the escaped JSON in a script tag.
+    """
+    from django.core.serializers.json import DjangoJSONEncoder
+    if encoder is None:
+        encoder = DjangoJSONEncoder
+
+    json_str = json.dumps(value, cls=encoder).translate(_json_script_escapes)
+    if element_id:
+        template = '<script id="{}" type="application/json">{}</script>'
+        args = (element_id, mark_safe(json_str))
+    else:
+        template = '<script type="application/json">{}</script>'
+        args = (mark_safe(json_str),)
+    return format_html(template, *args)</patched>
+```
+
+This modification adds an optional `encoder` parameter to the `json_script` function, allowing the caller to specify a custom JSON encoder. If no custom encoder is provided, it defaults to using `DjangoJSONEncoder`. This change addresses the issue by enabling customization of the JSON encoding process.

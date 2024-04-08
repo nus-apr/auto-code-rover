@@ -1,0 +1,50 @@
+{
+    "task_id": "sympy__sympy-15346",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.4",
+        "env_name": "setup_sympy__sympy__1.4",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/simplify/tests/test_trigsimp.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-15346",
+        "base_commit": "9ef28fba5b4d6d0168237c9c005a550e6dc27d81",
+        "hints_text": "some can be simplified\r\n```python\r\nfrom sympy import *\r\n\r\nt1 = Matrix([sin(Rational(1, 50)), cos(Rational(1, 50)), 0])\r\nt2 = Matrix([sin(Rational(2, 50)), cos(Rational(2, 50)), 0])\r\nt3 = Matrix([sin(Rational(3, 50)), cos(Rational(3, 50)), 0])\r\n\r\nr1 = t1.dot(t2)\r\nprint(r1)\r\nprint(r1.simplify())\r\nprint()\r\n\r\nr2 = t2.dot(t3)\r\nprint(r2)\r\nprint(r2.simplify())\r\nprint()\r\n```\r\nsays\r\n```\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\n\r\nsin(1/25)*sin(3/50) + cos(1/25)*cos(3/50)\r\ncos(1/50)\r\n```\nTrigonometric simplifications are performed by `trigsimp`. It works by calling sequentially functions defined in the `fu` module. This particular simplification is carried out by `TR10i` which comes right after `TRmorrie` in the [list of methods](https://github.com/sympy/sympy/blob/master/sympy/simplify/trigsimp.py#L1131-L1164).\r\n\r\n`TRmorrie` does a very special type of transformation:\r\n \r\n    Returns cos(x)*cos(2*x)*...*cos(2**(k-1)*x) -> sin(2**k*x)/(2**k*sin(x))\r\n\r\nIn this example, it will transform the expression into a form that `TR10i` can no more recognize.\r\n```\r\n>>> from sympy.simplify.fu import TRmorrie\r\n>>> x = S(1)/50\r\n>>> e = sin(x)*sin(2*x) + cos(x)*cos(2*x)\r\n>>> TRmorrie(e)\r\nsin(1/50)*sin(1/25) + sin(2/25)/(4*sin(1/50))\r\n```\r\nI cannot think of any reason why `TRmorrie` should come before `TR10i`. This issue could probably be fixed by changing the order of these two functions.\nSo, if the user-input expression varies, there is no way to simplify the expression to a very simple formation, isn't it?\nI think that this issue could be fixed by changing the order of `TRmorrie` and `TR10i`. (But, of course, there may be other issues in simplification that this will not resolve.)\nThat should be easy to fix, assuming it works. If it doesn't work then the actual fix may be more complicated. \nhi @retsyo is this issue still open, in that case i would i like to take up the issue\n@llucifer97 \r\nthe latest cloned sympy still has this issue\nhi @retsyo  i would like to work on this if it is not assigned . I will need some help and guidance though .\n@FrackeR011, it looks like @llucifer97 (2 posts above yours) has already expressed an interest. You should ask them if they are still working on it\n@llucifer97 are you working on this issue\r\n",
+        "created_at": "2018-10-05T17:25:21Z",
+        "test_patch": "diff --git a/sympy/simplify/tests/test_trigsimp.py b/sympy/simplify/tests/test_trigsimp.py\n--- a/sympy/simplify/tests/test_trigsimp.py\n+++ b/sympy/simplify/tests/test_trigsimp.py\n@@ -1,7 +1,8 @@\n from sympy import (\n     symbols, sin, simplify, cos, trigsimp, rad, tan, exptrigsimp,sinh,\n     cosh, diff, cot, Subs, exp, tanh, exp, S, integrate, I,Matrix,\n-    Symbol, coth, pi, log, count_ops, sqrt, E, expand, Piecewise)\n+    Symbol, coth, pi, log, count_ops, sqrt, E, expand, Piecewise , Rational\n+    )\n \n from sympy.core.compatibility import long\n from sympy.utilities.pytest import XFAIL\n@@ -357,6 +358,14 @@ def test_issue_2827_trigsimp_methods():\n     eq = 1/sqrt(E) + E\n     assert exptrigsimp(eq) == eq\n \n+def test_issue_15129_trigsimp_methods():\n+    t1 = Matrix([sin(Rational(1, 50)), cos(Rational(1, 50)), 0])\n+    t2 = Matrix([sin(Rational(1, 25)), cos(Rational(1, 25)), 0])\n+    t3 = Matrix([cos(Rational(1, 25)), sin(Rational(1, 25)), 0])\n+    r1 = t1.dot(t2)\n+    r2 = t1.dot(t3)\n+    assert trigsimp(r1) == cos(S(1)/50)\n+    assert trigsimp(r2) == sin(S(3)/50)\n \n def test_exptrigsimp():\n     def valid(a, b):\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "can't simplify sin/cos with Rational?\nlatest cloned sympy, python 3 on windows\r\nfirstly, cos, sin with symbols can be simplified; rational number can be simplified\r\n```python\r\nfrom sympy import *\r\n\r\nx, y = symbols('x, y', real=True)\r\nr = sin(x)*sin(y) + cos(x)*cos(y)\r\nprint(r)\r\nprint(r.simplify())\r\nprint()\r\n\r\nr = Rational(1, 50) - Rational(1, 25)\r\nprint(r)\r\nprint(r.simplify())\r\nprint()\r\n```\r\nsays\r\n```cmd\r\nsin(x)*sin(y) + cos(x)*cos(y)\r\ncos(x - y)\r\n\r\n-1/50\r\n-1/50\r\n```\r\n\r\nbut\r\n```python\r\nt1 = Matrix([sin(Rational(1, 50)), cos(Rational(1, 50)), 0])\r\nt2 = Matrix([sin(Rational(1, 25)), cos(Rational(1, 25)), 0])\r\nr = t1.dot(t2)\r\nprint(r)\r\nprint(r.simplify())\r\nprint()\r\n\r\nr = sin(Rational(1, 50))*sin(Rational(1, 25)) + cos(Rational(1, 50))*cos(Rational(1, 25))\r\nprint(r)\r\nprint(r.simplify())\r\nprint()\r\n\r\nprint(acos(r))\r\nprint(acos(r).simplify())\r\nprint()\r\n```\r\nsays\r\n```cmd\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\n\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\nsin(1/50)*sin(1/25) + cos(1/50)*cos(1/25)\r\n\r\nacos(sin(1/50)*sin(1/25) + cos(1/50)*cos(1/25))\r\nacos(sin(1/50)*sin(1/25) + cos(1/50)*cos(1/25))\r\n```\r\n\r\n\n",
+        "version": "1.4",
+        "FAIL_TO_PASS": [
+            "test_issue_15129_trigsimp_methods"
+        ],
+        "PASS_TO_PASS": [
+            "test_exptrigsimp",
+            "test_hyperbolic_simp",
+            "test_issue_2827_trigsimp_methods",
+            "test_issue_3210",
+            "test_issue_4280",
+            "test_issue_4373",
+            "test_issue_4494",
+            "test_issue_4661",
+            "test_issue_4775",
+            "test_issue_5948",
+            "test_powsimp_on_numbers",
+            "test_trigsimp1",
+            "test_trigsimp1a",
+            "test_trigsimp2",
+            "test_trigsimp3",
+            "test_trigsimp_groebner",
+            "test_trigsimp_issue_2515",
+            "test_trigsimp_issue_3826",
+            "test_trigsimp_issue_4032",
+            "test_trigsimp_issue_7761",
+            "test_trigsimp_issues",
+            "test_trigsimp_noncommutative"
+        ],
+        "environment_setup_commit": "73b3f90093754c5ed1561bd885242330e3583004",
+        "patch": "diff --git a/sympy/simplify/trigsimp.py b/sympy/simplify/trigsimp.py\n--- a/sympy/simplify/trigsimp.py\n+++ b/sympy/simplify/trigsimp.py\n@@ -1143,8 +1143,8 @@ def _futrig(e, **kwargs):\n         lambda x: _eapply(factor, x, trigs),\n         TR14,  # factored powers of identities\n         [identity, lambda x: _eapply(_mexpand, x, trigs)],\n-        TRmorrie,\n         TR10i,  # sin-cos products > sin-cos of sums\n+        TRmorrie,\n         [identity, TR8],  # sin-cos products -> sin-cos of sums\n         [identity, lambda x: TR2i(TR2(x))],  # tan -> sin-cos -> tan\n         [\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/15346"
+    }
+}

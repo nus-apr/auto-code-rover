@@ -1,0 +1,35 @@
+{
+    "task_id": "scikit-learn__scikit-learn-13497",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/scikit-learn__scikit-learn/setup_scikit-learn__scikit-learn__0.21",
+        "env_name": "setup_scikit-learn__scikit-learn__0.21",
+        "pre_install": [],
+        "install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider sklearn/feature_selection/tests/test_mutual_info.py"
+    },
+    "task_info": {
+        "instance_id": "scikit-learn__scikit-learn-13497",
+        "base_commit": "26f690961a52946dd2f53bf0fdd4264b2ae5be90",
+        "hints_text": "I'll take this\n@hermidalc go for it :)\ni'm not sure ,but i think user will change the default value if it seem to be array or boolean mask....bcz auto is  default value it is not fixed.\nI haven't understood, @punkstar25 ",
+        "created_at": "2019-03-23T14:28:08Z",
+        "test_patch": "diff --git a/sklearn/feature_selection/tests/test_mutual_info.py b/sklearn/feature_selection/tests/test_mutual_info.py\n--- a/sklearn/feature_selection/tests/test_mutual_info.py\n+++ b/sklearn/feature_selection/tests/test_mutual_info.py\n@@ -183,18 +183,26 @@ def test_mutual_info_options():\n     X_csr = csr_matrix(X)\n \n     for mutual_info in (mutual_info_regression, mutual_info_classif):\n-        assert_raises(ValueError, mutual_info_regression, X_csr, y,\n+        assert_raises(ValueError, mutual_info, X_csr, y,\n                       discrete_features=False)\n+        assert_raises(ValueError, mutual_info, X, y,\n+                      discrete_features='manual')\n+        assert_raises(ValueError, mutual_info, X_csr, y,\n+                      discrete_features=[True, False, True])\n+        assert_raises(IndexError, mutual_info, X, y,\n+                      discrete_features=[True, False, True, False])\n+        assert_raises(IndexError, mutual_info, X, y, discrete_features=[1, 4])\n \n         mi_1 = mutual_info(X, y, discrete_features='auto', random_state=0)\n         mi_2 = mutual_info(X, y, discrete_features=False, random_state=0)\n-\n-        mi_3 = mutual_info(X_csr, y, discrete_features='auto',\n-                           random_state=0)\n-        mi_4 = mutual_info(X_csr, y, discrete_features=True,\n+        mi_3 = mutual_info(X_csr, y, discrete_features='auto', random_state=0)\n+        mi_4 = mutual_info(X_csr, y, discrete_features=True, random_state=0)\n+        mi_5 = mutual_info(X, y, discrete_features=[True, False, True],\n                            random_state=0)\n+        mi_6 = mutual_info(X, y, discrete_features=[0, 2], random_state=0)\n \n         assert_array_equal(mi_1, mi_2)\n         assert_array_equal(mi_3, mi_4)\n+        assert_array_equal(mi_5, mi_6)\n \n     assert not np.allclose(mi_1, mi_3)\n",
+        "repo": "scikit-learn/scikit-learn",
+        "problem_statement": "Comparing string to array in _estimate_mi\nIn ``_estimate_mi`` there is ``discrete_features == 'auto'`` but discrete features can be an array of indices or a boolean mask.\r\nThis will error in future versions of numpy.\r\nAlso this means we never test this function with discrete features != 'auto', it seems?\n",
+        "version": "0.21",
+        "FAIL_TO_PASS": [
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_mutual_info_options"
+        ],
+        "PASS_TO_PASS": [
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_compute_mi_cc",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_compute_mi_cd",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_compute_mi_cd_unique_label",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_compute_mi_dd",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_mutual_info_classif_discrete",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_mutual_info_classif_mixed",
+            "sklearn/feature_selection/tests/test_mutual_info.py::test_mutual_info_regression"
+        ],
+        "environment_setup_commit": "7813f7efb5b2012412888b69e73d76f2df2b50b6",
+        "patch": "diff --git a/sklearn/feature_selection/mutual_info_.py b/sklearn/feature_selection/mutual_info_.py\n--- a/sklearn/feature_selection/mutual_info_.py\n+++ b/sklearn/feature_selection/mutual_info_.py\n@@ -10,7 +10,7 @@\n from ..preprocessing import scale\n from ..utils import check_random_state\n from ..utils.fixes import _astype_copy_false\n-from ..utils.validation import check_X_y\n+from ..utils.validation import check_array, check_X_y\n from ..utils.multiclass import check_classification_targets\n \n \n@@ -247,14 +247,16 @@ def _estimate_mi(X, y, discrete_features='auto', discrete_target=False,\n     X, y = check_X_y(X, y, accept_sparse='csc', y_numeric=not discrete_target)\n     n_samples, n_features = X.shape\n \n-    if discrete_features == 'auto':\n-        discrete_features = issparse(X)\n-\n-    if isinstance(discrete_features, bool):\n+    if isinstance(discrete_features, (str, bool)):\n+        if isinstance(discrete_features, str):\n+            if discrete_features == 'auto':\n+                discrete_features = issparse(X)\n+            else:\n+                raise ValueError(\"Invalid string value for discrete_features.\")\n         discrete_mask = np.empty(n_features, dtype=bool)\n         discrete_mask.fill(discrete_features)\n     else:\n-        discrete_features = np.asarray(discrete_features)\n+        discrete_features = check_array(discrete_features, ensure_2d=False)\n         if discrete_features.dtype != 'bool':\n             discrete_mask = np.zeros(n_features, dtype=bool)\n             discrete_mask[discrete_features] = True\n",
+        "pr_link": "https://github.com/scikit-learn/scikit-learn/pull/13497"
+    }
+}

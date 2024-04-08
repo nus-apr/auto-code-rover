@@ -1,0 +1,34 @@
+diff --git a/sympy/utilities/lambdify.py b/sympy/utilities/lambdify.py
+index f71bea25f5..141618e296 100644
+--- a/sympy/utilities/lambdify.py
++++ b/sympy/utilities/lambdify.py
+@@ -393,7 +393,13 @@ def lambdify(args, expr, modules=None, printer=None, use_imps=True,
+         #Move on if expr.atoms in not implemented.
+         syms = expr.atoms(Symbol)
+         for term in syms:
+-            namespace.update({str(term): term})
++            term_str = str(term)
++            # Replace invalid characters in symbol names for the namespace
++            if not term_str.isidentifier() or keyword.iskeyword(term_str):
++                sanitized_term_str = re.sub(r'\W|^(?=\d)', '_', term_str)
++                namespace.update({sanitized_term_str: term})
++            else:
++                namespace.update({term_str: term})
+ 
+     if printer is None:
+         if _module_present('mpmath', namespaces):
+@@ -424,7 +430,13 @@ def lambdify(args, expr, modules=None, printer=None, use_imps=True,
+     callers_local_vars = inspect.currentframe().f_back.f_locals.items()
+     for n, var in enumerate(args):
+         if hasattr(var, 'name'):
+-            names.append(var.name)
++            # Ensure the variable name is a valid Python identifier
++            var_name = var.name
++            if not var_name.isidentifier() or keyword.iskeyword(var_name):
++                # Use a valid placeholder name for non-identifier symbols or Python keywords
++                names.append('dummy_var_' + str(n))
++            else:
++                names.append(var_name)
+         else:
+             # It's an iterable. Try to get name by inspection of calling frame.
+             name_list = [var_name for var_name, var_val in callers_local_vars

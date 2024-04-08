@@ -1,0 +1,41 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 8376b487..d181bdfe 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3881,7 +3881,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         return result
+ 
+     def update(self, other: "CoercibleMapping") -> "Dataset":
+-        """Update this dataset's variables with those from another dataset.
++        """Update this dataset's variables with those from another dataset, preserving chunking for dask arrays.
+ 
+         Parameters
+         ----------
+@@ -3898,7 +3898,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         Returns
+         -------
+         updated : Dataset
+-            Updated dataset.
++            Updated dataset, with chunking information preserved for dask arrays.
+ 
+         Raises
+         ------
+@@ -3906,7 +3906,18 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+             If any dimensions would have inconsistent sizes in the updated
+             dataset.
+         """
++        from dask.array.core import Array as DaskArray
++
++        def preserve_chunking(target, source):
++            if isinstance(source.data, DaskArray):
++                return source.chunk(source.chunks)
++            return source
++
+         merge_result = dataset_update_method(self, other)
++        for name, var in merge_result.data_vars.items():
++            if name in self.data_vars and isinstance(self.data_vars[name].data, DaskArray):
++                merge_result[name] = preserve_chunking(self.data_vars[name], merge_result[name])
++
+         return self._replace(inplace=True, **merge_result._asdict())
+ 
+     def merge(

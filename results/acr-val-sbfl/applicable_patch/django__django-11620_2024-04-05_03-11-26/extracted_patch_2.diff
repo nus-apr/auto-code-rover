@@ -1,0 +1,27 @@
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 2154a46320..04b154fb13 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -260,6 +260,10 @@ class RoutePattern(CheckURLMixin):
+                     kwargs[key] = converter.to_python(value)
+                 except ValueError:
+                     return None
++                except Http404 as e:
++                    if settings.DEBUG:
++                        e.args = (*e.args, {'converter': converter, 'value': value})
++                    raise e
+             return path[match.end():], (), kwargs
+         return None
+ 
+diff --git a/django/views/debug.py b/django/views/debug.py
+index cb3e8c7ec1..fdb230a3dc 100644
+--- a/django/views/debug.py
++++ b/django/views/debug.py
+@@ -505,6 +505,7 @@ def technical_404_response(request, exception):
+         'request_path': error_url,
+         'urlpatterns': tried,
+         'reason': str(exception),
++        'converter_error': exception.args[-1] if len(exception.args) > 1 else None,
+         'request': request,
+         'settings': get_safe_settings(),
+         'raising_view_name': caller,

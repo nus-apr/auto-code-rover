@@ -1,0 +1,70 @@
+diff --git a/lib/matplotlib/backends/backend_macosx.py b/lib/matplotlib/backends/backend_macosx.py
+index 700d1d4c58..d8a13c621c 100644
+--- a/lib/matplotlib/backends/backend_macosx.py
++++ b/lib/matplotlib/backends/backend_macosx.py
+@@ -93,11 +93,15 @@ class FigureCanvasMac(FigureCanvasAgg, _macosx.FigureCanvas, FigureCanvasBase):
+         self.update()
+ 
+     def resize(self, width, height):
+-        # Size from macOS is logical pixels, dpi is physical.
+-        scale = self.figure.dpi / self.device_pixel_ratio
+-        width /= scale
+-        height /= scale
+-        self.figure.set_size_inches(width, height, forward=False)
++        # Adjusted approach to ensure DPI is applied correctly without doubling.
++        # This considers the initial DPI setting during figure creation.
++        initial_dpi = self.figure.get_dpi()
++        logical_scale = initial_dpi / 72  # Assuming 72 as the base DPI for logical scaling.
++        physical_scale = self.device_pixel_ratio
++        total_scale = logical_scale * physical_scale
++        adjusted_width = width / total_scale
++        adjusted_height = height / total_scale
++        self.figure.set_size_inches(adjusted_width, adjusted_height, forward=False)
+         ResizeEvent("resize_event", self)._process()
+         self.draw_idle()
+ 
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index c55864243a..064baa8a13 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -3033,21 +3033,18 @@ class Figure(FigureBase):
+         return state
+ 
+     def __setstate__(self, state):
+-        version = state.pop('__mpl_version__')
++        version = state.pop('__mpl_version__', mpl.__version__)
+         restore_to_pylab = state.pop('_restore_to_pylab', False)
+-
+-        if version != mpl.__version__:
+-            _api.warn_external(
+-                f"This figure was saved with matplotlib version {version} and "
+-                f"is unlikely to function correctly.")
+-
+-        self.__dict__ = state
+-
+-        # re-initialise some of the unstored state information
+-        FigureCanvasBase(self)  # Set self.canvas.
+-
++    
++        # Directly restore DPI from state without recalculating or adjusting.
++        self.dpi = state.get('dpi', self.dpi)
++    
++        self.__dict__.update(state)
++    
++        # Re-initialise canvas with the restored DPI value explicitly.
++        FigureCanvasBase(self, dpi=self.dpi)
++    
+         if restore_to_pylab:
+-            # lazy import to avoid circularity
+             import matplotlib.pyplot as plt
+             import matplotlib._pylab_helpers as pylab_helpers
+             allnums = plt.get_fignums()
+@@ -3055,7 +3052,7 @@ class Figure(FigureBase):
+             mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+             pylab_helpers.Gcf._set_new_active_manager(mgr)
+             plt.draw_if_interactive()
+-
++    
+         self.stale = True
+ 
+     def add_axobserver(self, func):

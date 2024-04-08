@@ -1,0 +1,61 @@
+{
+    "task_id": "django__django-12470",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__3.1",
+        "env_name": "setup_django__django__3.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 model_inheritance.models model_inheritance.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-12470",
+        "base_commit": "142ab6846ac09d6d401e26fc8b6b988a583ac0f5",
+        "hints_text": "",
+        "created_at": "2020-02-19T04:48:55Z",
+        "test_patch": "diff --git a/tests/model_inheritance/models.py b/tests/model_inheritance/models.py\n--- a/tests/model_inheritance/models.py\n+++ b/tests/model_inheritance/models.py\n@@ -181,6 +181,8 @@ class GrandParent(models.Model):\n     place = models.ForeignKey(Place, models.CASCADE, null=True, related_name='+')\n \n     class Meta:\n+        # Ordering used by test_inherited_ordering_pk_desc.\n+        ordering = ['-pk']\n         unique_together = ('first_name', 'last_name')\n \n \ndiff --git a/tests/model_inheritance/tests.py b/tests/model_inheritance/tests.py\n--- a/tests/model_inheritance/tests.py\n+++ b/tests/model_inheritance/tests.py\n@@ -7,7 +7,7 @@\n \n from .models import (\n     Base, Chef, CommonInfo, GrandChild, GrandParent, ItalianRestaurant,\n-    MixinModel, ParkingLot, Place, Post, Restaurant, Student, SubBase,\n+    MixinModel, Parent, ParkingLot, Place, Post, Restaurant, Student, SubBase,\n     Supplier, Title, Worker,\n )\n \n@@ -204,6 +204,19 @@ class A(models.Model):\n \n         self.assertEqual(A.attr.called, (A, 'attr'))\n \n+    def test_inherited_ordering_pk_desc(self):\n+        p1 = Parent.objects.create(first_name='Joe', email='joe@email.com')\n+        p2 = Parent.objects.create(first_name='Jon', email='jon@email.com')\n+        expected_order_by_sql = 'ORDER BY %s.%s DESC' % (\n+            connection.ops.quote_name(Parent._meta.db_table),\n+            connection.ops.quote_name(\n+                Parent._meta.get_field('grandparent_ptr').column\n+            ),\n+        )\n+        qs = Parent.objects.all()\n+        self.assertSequenceEqual(qs, [p2, p1])\n+        self.assertIn(expected_order_by_sql, str(qs.query))\n+\n \n class ModelInheritanceDataTests(TestCase):\n     @classmethod\n",
+        "repo": "django/django",
+        "problem_statement": "Inherited model doesn't correctly order by \"-pk\" when specified on Parent.Meta.ordering\nDescription\n\t\nGiven the following model definition:\nfrom django.db import models\nclass Parent(models.Model):\n\tclass Meta:\n\t\tordering = [\"-pk\"]\nclass Child(Parent):\n\tpass\nQuerying the Child class results in the following:\n>>> print(Child.objects.all().query)\nSELECT \"myapp_parent\".\"id\", \"myapp_child\".\"parent_ptr_id\" FROM \"myapp_child\" INNER JOIN \"myapp_parent\" ON (\"myapp_child\".\"parent_ptr_id\" = \"myapp_parent\".\"id\") ORDER BY \"myapp_parent\".\"id\" ASC\nThe query is ordered ASC but I expect the order to be DESC.\n",
+        "version": "3.1",
+        "FAIL_TO_PASS": [
+            "test_inherited_ordering_pk_desc (model_inheritance.tests.ModelInheritanceTests)"
+        ],
+        "PASS_TO_PASS": [
+            "Creating a child with non-abstract parents only issues INSERTs.",
+            "test_abstract (model_inheritance.tests.ModelInheritanceTests)",
+            "test_abstract_fk_related_name (model_inheritance.tests.InheritanceSameModelNameTests)",
+            "test_abstract_parent_link (model_inheritance.tests.ModelInheritanceTests)",
+            "test_custompk_m2m (model_inheritance.tests.ModelInheritanceTests)",
+            "test_eq (model_inheritance.tests.ModelInheritanceTests)",
+            "test_exclude_inherited_on_null (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_filter_inherited_model (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_filter_inherited_on_null (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_filter_on_parent_returns_object_of_parent_type (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_inherited_does_not_exist_exception (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_inherited_multiple_objects_returned_exception (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_init_subclass (model_inheritance.tests.ModelInheritanceTests)",
+            "test_meta_fields_and_ordering (model_inheritance.tests.ModelInheritanceTests)",
+            "test_mixin_init (model_inheritance.tests.ModelInheritanceTests)",
+            "test_model_with_distinct_accessors (model_inheritance.tests.ModelInheritanceTests)",
+            "test_model_with_distinct_related_query_name (model_inheritance.tests.ModelInheritanceTests)",
+            "test_parent_cache_reuse (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_parent_child_one_to_one_link (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_parent_child_one_to_one_link_on_nonrelated_objects (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_parent_fields_available_for_filtering_in_child_model (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_related_objects_for_inherited_models (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_reverse_relation_for_different_hierarchy_tree (model_inheritance.tests.ModelInheritanceTests)",
+            "test_select_related_defer (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_select_related_works_on_parent_model_fields (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_set_name (model_inheritance.tests.ModelInheritanceTests)",
+            "test_unique (model_inheritance.tests.InheritanceUniqueTests)",
+            "test_unique_together (model_inheritance.tests.InheritanceUniqueTests)",
+            "test_update_inherited_model (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_update_parent_filtering (model_inheritance.tests.ModelInheritanceTests)",
+            "test_update_query_counts (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_update_works_on_parent_and_child_models_at_once (model_inheritance.tests.ModelInheritanceDataTests)",
+            "test_values_works_on_parent_model_fields (model_inheritance.tests.ModelInheritanceDataTests)"
+        ],
+        "environment_setup_commit": "0668164b4ac93a5be79f5b87fae83c657124d9ab",
+        "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -709,9 +709,9 @@ def find_ordering_name(self, name, opts, alias=None, default_order='ASC',\n         field, targets, alias, joins, path, opts, transform_function = self._setup_joins(pieces, opts, alias)\n \n         # If we get to this point and the field is a relation to another model,\n-        # append the default ordering for that model unless the attribute name\n-        # of the field is specified.\n-        if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name:\n+        # append the default ordering for that model unless it is the pk\n+        # shortcut or the attribute name of the field that is specified.\n+        if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name and name != 'pk':\n             # Firstly, avoid infinite loops.\n             already_seen = already_seen or set()\n             join_tuple = tuple(getattr(self.query.alias_map[j], 'join_cols', None) for j in joins)\n",
+        "pr_link": "https://github.com/django/django/pull/12470"
+    }
+}

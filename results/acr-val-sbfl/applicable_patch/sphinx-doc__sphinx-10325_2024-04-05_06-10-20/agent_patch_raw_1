@@ -1,0 +1,77 @@
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>def inherited_members_option(arg: Any) -> Union[object, Set[str]]:
+    """Used to convert the :members: option to auto directives."""
+    if arg in (None, True):
+        return 'object'
+    else:
+        return arg
+</original>
+<patched>def inherited_members_option(arg: Any) -> Union[object, Set[str], List[str]]:
+    """Used to convert the :members: and :inherited-members: options to auto directives."""
+    if arg in (None, True):
+        return 'object'
+    elif isinstance(arg, str) and ',' in arg:
+        # Allow specifying multiple classes as a comma-separated list
+        return set(arg.split(','))
+    else:
+        return arg
+</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>def is_filtered_inherited_member(name: str, obj: Any) -> bool:
+            if inspect.isclass(self.object):
+                for cls in self.object.__mro__:
+                    if cls.__name__ == self.options.inherited_members and cls != self.object:
+                        # given member is a member of specified *super class*
+                        return True
+                    elif name in cls.__dict__:
+                        return False
+                    elif name in self.get_attr(cls, '__annotations__', {}):
+                        return False
+                    elif isinstance(obj, ObjectMember) and obj.class_ is cls:
+                        return False
+
+            return False
+</original>
+<patched>def is_filtered_inherited_member(name: str, obj: Any) -> bool:
+            if inspect.isclass(self.object) and isinstance(self.options.inherited_members, (set, list)):
+                for cls in self.object.__mro__:
+                    if cls.__name__ in self.options.inherited_members and cls != self.object:
+                        # given member is a member of specified *super classes*
+                        return True
+                    elif name in cls.__dict__:
+                        return False
+                    elif name in self.get_attr(cls, '__annotations__', {}):
+                        return False
+                    elif isinstance(obj, ObjectMember) and obj.class_ is cls:
+                        return False
+
+            return False
+</patched>
+```
+
+# modification 3
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>elif self.options.inherited_members:
+            return False, list(members.values())
+</original>
+<patched>elif self.options.inherited_members:
+            if isinstance(self.options.inherited_members, (set, list)):
+                # Exclude members from specified inherited classes
+                filtered_members = []
+                for member in members.values():
+                    if member.class_.__name__ not in self.options.inherited_members:
+                        filtered_members.append(member)
+                return False, filtered_members
+            else:
+                return False, list(members.values())
+</patched>
+```
+
+These modifications collectively address the issue by allowing the `:inherited-members:` option to accept a list of classes (as a comma-separated string) that should be ignored when documenting inherited members. The `filter_members` method is updated to handle this list correctly, and the `get_object_members` method is modified to filter out members from the specified base classes.

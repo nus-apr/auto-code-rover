@@ -1,0 +1,34 @@
+{
+    "task_id": "sympy__sympy-24152",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.12",
+        "env_name": "setup_sympy__sympy__1.12",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/physics/quantum/tests/test_tensorproduct.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-24152",
+        "base_commit": "b9af885473ad7e34b5b0826cb424dd26d8934670",
+        "hints_text": "Can you make a pull request with this fix?\nWill do. I haven't worked with git before, so bear with me.\r\n\r\nBut as I'm currently digging into some of the quantum package and have more and larger patches in the pipeline, it seems worth the effort to get git set up on my side. So watch out :-)",
+        "created_at": "2022-10-21T13:47:03Z",
+        "test_patch": "diff --git a/sympy/physics/quantum/tests/test_tensorproduct.py b/sympy/physics/quantum/tests/test_tensorproduct.py\n--- a/sympy/physics/quantum/tests/test_tensorproduct.py\n+++ b/sympy/physics/quantum/tests/test_tensorproduct.py\n@@ -44,6 +44,13 @@ def test_tensor_product_abstract():\n def test_tensor_product_expand():\n     assert TP(A + B, B + C).expand(tensorproduct=True) == \\\n         TP(A, B) + TP(A, C) + TP(B, B) + TP(B, C)\n+    #Tests for fix of issue #24142\n+    assert TP(A-B, B-A).expand(tensorproduct=True) == \\\n+        TP(A, B) - TP(A, A) - TP(B, B) + TP(B, A)\n+    assert TP(2*A + B, A + B).expand(tensorproduct=True) == \\\n+        2 * TP(A, A) + 2 * TP(A, B) + TP(B, A) + TP(B, B)\n+    assert TP(2 * A * B + A, A + B).expand(tensorproduct=True) == \\\n+        2 * TP(A*B, A) + 2 * TP(A*B, B) + TP(A, A) + TP(A, B)\n \n \n def test_tensor_product_commutator():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Bug in expand of TensorProduct + Workaround + Fix\n### Error description\r\nThe expansion of a TensorProduct object stops incomplete if summands in the tensor product factors have (scalar) factors, e.g.\r\n```\r\nfrom sympy import *\r\nfrom sympy.physics.quantum import *\r\nU = Operator('U')\r\nV = Operator('V')\r\nP = TensorProduct(2*U - V, U + V)\r\nprint(P) \r\n# (2*U - V)x(U + V)\r\nprint(P.expand(tensorproduct=True)) \r\n#result: 2*Ux(U + V) - Vx(U + V) #expansion has missed 2nd tensor factor and is incomplete\r\n```\r\nThis is clearly not the expected behaviour. It also effects other functions that rely on .expand(tensorproduct=True), as e.g. qapply() .\r\n\r\n### Work around\r\nRepeat .expand(tensorproduct=True) as may times as there are tensor factors, resp. until the expanded term does no longer change. This is however only reasonable in interactive session and not in algorithms.\r\n\r\n### Code Fix\r\n.expand relies on the method TensorProduct._eval_expand_tensorproduct(). The issue arises from an inprecise check in TensorProduct._eval_expand_tensorproduct() whether a recursive call is required; it fails when the creation of a TensorProduct object returns commutative (scalar) factors up front: in that case the constructor returns a Mul(c_factors, TensorProduct(..)).\r\nI thus propose the following  code fix in TensorProduct._eval_expand_tensorproduct() in quantum/tensorproduct.py.  I have marked the four lines to be added / modified:\r\n```\r\n    def _eval_expand_tensorproduct(self, **hints):\r\n                ...\r\n                for aa in args[i].args:\r\n                    tp = TensorProduct(*args[:i] + (aa,) + args[i + 1:])\r\n                    c_part, nc_part = tp.args_cnc() #added\r\n                    if len(nc_part)==1 and isinstance(nc_part[0], TensorProduct): #modified\r\n                        nc_part = (nc_part[0]._eval_expand_tensorproduct(), ) #modified\r\n                    add_args.append(Mul(*c_part)*Mul(*nc_part)) #modified\r\n                break\r\n                ...\r\n```\r\nThe fix splits of commutative (scalar) factors from the tp returned. The TensorProduct object will be the one nc factor in nc_part (see TensorProduct.__new__ constructor), if any. Note that the constructor will return 0 if a tensor factor is 0, so there is no guarantee that tp contains a TensorProduct object (e.g. TensorProduct(U-U, U+V).\r\n\r\n\r\n\n",
+        "version": "1.12",
+        "FAIL_TO_PASS": [
+            "test_tensor_product_expand"
+        ],
+        "PASS_TO_PASS": [
+            "test_issue_5923",
+            "test_sparse_matrices",
+            "test_tensor_product_abstract",
+            "test_tensor_product_commutator",
+            "test_tensor_product_dagger",
+            "test_tensor_product_simp"
+        ],
+        "environment_setup_commit": "c6cb7c5602fa48034ab1bd43c2347a7e8488f12e",
+        "patch": "diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py\n--- a/sympy/physics/quantum/tensorproduct.py\n+++ b/sympy/physics/quantum/tensorproduct.py\n@@ -246,9 +246,12 @@ def _eval_expand_tensorproduct(self, **hints):\n             if isinstance(args[i], Add):\n                 for aa in args[i].args:\n                     tp = TensorProduct(*args[:i] + (aa,) + args[i + 1:])\n-                    if isinstance(tp, TensorProduct):\n-                        tp = tp._eval_expand_tensorproduct()\n-                    add_args.append(tp)\n+                    c_part, nc_part = tp.args_cnc()\n+                    # Check for TensorProduct object: is the one object in nc_part, if any:\n+                    # (Note: any other object type to be expanded must be added here)\n+                    if len(nc_part) == 1 and isinstance(nc_part[0], TensorProduct):\n+                        nc_part = (nc_part[0]._eval_expand_tensorproduct(), )\n+                    add_args.append(Mul(*c_part)*Mul(*nc_part))\n                 break\n \n         if add_args:\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/24152"
+    }
+}

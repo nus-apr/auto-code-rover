@@ -1,0 +1,78 @@
+Given the context around the issue with extra lines being printed in error messages when using assertions in pytest with Python 3.9, and based on the analysis of the suspicious methods in `src/_pytest/_code/code.py` and related files, I'll propose a hypothetical patch. This patch aims to address potential discrepancies in how source code ranges are determined for error messages, particularly focusing on the `getstatementrange_ast` function and its usage.
+
+Please note, without direct access to the actual source code and the specific details of the implementation differences between Python versions, the following patch is speculative and based on common practices and the described issue. It's intended as a starting point for further investigation and testing by developers.
+
+# modification 1
+```python
+<file>src/_pytest/_code/source.py</file>
+<original>def getsource(
+        self, astcache: Optional[Dict[Union[str, Path], ast.AST]] = None
+    ) -> Optional["Source"]:
+        source = self.frame.code.fullsource
+        if source is None:
+            return None
+        key = astnode = None
+        if astcache is not None:
+            key = self.frame.code.path
+            if key is not None:
+                astnode = astcache.get(key, None)
+        start = self.getfirstlinesource()
+        try:
+            astnode, _, end = getstatementrange_ast(
+                self.lineno, source, astnode=astnode
+            )
+        except SyntaxError:
+            end = self.lineno + 1
+        else:
+            if key is not None and astcache is not None:
+                astcache[key] = astnode
+        return source[start:end]</original>
+<patched>def getsource(
+        self, astcache: Optional[Dict[Union[str, Path], ast.AST]] = None
+    ) -> Optional["Source"]:
+        source = self.frame.code.fullsource
+        if source is None:
+            return None
+        key = astnode = None
+        if astcache is not None:
+            key = self.frame.code.path
+            if key is not None:
+                astnode = astcache.get(key, None)
+        start = self.getfirstlinesource()
+        try:
+            astnode, start, end = getstatementrange_ast(
+                self.lineno, source, astnode=astnode
+            )
+        except SyntaxError:
+            end = self.lineno + 1
+        else:
+            if key is not None and astcache is not None and start is not None:
+                astcache[key] = astnode
+        return source[start:end]</patched>
+```
+
+This modification ensures that the `start` variable is correctly updated based on the `getstatementrange_ast` function's output, potentially addressing issues where the starting line of the source code snippet is incorrectly determined.
+
+# modification 2
+```python
+<file>src/_pytest/_code/source.py</file>
+<original>start = self.getfirstlinesource()
+try:
+    astnode, _, end = getstatementrange_ast(
+        self.lineno, source, astnode=astnode
+    )
+except SyntaxError:
+    end = self.lineno + 1</original>
+<patched>start = self.getfirstlinesource()
+try:
+    astnode, start_adjusted, end = getstatementrange_ast(
+        self.lineno, source, astnode=astnode
+    )
+    start = max(start, start_adjusted)  # Ensure start is not set before the first line of the source
+except SyntaxError:
+    end = self.lineno + 1</patched>
+```
+
+This second modification ensures that the `start` line is not set before the actual beginning of the function or method in question, addressing potential issues where additional, unrelated lines of code are included in the error output.
+
+Please note, these patches are speculative and should be thoroughly reviewed and tested within the actual development environment to ensure they address the issue without introducing new problems.

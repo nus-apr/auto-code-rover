@@ -1,0 +1,19 @@
+Based on the issue described and the code provided, it seems the unexpected behavior might be related to how `ModelMultipleChoiceField.clean` method handles empty submissions, particularly in conjunction with querysets combined using `union()`. The goal is to ensure that when the form is submitted with no selections, and the queryset is defined using `union()`, it behaves consistently with expectations (i.e., not adding all objects matching the queryset).
+
+However, based on the code snippets provided, there isn't a clear bug in the implementation of `union` in `django/db/models/query.py` or in the `clean` method of `ModelMultipleChoiceField` in `django/forms/models.py` that would directly cause the described issue. Both implementations follow Django's design. The `union` method correctly handles combining querysets, including cases with `EmptyQuerySet`. The `clean` method in `ModelMultipleChoiceField` properly processes the input value, validating against the queryset.
+
+Given this, and without more specific details about the bug's manifestation or additional context indicating a misbehavior in these methods, proposing a direct patch is challenging. The described issue might stem from a misunderstanding of how these components are supposed to work together or from other parts of the system not covered by the provided code snippets.
+
+However, to address the concern raised in the issue about handling empty form submissions, here's a hypothetical patch to ensure `ModelMultipleChoiceField.clean` explicitly handles cases where the form is submitted without selections in a way that might be more intuitive based on the issue description. This patch assumes that the desired behavior is to return an empty queryset directly when no selections are made, bypassing further processing that might inadvertently treat the absence of selections as a reason to select all.
+
+# modification 1
+```python
+<file>django/forms/models.py</file>
+<original>elif not self.required and not value:
+            return self.queryset.none()</original>
+<patched>elif not self.required and not value:
+            # Explicitly return an empty queryset to ensure no selections result in no additions
+            return self.queryset.model.objects.none()</patched>
+```
+
+This modification explicitly calls `model.objects.none()` to generate an empty queryset tied to the model class of the queryset used in `ModelMultipleChoiceField`, ensuring clarity in the intention to return no results when no selections are made. This approach might not directly address the issue if the problem lies elsewhere or if the expectations for the behavior are different. Further investigation and a more detailed understanding of the issue would be necessary for a more targeted solution.

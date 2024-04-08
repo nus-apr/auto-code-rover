@@ -1,0 +1,23 @@
+Based on the issue description and the provided context, the problem lies in the handling of the `emit` parameter within the `set_xlim` method of the `_AxesBase` class. The issue suggests that when an axis limit change is induced by a shared axis, the `xlim_changed` callbacks are not being called because the `emit` parameter is set to `False` for sibling axes. A potential solution involves ensuring that `xlim_changed` callbacks are triggered for all shared axes, even when the change is induced by a sibling axis. However, care must be taken to avoid recursion issues that may arise from setting `emit=True` directly within the shared axes loop.
+
+Given the constraints and the goal to resolve this issue, here is a proposed patch:
+
+# modification 1
+```python
+<file>lib/matplotlib/axes/_base.py</file>
+<original>
+return self.xaxis._set_lim(left, right, emit=emit, auto=auto)
+</original>
+<patched>
+result = self.xaxis._set_lim(left, right, emit=emit, auto=auto)
+if emit:
+    for other in self._shared_x_axes.get_siblings(self):
+        if other is not self:
+            other.callbacks.process('xlim_changed', other)
+return result
+</patched>
+```
+
+This patch modifies the `set_xlim` method to ensure that after setting the x-axis limits, if `emit` is `True`, it explicitly triggers the `xlim_changed` callbacks for all sibling axes that share the x-axis with the current axis. This approach aims to address the issue without introducing recursion, as it processes the callbacks after the limits have been set, and only if `emit` is `True`. This ensures that the callbacks are only processed once per change, avoiding the potential recursion issue mentioned in the original issue description.
+
+Please note, this patch is based on the understanding of the issue from the provided context and assumes that the `self._shared_x_axes.get_siblings(self)` method correctly retrieves all sibling axes that share the x-axis with the current axis, and that `other.callbacks.process('xlim_changed', other)` is the correct way to manually trigger the `xlim_changed` callbacks for the sibling axes. Further testing and validation would be necessary to ensure that this patch fully resolves the issue without introducing any new problems.

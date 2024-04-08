@@ -1,0 +1,53 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c2623f099f..f4c1e69721 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -44,12 +44,21 @@ class Q(tree.Node):
+         if not isinstance(other, Q):
+             raise TypeError(other)
+ 
++        # Use a custom deepcopy to handle non-pickleable objects
++        def custom_deepcopy(obj):
++            try:
++                return copy.deepcopy(obj)
++            except TypeError:
++                if isinstance(obj, Q) and isinstance(obj.children, (dict_keys,)):
++                    obj.children = list(obj.children)
++                return copy.deepcopy(obj)
++
+         # If the other Q() is empty, ignore it and just use `self`.
+         if not other:
+-            return copy.deepcopy(self)
++            return custom_deepcopy(self)
+         # Or if this Q is empty, ignore it and just use `other`.
+         elif not self:
+-            return copy.deepcopy(other)
++            return custom_deepcopy(other)
+ 
+         obj = type(self)()
+         obj.connector = conn
+diff --git a/django/utils/tree.py b/django/utils/tree.py
+index 302cd37d5f..597596d533 100644
+--- a/django/utils/tree.py
++++ b/django/utils/tree.py
+@@ -47,10 +47,16 @@ class Node:
+     def __repr__(self):
+         return "<%s: %s>" % (self.__class__.__name__, self)
+ 
+-    def __deepcopy__(self, memodict):
+-        obj = Node(connector=self.connector, negated=self.negated)
+-        obj.__class__ = self.__class__
+-        obj.children = copy.deepcopy(self.children, memodict)
++    def __deepcopy__(self, memodict={}):
++        obj = self.__class__(connector=self.connector, negated=self.negated)
++        # Handle non-pickleable items in children
++        new_children = []
++        for child in self.children:
++            if isinstance(child, (dict_keys,)):
++                new_children.append(list(child))
++            else:
++                new_children.append(copy.deepcopy(child, memodict))
++        obj.children = new_children
+         return obj
+ 
+     def __len__(self):

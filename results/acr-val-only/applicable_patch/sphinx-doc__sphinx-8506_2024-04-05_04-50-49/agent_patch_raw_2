@@ -1,0 +1,36 @@
+Given the constraints and the need to address the issue with the `option::` syntax in Sphinx 3.2, a more nuanced approach is required. Since the direct modification of the regular expression (`option_desc_re`) to include specific patterns like `[enable=]PATTERN` might not be feasible without seeing the actual regex and considering the failed tests, a different strategy could be to adjust the validation logic to be more accommodating of various option syntaxes.
+
+This approach involves modifying the validation logic in the `handle_signature` method to allow for additional valid option syntaxes without strictly relying on the regular expression match. This can be achieved by adding a pre-validation step or modifying the warning condition to exclude certain patterns from raising a warning.
+
+# modification 1
+```python
+<file>sphinx/domains/std.py</file>
+<original>
+m = option_desc_re.match(potential_option)
+if not m:
+    logger.warning(__('Malformed option description %r, should '
+                      'look like "opt", "-opt args", "--opt args", '
+                      '"/opt args" or "+opt args"'), potential_option,
+                   location=signode)
+</original>
+<patched>
+# Introduce a pre-validation step to allow specific patterns.
+# This example allows '[enable=]PATTERN' syntax explicitly before applying the regex match.
+pre_validated = False
+if potential_option.startswith('[enable=]'):
+    potential_option = potential_option.replace('[enable=]', '', 1)
+    pre_validated = True
+
+m = option_desc_re.match(potential_option)
+if not m and not pre_validated:
+    logger.warning(__('Malformed option description %r, should now '
+                      'also accept "[enable=]PATTERN", in addition to '
+                      '"opt", "-opt args", "--opt args", '
+                      '"/opt args" or "+opt args"'), potential_option,
+                   location=signode)
+</patched>
+```
+
+This modification introduces a pre-validation step that checks if the option description starts with `[enable=]`. If it does, this prefix is removed for the purpose of the regular expression match, and a flag (`pre_validated`) is set to `True` to bypass the warning if the regex match fails. This allows the specific `[enable=]PATTERN` syntax to be accepted without modifying the underlying regular expression that validates the rest of the option syntaxes.
+
+It's important to note that this patch is a conceptual solution aimed at addressing the described issue. The actual implementation may require adjustments based on the full context of the `sphinx/domains/std.py` file and the `option_desc_re` pattern. Additionally, thorough testing should be conducted to ensure that this change does not introduce any regressions or unintended behavior in the documentation build process.

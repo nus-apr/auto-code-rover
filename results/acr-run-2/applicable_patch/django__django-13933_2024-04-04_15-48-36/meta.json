@@ -1,0 +1,47 @@
+{
+    "task_id": "django__django-13933",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__4.0",
+        "env_name": "setup_django__django__4.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 forms_tests.tests.test_error_messages"
+    },
+    "task_info": {
+        "instance_id": "django__django-13933",
+        "base_commit": "42e8cf47c7ee2db238bf91197ea398126c546741",
+        "hints_text": "This message has been the same literally forever b2b6fc8e3c78671c8b6af2709358c3213c84d119. \u200bGiven that ChoiceField passes the value when raising the error, if you set \u200berror_messages you should be able to get the result you want.\nReplying to Carlton Gibson: This message has been the same literally forever b2b6fc8e3c78671c8b6af2709358c3213c84d119. \u200bGiven that ChoiceField passes the value when raising the error, if you set \u200berror_messages you should be able to get the result you want. That is ChoiceField. ModelChoiceField \u200bdoes not pass the value to the validation error. So, when the invalid value error is raised, you can't display the offending value even if you override the defaults.\nOK, if you want to look at submitting a PR we can see if any objections come up in review. Thanks.\nPR: \u200bhttps://github.com/django/django/pull/13933",
+        "created_at": "2021-01-26T03:58:23Z",
+        "test_patch": "diff --git a/tests/forms_tests/tests/test_error_messages.py b/tests/forms_tests/tests/test_error_messages.py\n--- a/tests/forms_tests/tests/test_error_messages.py\n+++ b/tests/forms_tests/tests/test_error_messages.py\n@@ -308,3 +308,16 @@ def test_modelchoicefield(self):\n         self.assertFormErrors(['REQUIRED'], f.clean, '')\n         self.assertFormErrors(['NOT A LIST OF VALUES'], f.clean, '3')\n         self.assertFormErrors(['4 IS INVALID CHOICE'], f.clean, ['4'])\n+\n+    def test_modelchoicefield_value_placeholder(self):\n+        f = ModelChoiceField(\n+            queryset=ChoiceModel.objects.all(),\n+            error_messages={\n+                'invalid_choice': '\"%(value)s\" is not one of the available choices.',\n+            },\n+        )\n+        self.assertFormErrors(\n+            ['\"invalid\" is not one of the available choices.'],\n+            f.clean,\n+            'invalid',\n+        )\n",
+        "repo": "django/django",
+        "problem_statement": "ModelChoiceField does not provide value of invalid choice when raising ValidationError\nDescription\n\t \n\t\t(last modified by Aaron Wiegel)\n\t \nCompared with ChoiceField and others, ModelChoiceField does not show the value of the invalid choice when raising a validation error. Passing in parameters with the invalid value and modifying the default error message for the code invalid_choice should fix this.\nFrom source code:\nclass ModelMultipleChoiceField(ModelChoiceField):\n\t\"\"\"A MultipleChoiceField whose choices are a model QuerySet.\"\"\"\n\twidget = SelectMultiple\n\thidden_widget = MultipleHiddenInput\n\tdefault_error_messages = {\n\t\t'invalid_list': _('Enter a list of values.'),\n\t\t'invalid_choice': _('Select a valid choice. %(value)s is not one of the'\n\t\t\t\t\t\t\t' available choices.'),\n\t\t'invalid_pk_value': _('\u201c%(pk)s\u201d is not a valid value.')\n\t}\n\t...\nclass ModelChoiceField(ChoiceField):\n\t\"\"\"A ChoiceField whose choices are a model QuerySet.\"\"\"\n\t# This class is a subclass of ChoiceField for purity, but it doesn't\n\t# actually use any of ChoiceField's implementation.\n\tdefault_error_messages = {\n\t\t'invalid_choice': _('Select a valid choice. That choice is not one of'\n\t\t\t\t\t\t\t' the available choices.'),\n\t}\n\t...\n",
+        "version": "4.0",
+        "FAIL_TO_PASS": [
+            "test_modelchoicefield_value_placeholder (forms_tests.tests.test_error_messages.ModelChoiceFieldErrorMessagesTestCase)"
+        ],
+        "PASS_TO_PASS": [
+            "test_booleanfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_charfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_choicefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_datefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_datetimefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_decimalfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_emailfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_error_messages_escaping (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_filefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_floatfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_generic_ipaddressfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_integerfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_modelchoicefield (forms_tests.tests.test_error_messages.ModelChoiceFieldErrorMessagesTestCase)",
+            "test_multiplechoicefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_regexfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_splitdatetimefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_subclassing_errorlist (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_timefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+            "test_urlfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)"
+        ],
+        "environment_setup_commit": "475cffd1d64c690cdad16ede4d5e81985738ceb4",
+        "patch": "diff --git a/django/forms/models.py b/django/forms/models.py\n--- a/django/forms/models.py\n+++ b/django/forms/models.py\n@@ -1284,7 +1284,11 @@ def to_python(self, value):\n                 value = getattr(value, key)\n             value = self.queryset.get(**{key: value})\n         except (ValueError, TypeError, self.queryset.model.DoesNotExist):\n-            raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')\n+            raise ValidationError(\n+                self.error_messages['invalid_choice'],\n+                code='invalid_choice',\n+                params={'value': value},\n+            )\n         return value\n \n     def validate(self, value):\n",
+        "pr_link": "https://github.com/django/django/pull/13933"
+    }
+}

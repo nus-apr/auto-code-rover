@@ -1,0 +1,37 @@
+# modification 1
+```python
+<file>django/template/autoreload.py</file>
+<original>def template_changed(sender, file_path, **kwargs):
+    for template_dir in get_template_directories():
+        if template_dir in file_path.parents:
+            reset_loaders()
+            return True
+</original>
+<patched>from pathlib import Path
+
+def template_changed(sender, file_path, **kwargs):
+    file_path = Path(file_path)  # Ensure file_path is a Path object for consistency
+    for template_dir in get_template_directories():
+        template_dir = Path(template_dir)  # Ensure template_dir is a Path object
+        if template_dir in file_path.parents:
+            reset_loaders()
+            return True
+</patched>
+```
+
+# modification 2
+```python
+<file>django/template/loaders/filesystem.py</file>
+<original>def get_dirs(self):
+    return self.dirs if self.dirs is not None else self.engine.dirs
+</original>
+<patched>from pathlib import Path
+
+def get_dirs(self):
+    dirs = self.dirs if self.dirs is not None else self.engine.dirs
+    # Ensure all directories are Path objects to prevent issues with string paths
+    return [Path(dir) for dir in dirs]
+</patched>
+```
+
+These modifications aim to ensure consistency in how paths are handled within the Django template loading and autoreload mechanisms. By explicitly converting directories to `Path` objects, we mitigate potential issues arising from the mix of string paths and `Path` objects, which could be at the root of the autoreload failure when `BASE_DIR` is added to `TEMPLATES[0]['DIRS']`. This approach maintains the existing logic while enhancing the robustness of path handling.

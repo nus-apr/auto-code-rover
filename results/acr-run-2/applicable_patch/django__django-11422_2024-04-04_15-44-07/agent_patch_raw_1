@@ -1,0 +1,47 @@
+Given the context and the issue described, the problem seems to stem from the fact that `manage.py` changes are not being detected by Django's autoreload mechanism in version 2.2.1. Based on the information provided, it's not entirely clear why `manage.py` is not being watched or reloaded, as the specific mechanism for including or excluding files from the watch list wasn't directly identified in the provided search results. However, a general approach to ensure `manage.py` or any specific file is considered by the autoreload mechanism can involve ensuring that the file is explicitly included in the list of files to watch.
+
+Since we do not have direct evidence of the mechanism failing to include `manage.py`, and without specific details on how `watched_files()` populates its list, any patch would be speculative. However, a hypothetical patch could involve ensuring that `manage.py` is explicitly included in the files that the autoreload mechanism watches.
+
+Please note, the following patch is speculative and intended as an illustrative example based on the described issue. It assumes that adding `manage.py` explicitly to the list of watched files could solve the problem, which might not be the case without a deeper understanding of the underlying issue.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime</original>
+<patched>def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        # Explicitly add manage.py to the watched files
+        manage_py_path = Path(__file__).resolve().parent.parent / 'manage.py'
+        seen_files.add(manage_py_path)
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime</patched>
+```
+
+This patch assumes the presence of a `Path` object for handling filesystem paths, which requires importing the `Path` class from the `pathlib` module at the beginning of the file.
+
+```python
+from pathlib import Path
+```
+
+Remember, this patch is speculative and based on the assumption that explicitly adding `manage.py` to the set of watched files could resolve the issue. In practice, understanding why `manage.py` is not being watched by the autoreload mechanism in Django 2.2.1 would require a deeper investigation into how files are selected for monitoring and how the autoreload system is initialized and configured.

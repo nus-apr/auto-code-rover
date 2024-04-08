@@ -1,0 +1,41 @@
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 6c6ee8cee7..bde1b7b36c 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1238,7 +1238,14 @@ class ModelAdmin(BaseModelAdmin):
+     def save_formset(self, request, form, formset, change):
+         """
+         Given an inline formset save it to the database.
+-        """
++        Ensure default values are correctly handled on form resubmission.
++        """
++        # Force re-evaluation of formset defaults before saving
++        for form in formset.forms:
++            for field in form.fields.values():
++                if callable(field.initial):
++                    field.initial = field.initial()
++                    
+         formset.save()
+ 
+     def save_related(self, request, form, formsets, change):
+diff --git a/django/contrib/postgres/fields/array.py b/django/contrib/postgres/fields/array.py
+index c247387eb7..ff56ade29a 100644
+--- a/django/contrib/postgres/fields/array.py
++++ b/django/contrib/postgres/fields/array.py
+@@ -225,10 +225,15 @@ class ArrayField(CheckFieldDefaultMixin, Field):
+                 )
+ 
+     def formfield(self, **kwargs):
++        # Ensure the base_field's formfield correctly handles callable defaults
++        base_field_formfield = self.base_field.formfield()
++        if callable(base_field_formfield.initial):
++            base_field_formfield.initial = base_field_formfield.initial()
++        
+         return super().formfield(
+             **{
+                 "form_class": SimpleArrayField,
+-                "base_field": self.base_field.formfield(),
++                "base_field": base_field_formfield,
+                 "max_length": self.size,
+                 **kwargs,
+             }

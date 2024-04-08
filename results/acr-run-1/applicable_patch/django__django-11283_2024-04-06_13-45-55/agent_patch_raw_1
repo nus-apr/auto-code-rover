@@ -1,0 +1,30 @@
+Given the context and the issue described, the bug seems to stem from the handling of permissions for proxy models during migrations. The `create_permissions` method does not differentiate between base models and their proxy models, potentially leading to attempts to create duplicate permissions for proxy models that should inherit permissions from their base model.
+
+To address this, we need to ensure that the method checks if a model is a proxy and, if so, does not attempt to create new permissions for it, thus avoiding the unique constraint violation.
+
+# modification 1
+```python
+<file>django/contrib/auth/management/__init__.py</file>
+<original>for klass in app_config.get_models():
+    # Force looking up the content types in the current database
+    # before creating foreign keys to them.
+    ctype = ContentType.objects.db_manager(using).get_for_model(klass, for_concrete_model=False)
+
+    ctypes.add(ctype)
+    for perm in _get_all_permissions(klass._meta):
+        searched_perms.append((ctype, perm))</original>
+<patched>for klass in app_config.get_models():
+    # Skip proxy models to avoid creating duplicate permissions.
+    if klass._meta.proxy:
+        continue
+
+    # Force looking up the content types in the current database
+    # before creating foreign keys to them.
+    ctype = ContentType.objects.db_manager(using).get_for_model(klass, for_concrete_model=False)
+
+    ctypes.add(ctype)
+    for perm in _get_all_permissions(klass._meta):
+        searched_perms.append((ctype, perm))</patched>
+```
+
+This patch adds a condition to skip proxy models when iterating through the models of an app configuration to create permissions. By doing so, it prevents the creation of duplicate permissions for proxy models, which should inherit permissions from their base model instead of having new ones created. This approach should resolve the unique constraint violation error by ensuring that permissions are only created for non-proxy models, thus avoiding attempts to create permissions that already exist for the base model of proxy models.

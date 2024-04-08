@@ -1,0 +1,46 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index 982816be3a..4884eed236 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -389,21 +389,26 @@ class RenameModel(ModelOperation):
+     def migration_name_fragment(self):
+         return 'rename_%s_%s' % (self.old_name_lower, self.new_name_lower)
+ 
+-    def reduce(self, operation, app_label):
+-        if (isinstance(operation, RenameModel) and
+-                self.new_name_lower == operation.old_name_lower):
+-            return [
+-                RenameModel(
+-                    self.old_name,
+-                    operation.new_name,
+-                ),
+-            ]
+-        # Skip `ModelOperation.reduce` as we want to run `references_model`
+-        # against self.new_name.
+-        return (
+-            super(ModelOperation, self).reduce(operation, app_label) or
+-            not operation.references_model(self.new_name, app_label)
+-        )
++    def reduce(self, operation, app_label, in_memory_state):
++            if (isinstance(operation, RenameModel) and
++                    self.new_name_lower == operation.old_name_lower):
++                # Retrieve the model state for the current app and model.
++                model_state = in_memory_state.models.get((app_label, self.new_name_lower), None)
++                if model_state and model_state.options.get('db_table'):
++                    # If `db_table` is explicitly set, consider this operation as no-op.
++                    return []
++                return [
++                    RenameModel(
++                        self.old_name,
++                        operation.new_name,
++                    ),
++                ]
++            # Skip `ModelOperation.reduce` as we want to run `references_model`
++            # against self.new_name.
++            return (
++                super(ModelOperation, self).reduce(operation, app_label, in_memory_state) or
++                not operation.references_model(self.new_name, app_label, in_memory_state)
++            )
+ 
+ 
+ class ModelOptionOperation(ModelOperation):

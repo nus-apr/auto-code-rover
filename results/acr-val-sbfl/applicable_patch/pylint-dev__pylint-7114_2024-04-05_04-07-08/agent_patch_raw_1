@@ -1,0 +1,38 @@
+# modification 1
+```python
+<file>pylint/lint/pylinter.py</file>
+<original>self.set_current_module(file.name, file.filepath)</original>
+<patched># Check if a directory and a file have the same name in the same path
+import os
+if os.path.isdir(file.filepath) and os.path.exists(file.filepath + ".py"):
+    self.add_message('same-name-module-directory', args=(file.name,), line=0)
+else:
+    self.set_current_module(file.name, file.filepath)</patched>
+```
+
+# modification 2
+```python
+<file>pylint/lint/pylinter.py</file>
+<original>return MANAGER.ast_from_file(filepath, modname, source=True)</original>
+<patched># Adjust filepath for modules with a directory and file of the same name
+import os
+if os.path.isdir(filepath) and not filepath.endswith('__init__.py'):
+    adjusted_filepath = os.path.join(filepath, '__init__.py')
+    if os.path.exists(adjusted_filepath):
+        filepath = adjusted_filepath
+return MANAGER.ast_from_file(filepath, modname, source=True)</patched>
+```
+
+# modification 3
+```python
+<file>pylint/lint/pylinter.py</file>
+<original>self.add_message("parse-error", args=ex)</original>
+<patched># Provide more detailed error message for module-directory name conflicts
+if "No such file or directory" in str(ex):
+    self.add_message("parse-error", args=("Failed to load module due to a naming conflict. " +
+                                          "Ensure there is no directory and file with the same name: " + str(ex),))
+else:
+    self.add_message("parse-error", args=ex)</patched>
+```
+
+These modifications aim to address the issue where linting fails if a module contains a module of the same name. The first modification checks for the condition where a directory and a file share the same name, issuing a specific linting message if detected. The second modification adjusts the filepath used for AST generation in cases where there might be a directory and file with the same name, ensuring that `__init__.py` is correctly identified. The third modification enhances the error message provided when a parse error occurs due to a naming conflict, making it clearer to the user what the issue might be.

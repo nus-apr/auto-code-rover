@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>django/db/migrations/recorder.py</file>
+<original>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema."""
+        # If the table's there, that's fine - we've never changed its schema
+        # in the codebase.
+        if self.has_table():
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</original>
+<patched>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema, respecting db_router allow_migrate rules."""
+        from django.db import router
+        # If the table's there, that's fine - we've never changed its schema
+        # in the codebase.
+        if self.has_table():
+            return
+        # Check if we're allowed to migrate
+        if not router.allow_migrate(self.connection.alias, self.Migration):
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</patched>
+```
+
+This patch modifies the `ensure_schema` method in the `MigrationRecorder` class to respect the `allow_migrate` rules defined in the project's database router(s). It does this by importing the `router` module from `django.db` and using the `allow_migrate` method to check if migrations are allowed for the model associated with the `MigrationRecorder` on the current database connection (`self.connection.alias`). If `allow_migrate` returns `False`, the method returns early without attempting to create the migrations table. This approach ensures that the migrations table is only created in databases where migrations are permitted according to the project's routing logic.

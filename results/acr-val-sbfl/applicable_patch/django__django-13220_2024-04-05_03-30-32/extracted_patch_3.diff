@@ -1,0 +1,42 @@
+diff --git a/django/core/exceptions.py b/django/core/exceptions.py
+index dc084b8692..7af83acdb9 100644
+--- a/django/core/exceptions.py
++++ b/django/core/exceptions.py
+@@ -96,8 +96,37 @@ class FieldError(Exception):
+ NON_FIELD_ERRORS = '__all__'
+ 
+ 
++from collections import Counter
++import json
++
+ class ValidationError(Exception):
+     """An error while validating data."""
++    
++    def __eq__(self, other):
++        if not isinstance(other, ValidationError):
++            return NotImplemented
++        
++        # Serialize both ValidationError instances to a JSON string for comparison.
++        # This approach normalizes the error structures, making the comparison order-independent.
++        try:
++            self_serialized = self._serialize_validation_error(self)
++            other_serialized = self._serialize_validation_error(other)
++            return self_serialized == other_serialized
++        except TypeError:
++            # Fallback to False if serialization fails, indicating non-comparability.
++            return False
++
++    def _serialize_validation_error(self, validation_error):
++        """Serialize ValidationError to a JSON string, ensuring order-independent comparison."""
++        if hasattr(validation_error, 'error_dict'):
++            error_content = {'error_dict': validation_error.error_dict}
++        elif hasattr(validation_error, 'error_list'):
++            error_content = {'error_list': validation_error.error_list}
++        else:
++            error_content = {'message': validation_error.message}
++        
++        # Use json.dumps with sort_keys=True to ensure the serialization is order-independent.
++        return json.dumps(error_content, sort_keys=True, default=str)
+     def __init__(self, message, code=None, params=None):
+         """
+         The `message` argument can be a single error, a list of errors, or a

@@ -1,0 +1,42 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index 982816be3a..91d184bba1 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -318,14 +318,16 @@ class RenameModel(ModelOperation):
+ 
+     def database_forwards(self, app_label, schema_editor, from_state, to_state):
+         new_model = to_state.apps.get_model(app_label, self.new_name)
+-        if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+-            old_model = from_state.apps.get_model(app_label, self.old_name)
+-            # Move the main table
+-            schema_editor.alter_db_table(
+-                new_model,
+-                old_model._meta.db_table,
+-                new_model._meta.db_table,
+-            )
++        old_model = from_state.apps.get_model(app_label, self.old_name)
++        # Proceed only if db_table names differ, indicating no custom db_table is set
++        if old_model._meta.db_table != new_model._meta.db_table:
++            if self.allow_migrate_model(schema_editor.connection.alias, new_model):
++                # Move the main table
++                schema_editor.alter_db_table(
++                    new_model,
++                    old_model._meta.db_table,
++                    new_model._meta.db_table,
++                )
+             # Alter the fields pointing to us
+             for related_object in old_model._meta.related_objects:
+                 if related_object.related_model == old_model:
+@@ -371,7 +373,11 @@ class RenameModel(ModelOperation):
+         self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+         self.new_name, self.old_name = self.old_name, self.new_name
+ 
+-        self.database_forwards(app_label, schema_editor, from_state, to_state)
++        new_model = to_state.apps.get_model(app_label, self.old_name)
++        old_model = from_state.apps.get_model(app_label, self.new_name)
++        # Proceed only if db_table names differ, indicating no custom db_table is set
++        if old_model._meta.db_table != new_model._meta.db_table:
++            self.database_forwards(app_label, schema_editor, from_state, to_state)
+ 
+         self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+         self.new_name, self.old_name = self.old_name, self.new_name

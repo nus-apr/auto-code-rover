@@ -1,0 +1,24 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c2623f099f..f04405014f 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -44,6 +44,19 @@ class Q(tree.Node):
+         if not isinstance(other, Q):
+             raise TypeError(other)
+ 
++        # Prepare for deepcopy by ensuring all elements are pickleable
++        def make_pickleable(obj):
++            if isinstance(obj, Q):
++                for index, child in enumerate(obj.children):
++                    if isinstance(child, tuple) and len(child) == 2:
++                        key, value = child
++                        if isinstance(value, dict_keys):
++                            obj.children[index] = (key, list(value))
++            return obj
++
++        self = make_pickleable(self)
++        other = make_pickleable(other)
++
+         # If the other Q() is empty, ignore it and just use `self`.
+         if not other:
+             return copy.deepcopy(self)

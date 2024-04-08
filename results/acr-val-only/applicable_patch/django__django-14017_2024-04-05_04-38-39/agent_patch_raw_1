@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def __and__(self, other):
+        return self._combine(other, self.AND)</original>
+<patched>    def __and__(self, other):
+        return self._combine(other, self.AND)
+    
+    def __rand__(self, other):
+        return self._combine(other, self.AND)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/expressions.py</file>
+<original>    def __init__(self, queryset, negated=False, **kwargs):
+        self.negated = negated
+        super().__init__(queryset, **kwargs)</original>
+<patched>    def __init__(self, queryset, negated=False, **kwargs):
+        self.negated = negated
+        super().__init__(queryset, **kwargs)
+    
+    def __rand__(self, other):
+        if not hasattr(other, '_combine'):
+            raise TypeError(f"Cannot combine 'Exists' with '{type(other)}'")
+        return other._combine(self, other.AND)</patched>
+```
+
+Explanation:
+- **Modification 1**: Adds a `__rand__` method to the `Q` class. This method is essentially the same as the `__and__` method because the logical AND operation is commutative, meaning the order of operands should not affect the result. This change allows an `Exists` instance to be on the right side of an `&` operation with a `Q` instance on the left.
+  
+- **Modification 2**: Adds a `__rand__` method to the `Exists` class. This method checks if the other operand (expected to be a `Q` instance when this issue arises) has a `_combine` method, which it should if it's a `Q` instance. It then calls this method, effectively allowing `Q` and `Exists` instances to be combined regardless of their order in an `&` operation. The error handling with `TypeError` ensures that if an incompatible type is used with `Exists`, a clear and informative error message is provided.
+
+These modifications address the issue by implementing the missing `__rand__` methods, thus allowing `Q` and `Exists` instances to be used interchangeably on either side of an `&` operation without raising a `TypeError`.

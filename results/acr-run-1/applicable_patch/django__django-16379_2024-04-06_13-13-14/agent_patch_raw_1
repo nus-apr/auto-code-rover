@@ -1,0 +1,21 @@
+# modification 1
+```python
+<file>django/core/cache/backends/filebased.py</file>
+<original>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        if os.path.exists(fname):
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        return False
+</original>
+<patched>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        try:
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        except FileNotFoundError:
+            return False
+</patched>
+```
+
+This patch addresses the race condition by attempting to open the file directly instead of checking if it exists first. If the file has been deleted between the check and the attempt to open it (which was the cause of the race condition), a `FileNotFoundError` will be caught, and the method will return `False`, indicating the key does not exist in the cache. This approach is more robust and eliminates the window for a race condition to occur.

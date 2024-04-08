@@ -1,0 +1,23 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index e0eeccefa6..fcc989fbce 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1137,11 +1137,17 @@ class QuerySet:
+     def distinct(self, *field_names):
+         """
+         Return a new QuerySet instance that will select only distinct results.
++        Enhanced to support distinct fields after union operations.
+         """
+         assert not self.query.is_sliced, \
+             "Cannot create distinct fields once a slice has been taken."
+         obj = self._chain()
+-        obj.query.add_distinct_fields(*field_names)
++        if hasattr(self, '_combinator_query') and self._combinator_query and field_names:
++            # If this is a queryset resulting from a combinator query (like union) and field names are specified,
++            # attempt to apply 'DISTINCT ON' logic compatible with the underlying database.
++            obj.query.combinator_distinct_fields = field_names
++        else:
++            obj.query.add_distinct_fields(*field_names)
+         return obj
+ 
+     def extra(self, select=None, where=None, params=None, tables=None,

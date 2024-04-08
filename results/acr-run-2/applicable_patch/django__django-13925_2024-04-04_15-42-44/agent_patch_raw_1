@@ -1,0 +1,47 @@
+Given the context and the issue described, it seems the primary concern is with Django's handling of inherited primary keys in models, particularly in the transition to Django 3.2 alpha, where `models.W042` warnings are raised due to the auto-creation of primary keys when a primary key type is not explicitly defined. Since the provided `Entity` class examples do not include primary key definitions or `class Meta` configurations, and considering the nature of the issue, a hypothetical patch will focus on ensuring that a custom primary key is properly defined and inherited in models that extend `Entity`, and on configuring the `DEFAULT_AUTO_FIELD` setting to avoid the warning.
+
+However, it's important to note that without specific details on how `Entity` and its subclasses are intended to use primary keys, this patch assumes that the goal is to ensure all models inherit a custom primary key from `Entity`, and that `Entity` itself should define such a key explicitly to prevent Django from auto-creating one.
+
+# modification 1
+```python
+<file>path/to/settings.py</file>
+<original>
+# Assuming the original settings file does not explicitly define DEFAULT_AUTO_FIELD
+</original>
+<patched>
+# Add or update the DEFAULT_AUTO_FIELD setting to use BigAutoField for all models by default
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+</patched>
+```
+
+# modification 2
+```python
+<file>tests/select_for_update/models.py</file>
+<original>class Entity(models.Model):
+    pass
+</original>
+<patched>from django.db import models
+
+class Entity(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    # This explicitly defines a BigAutoField as the primary key for the Entity model,
+    # ensuring that subclasses will inherit this field as their primary key unless overridden.
+</patched>
+```
+
+# modification 3
+```python
+<file>tests/order_with_respect_to/models.py</file>
+<original>class Entity(models.Model):
+    pass
+</original>
+<patched>from django.db import models
+
+class Entity(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    # Similar to modification 2, this ensures that Entity has a BigAutoField as its primary key,
+    # which will be inherited by any subclassing models.
+</patched>
+```
+
+These modifications aim to address the issue by ensuring that a primary key is explicitly defined for the `Entity` model, which should then be inherited by any subclasses, and by configuring the `DEFAULT_AUTO_FIELD` to use `BigAutoField`, aligning with the hint provided in the `models.W042` warning. This approach should prevent Django from auto-creating primary keys for these models, thus resolving the warnings encountered when running `make_migrations` under Django 3.2 alpha.

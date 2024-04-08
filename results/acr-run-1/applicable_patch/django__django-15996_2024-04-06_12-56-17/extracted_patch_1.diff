@@ -1,0 +1,37 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..36b3646f9b 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -123,12 +123,28 @@ class DictionarySerializer(BaseSerializer):
+ 
+ class EnumSerializer(BaseSerializer):
+     def serialize(self):
++        from enum import Enum
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        return (
+-            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+-            {"import %s" % module},
+-        )
++        # Check if the value is an instance of Enum and has a 'name' attribute, indicating it's not a combination of flags
++        if isinstance(self.value, Enum) and hasattr(self.value, 'name'):
++            return (
++                "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
++                {"import %s" % module},
++            )
++        else:
++            # Handle combination of Enum flags
++            # Decompose the combined flags into individual flags
++            flag_combinations = []
++            for flag in enum_class:
++                if self.value & flag == flag:
++                    flag_combinations.append(flag.name)
++            # Create a string representation that combines the flags using the bitwise OR operator
++            combined_flags_expression = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, flag) for flag in flag_combinations])
++            return (
++                combined_flags_expression,
++                {"import %s" % module},
++            )
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):

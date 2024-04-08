@@ -1,0 +1,42 @@
+# modification 1
+```python
+<file>requests/utils.py</file>
+<original>def stream_decode_response_unicode(iterator, r):
+    """Stream decodes a iterator."""
+
+    if r.encoding is None:
+        for item in iterator:
+            yield item
+        return
+
+    decoder = codecs.getincrementaldecoder(r.encoding)(errors='replace')
+    for chunk in iterator:
+        rv = decoder.decode(chunk)
+        if rv:
+            yield rv
+    rv = decoder.decode(b'', final=True)
+    if rv:
+        yield rv
+</original>
+<patched>import codecs
+
+def stream_decode_response_unicode(iterator, r):
+    """Stream decodes a iterator."""
+    # Ensure we have a valid encoding to decode with.
+    encoding = r.encoding if r.encoding is not None else 'utf-8'
+    
+    decoder = codecs.getincrementaldecoder(encoding)(errors='replace')
+    for chunk in iterator:
+        # Ensure chunk is bytes, if it's already text, encode it first (shouldn't normally happen).
+        if isinstance(chunk, str):
+            chunk = chunk.encode(encoding)
+        rv = decoder.decode(chunk)
+        if rv:
+            yield rv
+    rv = decoder.decode(b'', final=True)
+    if rv:
+        yield rv
+</patched>
+```
+
+This modification ensures that `stream_decode_response_unicode` always has a valid encoding to work with, defaulting to 'utf-8' if none is provided. It also adds a check to ensure that if, for any reason, a chunk is already a string (which should not normally happen in the context of `iter_content` with `decode_unicode=True`), it is encoded back to bytes using the response's encoding before attempting to decode it. This is a safeguard to ensure the function's robustness and might help in scenarios where the response's content is manipulated or inspected before streaming.

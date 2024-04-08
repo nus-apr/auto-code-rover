@@ -1,0 +1,39 @@
+{
+    "task_id": "sympy__sympy-22714",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.10",
+        "env_name": "setup_sympy__sympy__1.10",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/geometry/tests/test_point.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-22714",
+        "base_commit": "3ff4717b6aef6086e78f01cdfa06f64ae23aed7e",
+        "hints_text": "",
+        "created_at": "2021-12-19T18:54:36Z",
+        "test_patch": "diff --git a/sympy/geometry/tests/test_point.py b/sympy/geometry/tests/test_point.py\n--- a/sympy/geometry/tests/test_point.py\n+++ b/sympy/geometry/tests/test_point.py\n@@ -1,5 +1,6 @@\n from sympy.core.basic import Basic\n from sympy.core.numbers import (I, Rational, pi)\n+from sympy.core.parameters import evaluate\n from sympy.core.singleton import S\n from sympy.core.symbol import Symbol\n from sympy.core.sympify import sympify\n@@ -452,6 +453,12 @@ def test__normalize_dimension():\n         Point(1, 2, 0), Point(3, 4, 0)]\n \n \n+def test_issue_22684():\n+    # Used to give an error\n+    with evaluate(False):\n+        Point(1, 2)\n+\n+\n def test_direction_cosine():\n     p1 = Point3D(0, 0, 0)\n     p2 = Point3D(1, 1, 1)\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "simpify gives `Imaginary coordinates are not permitted.` with evaluate(False)\n## Issue\r\n`with evaluate(False)` crashes unexpectedly with `Point2D`\r\n\r\n## Code\r\n```python\r\nimport sympy as sp\r\nwith sp.evaluate(False):\r\n  sp.S('Point2D(Integer(1),Integer(2))')\r\n```\r\n\r\n## Error\r\n```\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/core/sympify.py\", line 472, in sympify\r\n    expr = parse_expr(a, local_dict=locals, transformations=transformations, evaluate=evaluate)\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/parsing/sympy_parser.py\", line 1026, in parse_expr\r\n    raise e from ValueError(f\"Error from parse_expr with transformed code: {code!r}\")\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/parsing/sympy_parser.py\", line 1017, in parse_expr\r\n    rv = eval_expr(code, local_dict, global_dict)\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/parsing/sympy_parser.py\", line 911, in eval_expr\r\n    expr = eval(\r\n  File \"<string>\", line 1, in <module>\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/geometry/point.py\", line 912, in __new__\r\n    args = Point(*args, **kwargs)\r\n  File \"/home/avinash/.local/lib/python3.8/site-packages/sympy/geometry/point.py\", line 153, in __new__\r\n    raise ValueError('Imaginary coordinates are not permitted.')\r\nValueError: Imaginary coordinates are not permitted.\r\n```\r\n\r\nHowever, it works without `with evaluate(False)`. Both of following commands work\r\n```python\r\nsp.S('Point2D(Integer(1),Integer(2))')\r\nsp.S('Point2D(Integer(1),Integer(2))', evaluate=False)\r\n```\n",
+        "version": "1.10",
+        "FAIL_TO_PASS": [
+            "test_issue_22684"
+        ],
+        "PASS_TO_PASS": [
+            "test_Point2D",
+            "test__normalize_dimension",
+            "test_arguments",
+            "test_concyclic_doctest_bug",
+            "test_dot",
+            "test_issue_11617",
+            "test_issue_9214",
+            "test_point",
+            "test_point3D",
+            "test_transform",
+            "test_unit"
+        ],
+        "environment_setup_commit": "fd40404e72921b9e52a5f9582246e4a6cd96c431",
+        "patch": "diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py\n--- a/sympy/geometry/point.py\n+++ b/sympy/geometry/point.py\n@@ -152,7 +152,7 @@ def __new__(cls, *args, **kwargs):\n                         'warn' or 'ignore'.'''))\n         if any(coords[dim:]):\n             raise ValueError('Nonzero coordinates cannot be removed.')\n-        if any(a.is_number and im(a) for a in coords):\n+        if any(a.is_number and im(a).is_zero is False for a in coords):\n             raise ValueError('Imaginary coordinates are not permitted.')\n         if not all(isinstance(a, Expr) for a in coords):\n             raise TypeError('Coordinates must be valid SymPy expressions.')\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/22714"
+    }
+}

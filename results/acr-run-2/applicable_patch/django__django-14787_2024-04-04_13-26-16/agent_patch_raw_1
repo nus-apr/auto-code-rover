@@ -1,0 +1,16 @@
+# modification 1
+```python
+<file>django/utils/decorators.py</file>
+<original>if not hasattr(decorator, '__iter__'):
+    update_wrapper(_dec, decorator)</original>
+<patched>if not hasattr(decorator, '__iter__'):
+    # Check if the decorator is a partial object and handle accordingly
+    if isinstance(decorator, functools.partial):
+        obj = decorator.func if hasattr(decorator.func, '__name__') else decorator.func.__class__
+        _dec.__name__ = 'method_decorator(%s)' % obj.__name__
+        _dec.__doc__ = decorator.func.__doc__
+    else:
+        update_wrapper(_dec, decorator)</patched>
+```
+
+This patch addresses the issue where `method_decorator` fails to properly handle decorators that are `functools.partial` objects, lacking attributes like `__name__`. By checking if the decorator is a partial object, we can manually set the `__name__` and `__doc__` attributes for the `_dec` function, using the underlying function (`decorator.func`) of the partial object. This ensures that even when partial objects are used as decorators, `method_decorator` can still preserve essential function attributes, preventing the `AttributeError` described in the issue.

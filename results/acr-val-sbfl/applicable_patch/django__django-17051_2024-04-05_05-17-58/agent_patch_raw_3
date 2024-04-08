@@ -1,0 +1,42 @@
+Given the constraints and the complexity of the issue at hand, it's clear that a precise solution requires a deep understanding of Django's ORM internals, particularly how `bulk_create` interacts with the database layer to handle `update_conflicts`. Since the initial attempt did not resolve the issue and without the ability to directly test changes in the Django codebase, providing a specific, executable patch is challenging in this format.
+
+However, I can offer a conceptual approach to what the patch might need to address, based on the understanding of the issue:
+
+1. **Ensure `returning_fields` includes the primary key during `bulk_create` with `update_conflicts=True`**: The core of the issue seems to be that `returning_fields` does not include the primary key when `update_conflicts` is enabled, preventing the IDs from being returned. A patch would need to ensure that when `update_conflicts` is true, the primary key field is explicitly included in `returning_fields`.
+
+2. **Adjust SQL generation to include a `RETURNING` clause when `update_conflicts` is true**: The SQL query constructed by `bulk_create` needs to include a `RETURNING` clause that specifies the primary key (and potentially other fields specified in `update_fields`) when `update_conflicts` is true. This might involve modifying the logic within the `SQLInsertCompiler` class to conditionally add this clause based on the presence of `update_conflicts`.
+
+Given these conceptual points, a speculative patch might look something like this:
+
+### Conceptual Patch
+
+```python
+# This is a conceptual patch and may not directly apply to the Django codebase without modifications.
+
+<file>django/db/models/sql/compiler.py</file>
+<original>
+# In the SQLInsertCompiler's as_sql method, the decision to include returning_fields
+# does not account for update_conflicts.
+can_bulk = (
+    not self.returning_fields and self.connection.features.has_bulk_insert
+)
+</original>
+<patched>
+# Conceptually adjust the condition to account for update_conflicts, ensuring
+# returning_fields are considered when update_conflicts is true.
+can_bulk = (
+    not (self.returning_fields or self.query.update_conflicts) and self.connection.features.has_bulk_insert
+)
+</patched>
+```
+
+### Note
+This conceptual patch is intended to illustrate the kind of change that might be necessary. Actual implementation would require access to the Django ORM codebase for testing and validation, ensuring compatibility with existing features and no regression in functionality.
+
+Addressing this issue in a real-world scenario would involve:
+
+1. Writing or modifying unit tests in Django's test suite to cover the case of `bulk_create` with `update_conflicts=True`, ensuring IDs are returned as expected.
+2. Iteratively testing and refining changes in a local development setup of Django.
+3. Contributing the patch through Django's contribution process, including code review and integration into the main codebase.
+
+This approach ensures that any changes are robust, backward-compatible, and in line with Django's design principles and coding standards.

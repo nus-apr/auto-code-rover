@@ -1,0 +1,23 @@
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 978fd5df8..d53dd1494 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1213,8 +1213,16 @@ class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # typ
+ 
+         try:
+             self.env.app.emit('autodoc-before-process-signature', self.object, False)
+-            sig = inspect.signature(self.object, follow_wrapped=True,
+-                                    type_aliases=self.env.config.autodoc_type_aliases)
++            # Adjust signature collection to account for overloaded functions
++            try:
++                signatures = collect_signatures(self.object, follow_wrapped=True,
++                                                 type_aliases=self.env.config.autodoc_type_aliases)
++            except ValueError as e:
++                logger.warning(__("Failed to collect signatures for %s: %s"), self.fullname, e)
++                return None
++            
++            # Select the appropriate signature based on autodoc_typehints setting
++            sig = select_signature(signatures, self.env.config.autodoc_typehints)
+             args = stringify_signature(sig, **kwargs)
+         except TypeError as exc:
+             logger.warning(__("Failed to get a function signature for %s: %s"),

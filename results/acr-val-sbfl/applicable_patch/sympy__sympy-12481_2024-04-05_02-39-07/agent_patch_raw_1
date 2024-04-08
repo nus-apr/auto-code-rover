@@ -1,0 +1,46 @@
+# modification 1
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if has_dups(temp):
+    if is_cycle:
+        raise ValueError('there were repeated elements; to resolve '
+        'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+    else:
+        raise ValueError('there were repeated elements.')</original>
+<patched># Removed the check for duplicate elements in cycle input to allow non-disjoint cycles
+# Instead, we will handle non-disjoint cycles by applying them in left-to-right order
+# The following code block that raises ValueError for repeated elements is commented out
+# if has_dups(temp):
+#     if is_cycle:
+#         raise ValueError('there were repeated elements; to resolve '
+#         'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+#     else:
+#         raise ValueError('there were repeated elements.')
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if is_cycle:
+    # it's not necessarily canonical so we won't store
+    # it -- use the array form instead
+    c = Cycle()
+    for ci in args:
+        c = c(*ci)
+    aform = c.list()</original>
+<patched>if is_cycle:
+    # Modified to apply non-disjoint cycles in left-to-right order
+    # This change allows the constructor to handle non-disjoint cycles correctly
+    from sympy.combinatorics.permutations import _af_new
+    aform = list(range(max(flatten(args))+1))  # Initialize aform with the identity permutation
+    for ci in args:
+        # Apply each cycle in left-to-right order
+        cycle = Cycle(*ci)
+        for i in range(len(aform)):
+            if i in cycle:
+                aform[i] = cycle(aform[i])
+    # No need to call c.list() as aform is already updated</patched>
+```
+
+These modifications address the issue by removing the check that raises a `ValueError` for repeated elements in cycle inputs, thus allowing non-disjoint cycles. The second modification ensures that non-disjoint cycles are applied in left-to-right order to construct the resulting permutation correctly. This approach respects the original issue description and adheres to the expected behavior of the `Permutation` constructor when handling non-disjoint cycles.

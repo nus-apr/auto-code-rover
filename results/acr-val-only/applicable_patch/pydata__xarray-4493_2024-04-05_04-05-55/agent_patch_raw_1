@@ -1,0 +1,73 @@
+# modification 1
+```python
+<file>xarray/core/dataset.py</file>
+<original>    def update(self, other: "CoercibleMapping") -> "Dataset":
+        """Update this dataset's variables with those from another dataset.
+
+        Parameters
+        ----------
+        other : Dataset or mapping
+            Variables with which to update this dataset. One of:
+
+            - Dataset
+            - mapping {var name: DataArray}
+            - mapping {var name: Variable}
+            - mapping {var name: (dimension name, array-like)}
+            - mapping {var name: (tuple of dimension names, array-like)}
+
+
+        Returns
+        -------
+        updated : Dataset
+            Updated dataset.
+
+        Raises
+        ------
+        ValueError
+            If any dimensions would have inconsistent sizes in the updated
+            dataset.
+        """
+        merge_result = dataset_update_method(self, other)
+        return self._replace(inplace=True, **merge_result._asdict())</original>
+<patched>    def update(self, other: "CoercibleMapping") -> "Dataset":
+        """Update this dataset's variables with those from another dataset, preserving chunking for dask arrays.
+
+        Parameters
+        ----------
+        other : Dataset or mapping
+            Variables with which to update this dataset. One of:
+
+            - Dataset
+            - mapping {var name: DataArray}
+            - mapping {var name: Variable}
+            - mapping {var name: (dimension name, array-like)}
+            - mapping {var name: (tuple of dimension names, array-like)}
+
+
+        Returns
+        -------
+        updated : Dataset
+            Updated dataset, with chunking information preserved for dask arrays.
+
+        Raises
+        ------
+        ValueError
+            If any dimensions would have inconsistent sizes in the updated
+            dataset.
+        """
+        from dask.array.core import Array as DaskArray
+
+        def preserve_chunking(target, source):
+            if isinstance(source.data, DaskArray):
+                return source.chunk(source.chunks)
+            return source
+
+        merge_result = dataset_update_method(self, other)
+        for name, var in merge_result.data_vars.items():
+            if name in self.data_vars and isinstance(self.data_vars[name].data, DaskArray):
+                merge_result[name] = preserve_chunking(self.data_vars[name], merge_result[name])
+
+        return self._replace(inplace=True, **merge_result._asdict())</patched>
+```
+
+This patch introduces a function `preserve_chunking` within the `update` method of the `Dataset` class to check if the original `DataArray` in the dataset is a dask array. If it is, it ensures that the updated `DataArray` retains its chunking by rechunking it to match the original chunks. This approach aims to address the issue where updating a dataset with a chunked dask `DataArray` causes it to lose its chunking information.

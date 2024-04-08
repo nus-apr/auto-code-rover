@@ -1,0 +1,27 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index e0eeccefa6..1b48c68bda 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -997,11 +997,19 @@ class QuerySet:
+         return clone
+ 
+     def union(self, *other_qs, all=False):
+-        # If the query is an EmptyQuerySet, combine all nonempty querysets.
++        # Enhanced to ensure compatibility with subsequent distinct calls, especially with field names.
++        combined_qs = super(QuerySet, self).none()
+         if isinstance(self, EmptyQuerySet):
+             qs = [q for q in other_qs if not isinstance(q, EmptyQuerySet)]
+-            return qs[0]._combinator_query('union', *qs[1:], all=all) if qs else self
+-        return self._combinator_query('union', *other_qs, all=all)
++            if qs:
++                combined_qs = qs[0]._combinator_query('union', *qs[1:], all=all)
++        else:
++            combined_qs = self._combinator_query('union', *other_qs, all=all)
++        
++        # Apply distinct directly if 'all' is False to ensure distinct behavior is preserved.
++        if not all:
++            combined_qs.query.add_distinct_fields()
++        return combined_qs
+ 
+     def intersection(self, *other_qs):
+         # If any query is an EmptyQuerySet, return it.

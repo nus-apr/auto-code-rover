@@ -1,0 +1,21 @@
+Given the context and the issue described, it seems the problem might not be directly in the `__invert__` method of the `Q` class or the `as_sql` method of the `ExpressionWrapper` class, but rather in how the SQL compiler processes the negated `Q` object, especially when it represents a condition that should always be true (like `~Q(pk__in=[])`). However, without direct access to the compiler's implementation, we can propose a workaround that ensures `ExpressionWrapper` handles the negated `Q` object more gracefully, ensuring it generates valid SQL even when the `Q` object is effectively a no-op.
+
+This patch will modify the `ExpressionWrapper` class to check if the wrapped expression is a negated `Q` object with an empty condition and adjust its behavior accordingly.
+
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>def as_sql(self, compiler, connection):
+    return compiler.compile(self.expression)</original>
+<patched>def as_sql(self, compiler, connection):
+    from django.db.models.query_utils import Q
+    if isinstance(self.expression, Q) and self.expression.negated and not self.expression.children:
+        # When the Q object is negated and has no children, it represents a condition that is always true.
+        # Adjust the SQL generation to reflect an always-true condition.
+        return "SELECT 1", []
+    return compiler.compile(self.expression)</patched>
+```
+
+This patch introduces a special case handling in the `as_sql` method of the `ExpressionWrapper` class. Before compiling the expression as SQL, it checks if the expression is a negated `Q` object with no conditions (`children`). If so, it manually returns SQL that represents an always-true condition (`SELECT 1`), along with an empty list of parameters. This approach ensures that the SQL generated for `ExpressionWrapper(~Q(pk__in=[]))` is valid and does not result in a crash or invalid SQL.
+
+Please note, this patch is a workaround aimed at addressing the specific issue described. A more thorough solution might require adjustments deeper within the Django ORM's SQL compilation process, which could be more complex and require a broader understanding of the ORM's internals.

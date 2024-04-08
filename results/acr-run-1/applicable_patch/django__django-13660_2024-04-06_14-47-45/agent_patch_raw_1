@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>django/core/management/commands/shell.py</file>
+<original>
+        # Execute the command and exit.
+        if options['command']:
+            exec(options['command'])
+            return
+
+        # Execute stdin if it has anything to read and exit.
+</original>
+<patched>
+        # Execute the command and exit.
+        if options['command']:
+            # Creating a minimal set of globals with builtins and the django module
+            minimal_globals = {'__builtins__': __builtins__, 'django': django}
+            exec(options['command'], minimal_globals)
+            return
+
+        # Execute stdin if it has anything to read and exit.
+</patched>
+```
+
+**Explanation**: The patch modifies the `exec` call within the `handle` method of the `Command` class in `django/core/management/commands/shell.py` to include a minimal set of globals. This set includes Python's built-in functions (via `__builtins__`) and the `django` module itself, ensuring that the executed code has access to these essential components. This change addresses the issue where executing Python code that includes function definitions and imports via the Django shell command `-c` option resulted in a `NameError`. By providing a dictionary of globals to `exec`, we ensure that the necessary context is available for the executed code, preventing the `NameError` from occurring.

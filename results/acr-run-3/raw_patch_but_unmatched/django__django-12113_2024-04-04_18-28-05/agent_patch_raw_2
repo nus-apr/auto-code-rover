@@ -1,0 +1,57 @@
+Given the constraints and the need to address the "database is locked" error, let's propose an alternative approach that ensures transactions are properly managed within the `setUpTestData` method for both test classes. This approach involves explicitly wrapping the operations in a transaction block, aiming to minimize the risk of encountering database locks by ensuring transactions are short-lived and properly managed.
+
+# modification 1
+```python
+<file>tests/auth_tests/test_admin_multidb.py</file>
+<original>    def setUpTestData(cls):
+        cls.superusers = {}
+        for db in connections:
+            Router.target_db = db
+            cls.superusers[db] = User.objects.create_superuser(
+                username='admin', password='something', email='test@test.org',
+            )
+</original>
+<patched>    from django.db import transaction
+    def setUpTestData(cls):
+        cls.superusers = {}
+        for db in connections:
+            Router.target_db = db
+            with transaction.atomic(using=db):
+                cls.superusers[db] = User.objects.create_superuser(
+                    username='admin', password='something', email='test@test.org',
+                )
+</patched>
+```
+
+# modification 2
+```python
+<file>tests/admin_views/test_multidb.py</file>
+<original>    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            cls.superusers[db] = User.objects.create_superuser(
+                username='admin', password='something', email='test@test.org',
+            )
+            b = Book(name='Test Book')
+            b.save(using=db)
+            cls.test_book_ids[db] = b.id
+</original>
+<patched>    from django.db import transaction
+    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            with transaction.atomic(using=db):
+                cls.superusers[db] = User.objects.create_superuser(
+                    username='admin', password='something', email='test@test.org',
+                )
+                b = Book(name='Test Book')
+                b.save(using=db)
+                cls.test_book_ids[db] = b.id
+</patched>
+```
+
+These modifications ensure that for each database connection used in the `setUpTestData` method, operations are wrapped in a `transaction.atomic` block. This approach aims to manage transactions more effectively, reducing the likelihood of encountering the "database is locked" error by ensuring that each operation is executed within its own transaction scope. This should help mitigate issues related to concurrent access and locking in SQLite databases during testing.

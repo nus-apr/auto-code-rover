@@ -1,0 +1,26 @@
+diff --git a/django/contrib/sessions/backends/base.py b/django/contrib/sessions/backends/base.py
+index 187e14b1b7..647ae471cd 100644
+--- a/django/contrib/sessions/backends/base.py
++++ b/django/contrib/sessions/backends/base.py
+@@ -218,15 +218,19 @@ class SessionBase:
+         """
+         Lazily load session from storage (unless "no_load" is True, when only
+         an empty dict is stored) and store it in the current instance.
++        Enhanced error handling to prevent crashes on invalid session data.
+         """
+         self.accessed = True
+-        try:
++        if hasattr(self, '_session_cache'):
+             return self._session_cache
+-        except AttributeError:
++        try:
+             if self.session_key is None or no_load:
+                 self._session_cache = {}
+             else:
+                 self._session_cache = self.load()
++        except Exception as e:
++            logging.error("Error loading session data: %s", e)
++            self._session_cache = {}
+         return self._session_cache
+ 
+     _session = property(_get_session)

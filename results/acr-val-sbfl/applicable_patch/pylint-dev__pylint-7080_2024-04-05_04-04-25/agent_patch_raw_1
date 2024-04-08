@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>pylint/lint/pylinter.py</file>
+<original>if _is_ignored_file(
+    root,
+    self.config.ignore,
+    self.config.ignore_patterns,
+    self.config.ignore_paths,
+):
+    skip_subtrees.append(root)
+    continue</original>
+<patched># Ensure the ignore_paths are properly applied for recursive search
+if _is_ignored_file(
+    root,
+    self.config.ignore,
+    self.config.ignore_patterns,
+    [str(pathlib.Path(p).resolve()) for p in self.config.ignore_paths],
+):
+    skip_subtrees.append(root)
+    continue</patched>
+```
+
+# modification 2
+```python
+<file>pylint/config/argument.py</file>
+<original>patterns.append(
+    re.compile(
+        str(pathlib.PureWindowsPath(pattern)).replace("\\", "\\\\")
+        + "|"
+        + pathlib.PureWindowsPath(pattern).as_posix()
+    )
+)</original>
+<patched># Adjust pattern compilation to ensure compatibility across different OS paths
+patterns.append(
+    re.compile(
+        str(pathlib.PurePath(pattern).as_posix()).replace("\\", "\\\\")
+    )
+)</patched>
+```
+
+These modifications aim to address the issue by ensuring that the `ignore-paths` configuration is correctly applied during the recursive file discovery process in Pylint. The first modification ensures that paths specified in `ignore_paths` are resolved to their absolute paths, which can help in accurately matching against the paths discovered during the recursive search. The second modification simplifies the pattern compilation to ensure that it is more universally applicable across different operating systems by using `PurePath` and focusing on POSIX-style paths, which are then appropriately escaped for regular expression matching.

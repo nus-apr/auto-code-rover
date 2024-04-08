@@ -1,0 +1,53 @@
+# modification 1
+```python
+<file>sympy/core/basic.py</file>
+<original>        if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+            reps = {}
+            rv = self
+            kwargs['hack2'] = True
+            m = Dummy()
+            for old, new in sequence:
+                d = Dummy(commutative=new.is_commutative)
+                rv = rv._subs(old, d*m, **kwargs)
+                if not isinstance(rv, Basic):
+                    break
+                reps[d] = new
+            reps[m] = S.One  # get rid of m
+            return rv.xreplace(reps)
+        else:
+            rv = self
+            for old, new in sequence:
+                rv = rv._subs(old, new, **kwargs)
+                if not isinstance(rv, Basic):
+                    break
+            return rv</original>
+<patched>        if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+            reps = {}
+            rv = self
+            kwargs['hack2'] = True
+            m = Dummy()
+            for old, new in sequence:
+                d = Dummy(commutative=new.is_commutative)
+                rv = rv._subs(old, d*m, **kwargs)
+                if not isinstance(rv, Basic):
+                    break
+                reps[d] = new
+            reps[m] = S.One  # get rid of m
+            rv = rv.xreplace(reps)
+            # Check for undefined expressions after substitution
+            if rv.has(zoo, -zoo, nan):
+                raise ValueError("Result of substitution leads to an undefined expression.")
+            return rv
+        else:
+            rv = self
+            for old, new in sequence:
+                rv = rv._subs(old, new, **kwargs)
+                if not isinstance(rv, Basic):
+                    break
+            # Check for undefined expressions after substitution
+            if rv.has(zoo, -zoo, nan):
+                raise ValueError("Result of substitution leads to an undefined expression.")
+            return rv</patched>
+```
+
+This modification adds a check for undefined expressions (such as `zoo`, `-zoo`, `nan`) after performing substitutions. If an undefined expression is detected, a `ValueError` is raised, alerting the user to the issue. This approach aims to provide clearer feedback when a substitution results in an undefined expression, which is the core issue reported.

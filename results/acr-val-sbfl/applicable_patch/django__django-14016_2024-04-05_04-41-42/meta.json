@@ -1,0 +1,42 @@
+{
+    "task_id": "django__django-14016",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.0",
+        "env_name": "setup_django__django__4.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 queries.test_q"
+    },
+    "task_info": {
+        "instance_id": "django__django-14016",
+        "base_commit": "1710cdbe79c90665046034fe1700933d038d90ad",
+        "hints_text": "Thanks for this report. Regression in bb0b6e526340e638522e093765e534df4e4393d2.",
+        "created_at": "2021-02-17T16:06:20Z",
+        "test_patch": "diff --git a/tests/queries/test_q.py b/tests/queries/test_q.py\n--- a/tests/queries/test_q.py\n+++ b/tests/queries/test_q.py\n@@ -8,6 +8,10 @@ def test_combine_and_empty(self):\n         self.assertEqual(q & Q(), q)\n         self.assertEqual(Q() & q, q)\n \n+        q = Q(x__in={}.keys())\n+        self.assertEqual(q & Q(), q)\n+        self.assertEqual(Q() & q, q)\n+\n     def test_combine_and_both_empty(self):\n         self.assertEqual(Q() & Q(), Q())\n \n@@ -16,6 +20,10 @@ def test_combine_or_empty(self):\n         self.assertEqual(q | Q(), q)\n         self.assertEqual(Q() | q, q)\n \n+        q = Q(x__in={}.keys())\n+        self.assertEqual(q | Q(), q)\n+        self.assertEqual(Q() | q, q)\n+\n     def test_combine_or_both_empty(self):\n         self.assertEqual(Q() | Q(), Q())\n \n",
+        "repo": "django/django",
+        "problem_statement": "\"TypeError: cannot pickle\" when applying | operator to a Q object\nDescription\n\t \n\t\t(last modified by Daniel Izquierdo)\n\t \nUsing a reference to a non-pickleable type of object such as dict_keys in a Q object makes the | operator fail:\n>>> from django.db.models import Q\n>>> Q(x__in={}.keys())\n<Q: (AND: ('x__in', dict_keys([])))>\n>>> Q() | Q(x__in={}.keys())\nTraceback (most recent call last):\n...\nTypeError: cannot pickle 'dict_keys' object\nEven though this particular example could be solved by doing Q() | Q(x__in={}) it still feels like using .keys() should work.\nI can work on a patch if there's agreement that this should not crash.\n",
+        "version": "4.0",
+        "FAIL_TO_PASS": [
+            "test_combine_and_empty (queries.test_q.QTests)",
+            "test_combine_or_empty (queries.test_q.QTests)"
+        ],
+        "PASS_TO_PASS": [
+            "test_combine_and_both_empty (queries.test_q.QTests)",
+            "test_combine_not_q_object (queries.test_q.QTests)",
+            "test_combine_or_both_empty (queries.test_q.QTests)",
+            "test_deconstruct (queries.test_q.QTests)",
+            "test_deconstruct_and (queries.test_q.QTests)",
+            "test_deconstruct_multiple_kwargs (queries.test_q.QTests)",
+            "test_deconstruct_negated (queries.test_q.QTests)",
+            "test_deconstruct_nested (queries.test_q.QTests)",
+            "test_deconstruct_or (queries.test_q.QTests)",
+            "test_reconstruct (queries.test_q.QTests)",
+            "test_reconstruct_and (queries.test_q.QTests)",
+            "test_reconstruct_negated (queries.test_q.QTests)",
+            "test_reconstruct_or (queries.test_q.QTests)"
+        ],
+        "environment_setup_commit": "475cffd1d64c690cdad16ede4d5e81985738ceb4",
+        "patch": "diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py\n--- a/django/db/models/query_utils.py\n+++ b/django/db/models/query_utils.py\n@@ -5,7 +5,6 @@\n large and/or so that they can be used by other modules without getting into\n circular import difficulties.\n \"\"\"\n-import copy\n import functools\n import inspect\n from collections import namedtuple\n@@ -46,10 +45,12 @@ def _combine(self, other, conn):\n \n         # If the other Q() is empty, ignore it and just use `self`.\n         if not other:\n-            return copy.deepcopy(self)\n+            _, args, kwargs = self.deconstruct()\n+            return type(self)(*args, **kwargs)\n         # Or if this Q is empty, ignore it and just use `other`.\n         elif not self:\n-            return copy.deepcopy(other)\n+            _, args, kwargs = other.deconstruct()\n+            return type(other)(*args, **kwargs)\n \n         obj = type(self)()\n         obj.connector = conn\n",
+        "pr_link": "https://github.com/django/django/pull/14016"
+    }
+}

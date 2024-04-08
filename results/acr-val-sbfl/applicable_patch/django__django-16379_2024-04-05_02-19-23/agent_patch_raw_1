@@ -1,0 +1,57 @@
+# modification 1
+```python
+<file>django/core/cache/backends/filebased.py</file>
+<original>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        if os.path.exists(fname):
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        return False
+</original>
+<patched>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        try:
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        except FileNotFoundError:
+            return False
+</patched>
+```
+
+# modification 2
+```python
+<file>django/core/cache/backends/filebased.py</file>
+<original>    def _is_expired(self, f):
+        """
+        Take an open cache file `f` and delete it if it's expired.
+        """
+        try:
+            exp = pickle.load(f)
+        except EOFError:
+            exp = 0  # An empty file is considered expired.
+        if exp is not None and exp < time.time():
+            f.close()  # On Windows a file has to be closed before deleting
+            self._delete(f.name)
+            return True
+        return False
+</original>
+<patched>    def _is_expired(self, f):
+        """
+        Take an open cache file `f` and delete it if it's expired.
+        """
+        try:
+            exp = pickle.load(f)
+        except (EOFError, FileNotFoundError):
+            exp = 0  # An empty file or a missing file is considered expired.
+        if exp is not None and exp < time.time():
+            try:
+                f.close()  # On Windows a file has to be closed before deleting
+                self._delete(f.name)
+            except FileNotFoundError:
+                pass  # File was already deleted, ignore
+            return True
+        return False
+</patched>
+```
+
+These modifications address the race condition by handling the `FileNotFoundError` exception gracefully in both the `has_key` and `_is_expired` methods. This approach ensures that if the file is deleted between the check and the attempt to open it, or during the deletion process in `_is_expired`, the system will handle the situation gracefully without crashing.

@@ -1,0 +1,35 @@
+Given the context and the code provided, the issue seems to stem from the fact that `manage.py` is not being watched by the autoreloader. The `watched_files` method in `django/utils/autoreload.py` is responsible for yielding files to be watched but does not explicitly include `manage.py`. To resolve this issue, we can modify the `watched_files` method to ensure `manage.py` is included in the list of files to watch. This approach assumes that `manage.py` is located in the root directory of the project, which is the standard location.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs.
+        """
+        yield from iter_all_python_module_files()
+        yield from self.extra_files
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from directory.glob(pattern)</original>
+<patched>import os
+def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs.
+        """
+        # Ensure manage.py is included in the list of watched files
+        manage_py_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'manage.py')
+        if os.path.exists(manage_py_path):
+            yield manage_py_path
+        yield from iter_all_python_module_files()
+        yield from self.extra_files
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from directory.glob(pattern)</patched>
+```
+
+This patch adds a check to include `manage.py` in the list of watched files by the autoreloader. It dynamically constructs the path to `manage.py` based on the assumption that `django/utils/autoreload.py` is two directories deep from the project root. This approach should work for standard Django project structures but may need adjustment for projects with a non-standard layout.

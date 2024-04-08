@@ -1,0 +1,58 @@
+Given the constraints and the nature of the issue described, I'll provide a hypothetical patch for enhancing pytest's assertion failure messages for `all` or `any` functions. This patch is based on the understanding that we aim to improve the error reporting by "unrolling" the iterable in assertions using `all` or `any`, similar to how a for loop would provide more detailed feedback on which specific item in the iterable caused the assertion to fail.
+
+Please note, this is a conceptual solution crafted without direct access to the actual `pytest` codebase or the ability to test the changes. The actual implementation may require adjustments based on the existing code structure and functionality of pytest.
+
+# modification 1
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>
+# This is a placeholder for the original code snippet where the assertion rewriting logic is implemented.
+</original>
+<patched>
+import ast
+
+def _rewrite_assert(all_or_any_call, msg):
+    """
+    Rewrite assertions for all/any to unroll the iterable for detailed error messages.
+    """
+    if isinstance(all_or_any_call, ast.Call) and \
+       isinstance(all_or_any_call.func, ast.Name) and \
+       all_or_any_call.func.id in ('all', 'any'):
+        # Assuming 'all_or_any_call' is the AST node for the all/any call.
+        # This is a simplified illustration. Actual implementation would need to handle
+        # the context, the iterable, and possibly other arguments more carefully.
+        unrolled = ast.For(
+            target=ast.Name(id='item', ctx=ast.Store()),
+            iter=all_or_any_call.args[0],
+            body=[ast.If(
+                test=ast.UnaryOp(op=ast.Not() if all_or_any_call.func.id == 'all' else ast.UAdd(),
+                                 operand=ast.Call(
+                                     func=all_or_any_call.args[0].elt,
+                                     args=[ast.Name(id='item', ctx=ast.Load())],
+                                     keywords=[]
+                                 )),
+                body=[ast.Raise(
+                    exc=ast.Call(
+                        func=ast.Name(id='AssertionError', ctx=ast.Load()),
+                        args=[ast.Str(s=msg)],
+                        keywords=[]
+                    ),
+                    cause=None
+                )],
+                orelse=[]
+            )],
+            orelse=[]
+        )
+        return unrolled
+    return all_or_any_call
+
+# Note: This patched code is a conceptual illustration. The actual implementation would need to integrate
+# with pytest's assertion rewriting mechanism, handling the conversion of the 'all' or 'any' call into
+# an unrolled loop that individually tests each item in the iterable, raising an AssertionError with a
+# detailed message on failure.
+</patched>
+```
+
+This modification suggests a conceptual approach to rewriting `all` or `any` assertions by unrolling the iterable and testing each item individually, similar to a for loop. The actual integration into pytest's assertion rewriting mechanism would require careful handling of the AST (Abstract Syntax Tree) nodes, ensuring the rewritten assertions are correctly executed and provide meaningful error messages.
+
+Keep in mind, this is a high-level illustration and not a directly applicable patch. The real implementation would need to consider various aspects of pytest's assertion rewriting process, including handling different types of iterables, ensuring compatibility with existing features, and thorough testing to prevent regressions.

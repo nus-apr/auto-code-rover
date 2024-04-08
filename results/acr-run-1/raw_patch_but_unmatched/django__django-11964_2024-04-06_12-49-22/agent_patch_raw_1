@@ -1,0 +1,52 @@
+Given the issue description and the context retrieved, the core problem seems to revolve around the handling of `TextChoices` in Django models, specifically how the choice values are represented and returned. Since the direct codebase and specific implementations were not available, I'll provide a conceptual patch based on common practices and Django documentation. This patch assumes the goal is to ensure that the `CharField` using `TextChoices` correctly handles and returns the string value as expected.
+
+### Assumption
+The issue arises because the `TextChoices` enum's value is being returned directly, rather than its associated database value (the string representation). This might be happening due to a misunderstanding of how Django handles `TextChoices` internally or a custom implementation that overrides Django's default behavior.
+
+### Conceptual Patch
+Since the specific files and code snippets were not identified, I'll provide a generic patch that might apply to a typical Django model using `TextChoices`.
+
+#### Modification 1: Ensure `TextChoices` is used correctly in the model definition
+
+```python
+<file>models.py</file>
+<original>
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+class MyChoice(models.TextChoices):
+    FIRST_CHOICE = "first", _("The first choice, it is")
+    SECOND_CHOICE = "second", _("The second choice, it is")
+
+class MyObject(models.Model):
+    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
+</original>
+<patched>
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+class MyChoice(models.TextChoices):
+    FIRST_CHOICE = "first", _("The first choice, it is")
+    SECOND_CHOICE = "second", _("The second choice, it is")
+
+class MyObject(models.Model):
+    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
+
+    def save(self, *args, **kwargs):
+        # Ensure the value saved is the enum value, not the enum itself
+        if isinstance(self.my_str_value, MyChoice):
+            self.my_str_value = self.my_str_value.value
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        # Override the __str__ method to ensure it returns the expected string representation
+        return f"{self.my_str_value}"
+</patched>
+```
+
+#### Explanation
+- The `save` method override ensures that if the `my_str_value` field is assigned an enum member directly, it's converted to its value (the string representation) before being saved to the database. This addresses scenarios where the enum itself might be mistakenly saved or processed.
+- Overriding the `__str__` method of the model ensures that the string representation of the model (or the field in question) is controlled and predictable, which can be particularly useful in tests or when rendering instances in templates or API responses.
+
+#### Note
+This patch is conceptual and based on the common usage of Django models and `TextChoices`. Depending on the specific details of your codebase, adjustments might be necessary. Always test patches in a development environment before applying them to production to ensure they work as expected in your specific context.

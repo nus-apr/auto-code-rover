@@ -1,0 +1,39 @@
+diff --git a/xarray/core/concat.py b/xarray/core/concat.py
+index ecae2566..9eef336c 100644
+--- a/xarray/core/concat.py
++++ b/xarray/core/concat.py
+@@ -16,6 +16,7 @@ def concat(
+     positions=None,
+     fill_value=dtypes.NA,
+     join="outer",
++    auto_fill=False,
+ ):
+     """Concatenate xarray objects along a new or existing dimension.
+ 
+@@ -102,9 +103,9 @@ def concat(
+     merge
+     auto_combine
+     """
+-    # TODO: add ignore_index arguments copied from pandas.concat
+-    # TODO: support concatenating scalar coordinates even if the concatenated
+-    # dimension already exists
++    # Added auto_fill parameter to automatically fill missing variables with NaNs or specified fill_value
++        # This aligns more closely with pd.concat behavior, providing a more intuitive interface for users
++        # TODO: support concatenating scalar coordinates even if the concatenated dimension already exists
+     from .dataset import Dataset
+     from .dataarray import DataArray
+ 
+@@ -118,6 +119,13 @@ def concat(
+             "compat=%r invalid: must be 'broadcast_equals', 'equals', 'identical', 'no_conflicts' or 'override'"
+             % compat
+         )
++    if auto_fill:
++        # Automatically add missing variables as NaNs
++        all_vars = set().union(*(obj.data_vars for obj in objs))
++        for obj in objs:
++            missing_vars = all_vars - set(obj.data_vars)
++            for var in missing_vars:
++                obj[var] = xr.full_like(obj[list(obj.data_vars)[0]], fill_value=fill_value, dtype=float)
+ 
+     if isinstance(first_obj, DataArray):
+         f = _dataarray_concat

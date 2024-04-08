@@ -1,0 +1,37 @@
+# modification 1
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()</original>
+<patched>        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()
+            self.update_ticks()</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>        if not self.norm.scaled():
+            self.norm.vmin = 0
+            self.norm.vmax = 1
+        self.norm.vmin, self.norm.vmax = mtransforms.nonsingular(
+            self.norm.vmin, self.norm.vmax, expander=0.1)</original>
+<patched>        if not self.norm.scaled():
+            if hasattr(self.norm, 'vmin') and self.norm.vmin is not None:
+                self.norm.vmin = self.norm.vmin
+            else:
+                self.norm.vmin = 0
+            if hasattr(self.norm, 'vmax') and self.norm.vmax is not None:
+                self.norm.vmax = self.norm.vmax
+            else:
+                self.norm.vmax = 1
+        else:
+            self.norm.vmin, self.norm.vmax = mtransforms.nonsingular(
+                self.norm.vmin, self.norm.vmax, expander=0.1)</patched>
+```
+
+Explanation:
+- **Modification 1**: After updating the norm in the `update_normal` method, it's necessary to also update the ticks to reflect the new normalization. This ensures that the colorbar ticks are correctly recalculated and displayed according to the new norm settings.
+- **Modification 2**: The `_process_values` method is modified to handle the `vmin` and `vmax` more robustly when the norm is not scaled. This change ensures that if `vmin` and `vmax` are explicitly set in the norm, those values are used instead of defaulting to 0 and 1. This is particularly important for norms like `LogNorm` where the default 0 value for `vmin` would not make sense and could lead to errors like `ZeroDivisionError`. The `else` part ensures that if the norm is scaled, `vmin` and `vmax` are processed using `mtransforms.nonsingular` to avoid singularities.

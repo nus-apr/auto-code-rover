@@ -1,0 +1,65 @@
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index d4ca323e0d..a3daf374bc 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -898,6 +898,7 @@ def subs(self, *args, **kwargs):
+                 sequence = sorted([(k, v) for (k, v) in sequence.items()],
+                                   key=default_sort_key)
+ 
++        # Added check for undefined expressions after substitution
+         if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+             reps = {}
+             rv = self
+@@ -913,14 +914,18 @@ def subs(self, *args, **kwargs):
+                     break
+                 reps[d] = new
+             reps[m] = S.One  # get rid of m
+-            return rv.xreplace(reps)
++            rv = rv.xreplace(reps)
+         else:
+             rv = self
+             for old, new in sequence:
+                 rv = rv._subs(old, new, **kwargs)
+                 if not isinstance(rv, Basic):
+                     break
+-            return rv
++        
++        # Check if the result is undefined (e.g., division by zero)
++        if rv.is_infinite or rv.has(zoo):
++            raise ValueError("Substitution resulted in an undefined expression.")
++        return rv
+ 
+     @cacheit
+     def _subs(self, old, new, **hints):
+diff --git a/sympy/series/limits.py b/sympy/series/limits.py
+index 660714191a..e35e6d2d3f 100644
+--- a/sympy/series/limits.py
++++ b/sympy/series/limits.py
+@@ -54,18 +54,24 @@ def limit(e, z, z0, dir="+"):
+     Gruntz algorithm (see the gruntz() function).
+     """
+ 
++    # Enhanced error message with suggestion for undefined expressions
+     if dir == "+-":
+         llim = Limit(e, z, z0, dir="-").doit(deep=False)
+         rlim = Limit(e, z, z0, dir="+").doit(deep=False)
+         if llim == rlim:
+             return rlim
+         else:
+-            # TODO: choose a better error?
+             raise ValueError("The limit does not exist since "
+-                    "left hand limit = %s and right hand limit = %s"
++                    "left hand limit = %s and right hand limit = %s. "
++                    "For expressions that lead to an undefined form, consider using "
++                    "limit(e, z, z0, dir) with dir='+-' to calculate the bi-directional limit."
+                     % (llim, rlim))
+     else:
+-        return Limit(e, z, z0, dir).doit(deep=False)
++        result = Limit(e, z, z0, dir).doit(deep=False)
++        if result.is_infinite or result.has(zoo):
++            raise ValueError("The limit resulted in an undefined expression. "
++                             "Consider checking the expression for discontinuities or singularities.")
++        return result
+ 
+ 
+ def heuristics(e, z, z0, dir):

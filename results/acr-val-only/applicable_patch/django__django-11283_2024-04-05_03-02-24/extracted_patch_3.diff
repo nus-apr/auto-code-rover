@@ -1,0 +1,29 @@
+diff --git a/django/contrib/auth/migrations/0011_update_proxy_permissions.py b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+index 0e66649695..23266e6538 100644
+--- a/django/contrib/auth/migrations/0011_update_proxy_permissions.py
++++ b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+@@ -24,10 +24,22 @@ def update_proxy_model_permissions(apps, schema_editor, reverse=False):
+         proxy_content_type = ContentType.objects.get_for_model(Model, for_concrete_model=False)
+         old_content_type = proxy_content_type if reverse else concrete_content_type
+         new_content_type = concrete_content_type if reverse else proxy_content_type
+-        Permission.objects.filter(
++        # First, collect all permissions that need to be updated to avoid the unique constraint violation.
++        permissions_to_update = Permission.objects.filter(
+             permissions_query,
+             content_type=old_content_type,
+-        ).update(content_type=new_content_type)
++        )
++        
++        # Iterate through each permission and update it individually, checking for potential duplicates.
++        for permission in permissions_to_update:
++            if Permission.objects.filter(codename=permission.codename, content_type=new_content_type).exists():
++                # If a permission with the same codename already exists for the new content type, skip the update.
++                # Optionally, log this event or handle it as needed.
++                print(f"Permission with codename '{permission.codename}' already exists for the new content type. Skipping update to prevent duplication.")
++                continue
++            # Update the content_type of the permission to the new content_type since no duplicate was found.
++            permission.content_type = new_content_type
++            permission.save()
+ 
+ 
+ def revert_proxy_model_permissions(apps, schema_editor):

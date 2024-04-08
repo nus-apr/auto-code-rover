@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>django/forms/fields.py</file>
+<original>    def clean(self, value):
+        """
+        Validate the given value and return its "cleaned" value as an
+        appropriate Python object. Raise ValidationError for any errors.
+        """
+        value = self.to_python(value)
+        self.validate(value)
+        self.run_validators(value)
+        return value
+</original>
+<patched>    def clean(self, value):
+        """
+        Validate the given value and return its "cleaned" value as an
+        appropriate Python object. Raise ValidationError for any errors.
+        """
+        try:
+            value = self.to_python(value)
+            self.validate(value)
+            self.run_validators(value)
+        except ValueError as e:
+            raise ValidationError(str(e)) from e
+        return value
+</patched>
+```
+
+This patch wraps the validation logic in a try-except block. If a `ValueError` is raised during the `to_python`, `validate`, or `run_validators` steps, it is caught and re-raised as a `ValidationError`. This ensures that all exceptions resulting from URL parsing and validation are consistently handled as `ValidationError`s, aligning with Django's form validation framework.

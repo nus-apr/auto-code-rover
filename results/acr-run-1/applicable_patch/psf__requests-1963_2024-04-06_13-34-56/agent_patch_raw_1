@@ -1,0 +1,19 @@
+# modification 1
+```python
+<file>requests/sessions.py</file>
+<original>prepared_request = req.copy()</original>
+<patched># Instead of copying the original request, we maintain the method modified by redirections.
+# This change ensures that if a POST request is converted to a GET due to a 303 See Other,
+# subsequent redirects will preserve the GET method, even through a 307 Temporary Redirect.
+if i == 0:
+    prepared_request = req.copy()
+else:
+    prepared_request = resp.request.copy()
+    # Ensure the original data and headers are preserved if not explicitly modified by redirections.
+    if 'Content-Length' in req.headers and 'Content-Length' not in prepared_request.headers:
+        prepared_request.headers['Content-Length'] = req.headers['Content-Length']
+    if req.body and not prepared_request.body:
+        prepared_request.body = req.body</patched>
+```
+
+This modification addresses the issue by ensuring that after the first redirect, the request object being copied is the one from the most recent response (`resp.request`) rather than the original request (`req`). This way, if a redirect (like a 303 See Other) modifies the request method, this change is preserved in subsequent redirects. Additionally, it ensures that the `Content-Length` header and the request body are preserved from the original request if they are not explicitly modified by the redirection response. This approach maintains the integrity of the request while correctly handling the HTTP method across redirects.

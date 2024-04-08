@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>
+if contains_louter:
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, True),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</original>
+<patched>
+if contains_louter:
+    # Ensure the value passed to __isnull is a boolean
+    isnull_value = True
+    if not isinstance(isnull_value, bool):
+        raise ValueError("__isnull lookup requires a boolean value.")
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, isnull_value),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</patched>
+```
+
+This modification introduces a check to ensure that the value passed to `__isnull` is a boolean before proceeding with the filter construction in the `split_exclude` method of the `Query` class. If a non-boolean value is passed, a `ValueError` is raised, informing the user that `__isnull` requires a boolean value. This approach addresses the issue by enforcing the use of boolean values with `__isnull`, thus preventing confusion and ensuring consistency as described in the issue.

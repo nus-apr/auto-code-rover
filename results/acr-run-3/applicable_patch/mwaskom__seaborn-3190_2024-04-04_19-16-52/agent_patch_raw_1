@@ -1,0 +1,52 @@
+To address the issue of color mapping failing with boolean data, we need to ensure that boolean data is correctly handled when determining the scale type for a variable. The `_get_scale` method in `Plotter` class should be modified to explicitly check for boolean data types and handle them appropriately. Additionally, in the `ContinuousBase` class's `_setup` method, we should ensure that operations incompatible with boolean data types are not performed on such data.
+
+# modification 1
+```python
+<file>seaborn/_core/plot.py</file>
+<original>        if var in spec._scales:
+            arg = spec._scales[var]
+            if arg is None or isinstance(arg, Scale):
+                scale = arg
+            else:
+                scale = prop.infer_scale(arg, values)
+        else:
+            scale = prop.default_scale(values)</original>
+<patched>        if var in spec._scales:
+            arg = spec._scales[var]
+            if arg is None or isinstance(arg, Scale):
+                scale = arg
+            else:
+                scale = prop.infer_scale(arg, values)
+        else:
+            # Check if the values are of boolean type and handle accordingly
+            if values.dtype == bool:
+                # Use a categorical scale for boolean values
+                scale = prop.infer_scale("categorical", values)
+            else:
+                scale = prop.default_scale(values)</patched>
+```
+
+# modification 2
+```python
+<file>seaborn/_core/scales.py</file>
+<original>            vmin, vmax = axis.convert_units((vmin, vmax))
+            a = forward(vmin)
+            b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                return (x - a) / b</original>
+<patched>            vmin, vmax = axis.convert_units((vmin, vmax))
+            a = forward(vmin)
+            # Check if data is boolean before performing subtraction
+            if isinstance(vmin, bool) or isinstance(vmax, bool):
+                # Handle boolean data differently to avoid subtraction
+                b = 1  # Since boolean data can be treated as 0 and 1
+            else:
+                b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                # Normalize boolean data directly if applicable
+                return x if isinstance(x, bool) else (x - a) / b</patched>
+```
+
+These modifications aim to ensure that seaborn can handle boolean data for color mapping by treating boolean values as categorical data when determining the scale and by avoiding operations that are not supported for boolean data types during scale setup.

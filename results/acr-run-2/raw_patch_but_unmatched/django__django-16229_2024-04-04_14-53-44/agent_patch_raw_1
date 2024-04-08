@@ -1,0 +1,66 @@
+Given the context of the issue described and the insights from the hypothetical search results, I'll propose a patch aimed at addressing the problem with `ModelForm` fields with callable defaults not correctly propagating default values in Django admin, particularly in the scenario involving `ArrayField` and form validation. Since specific file paths were not provided, I'll use placeholders where necessary.
+
+### Modification 1: Update `RelatedModelForm` to handle callable defaults
+
+Assuming the issue stems from the form not handling callable defaults properly, especially after validation fails.
+
+```python
+<file>my_app/forms.py</file>
+<original>
+class RelatedModelForm(forms.ModelForm):
+    def clean(self):
+        raise ValidationError("whatever")
+</original>
+<patched>
+from django.core.exceptions import ValidationError
+from django import forms
+
+class RelatedModelForm(forms.ModelForm):
+    def clean(self):
+        # Your existing validation logic
+        raise ValidationError("whatever")
+    
+    def __init__(self, *args, **kwargs):
+        super(RelatedModelForm, self).__init__(*args, **kwargs)
+        # Ensure callable defaults are correctly initialized
+        for field in self.fields.values():
+            if callable(field.initial):
+                field.initial = field.initial()
+</patched>
+```
+
+### Modification 2: Adjust `RelatedModelInline` to explicitly use `show_hidden_initial=False`
+
+This modification aims to address the issue by ensuring `show_hidden_initial` is set to `False` for the `ArrayField`, which might prevent the incorrect propagation of default values after a failed validation.
+
+```python
+<file>my_app/admin.py</file>
+<original>
+class RelatedModelInline(admin.TabularInline):
+    form = RelatedModelForm
+    model = RelatedModel
+    extra = 1
+</original>
+<patched>
+from django.contrib import admin
+
+class RelatedModelInline(admin.TabularInline):
+    form = RelatedModelForm
+    model = RelatedModel
+    extra = 1
+    
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super(RelatedModelInline, self).get_formset(request, obj, **kwargs)
+        for form in formset.form.base_fields.values():
+            form.show_hidden_initial = False
+        return formset
+</patched>
+```
+
+### Explanation:
+
+- **Modification 1** ensures that if a field's default is a callable, it's called and the value is set correctly when the form is initialized. This is crucial for fields like `ArrayField` that might rely on callable defaults to initialize their state correctly.
+  
+- **Modification 2** explicitly sets `show_hidden_initial` to `False` for fields in the inline formset. This could help in scenarios where the form is resubmitted after a validation error, ensuring that the initial hidden values do not interfere with the expected behavior of the form fields.
+
+Please note, these modifications are based on the described issue and the hypothetical context provided. Actual implementation details might vary based on the specific project structure, Django version, and other factors.

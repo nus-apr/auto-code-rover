@@ -1,0 +1,68 @@
+# modification 1
+```python
+<file>seaborn/_oldcore.py</file>
+<original>    def _lookup_single(self, key):
+        """Get the color for a single value, using colormap to interpolate."""
+        try:
+            # Use a value that's in the original data vector
+            value = self.lookup_table[key]
+        except KeyError:
+            # Use the colormap to interpolate between existing datapoints
+            # (e.g. in the context of making a continuous legend)
+            try:
+                normed = self.norm(key)
+            except TypeError as err:
+                if np.isnan(key):
+                    value = (0, 0, 0, 0)
+                else:
+                    raise err
+            else:
+                if np.ma.is_masked(normed):
+                    normed = np.nan
+                value = self.cmap(normed)
+        return value</original>
+<patched>    def _lookup_single(self, key):
+        """Get the color for a single value, using colormap to interpolate."""
+        try:
+            # Use a value that's in the original data vector
+            value = self.lookup_table[key]
+        except KeyError:
+            # Handle non-numeric keys gracefully when colormap interpolation is needed
+            if isinstance(key, str):
+                # If key is a string (categorical), return a default color or handle differently
+                value = (0.5, 0.5, 0.5, 1)  # Example: return a shade of gray for undefined categories
+            else:
+                # Use the colormap to interpolate between existing datapoints
+                # (e.g. in the context of making a continuous legend)
+                try:
+                    normed = self.norm(key)
+                except TypeError as err:
+                    if np.isnan(key):
+                        value = (0, 0, 0, 0)
+                    else:
+                        raise err
+                else:
+                    if np.ma.is_masked(normed):
+                        normed = np.nan
+                    value = self.cmap(normed)
+        return value</patched>
+```
+
+# modification 2
+```python
+<file>seaborn/relational.py</file>
+<original>    p.map_hue(palette=palette, order=hue_order, norm=hue_norm)
+    p.map_size(sizes=sizes, order=size_order, norm=size_norm)
+    p.map_style(markers=markers, order=style_order)</original>
+<patched>    # Ensure hue is processed correctly for scatterplot
+    if 'hue' in kwargs and isinstance(kwargs['hue'], pd.Series):
+        hue_data = kwargs.pop('hue')
+        p.map_hue(palette=palette, order=hue_order, norm=hue_norm, hue=hue_data)
+    else:
+        p.map_hue(palette=palette, order=hue_order, norm=hue_norm)
+    
+    p.map_size(sizes=sizes, order=size_order, norm=size_norm)
+    p.map_style(markers=markers, order=style_order)</patched>
+```
+
+These modifications aim to address the issue by ensuring that non-numeric keys (such as strings for categorical data) are handled gracefully in the `_lookup_single` method of the `HueMapping` class, and by adjusting the `scatterplot` function to correctly process the `hue` parameter when it is passed as a `pd.Series`. This should prevent the `KeyError` and `TypeError` exceptions that were being raised due to the incorrect handling of categorical hues.

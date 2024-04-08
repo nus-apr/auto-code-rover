@@ -1,0 +1,31 @@
+Given the constraints and the need to address the issue without causing test failures, a different approach is required. The core issue is that custom braces in the message template do not work as expected, likely due to the strict validation against `MESSAGE_FIELDS`. To resolve this, we need a solution that maintains the integrity of the message template processing while allowing for flexibility with custom formats.
+
+Since the direct modification approach to allow unrecognized arguments did not resolve the issue effectively, let's consider an alternative strategy. We can introduce a mechanism to bypass the warning and removal for specific custom formats by marking them explicitly in the template. This approach requires minimal changes to the existing logic and ensures backward compatibility.
+
+Here's a conceptual patch that introduces a simple way to mark custom fields in the template, which the processing logic can then recognize and handle appropriately:
+
+# modification 1
+```python
+<file>pylint/reporters/text.py</file>
+<original>        for argument in arguments:
+            if argument[0] not in MESSAGE_FIELDS:
+                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</original>
+<patched>        for argument in arguments:
+            # Check if the argument is marked as custom to bypass the check
+            if argument[0].startswith('custom:'):
+                continue  # Bypass the check for custom-marked arguments
+            elif argument[0] not in MESSAGE_FIELDS:
+                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</patched>
+```
+
+In this patch, users can mark custom fields in their `--msg-template` by prefixing them with `custom:` (e.g., `{custom:MyCustomField}`). This prefix acts as a signal to bypass the unrecognized argument check and warning, allowing users to include custom fields in their templates without them being stripped out or causing warnings. This approach provides a clear pathway for extending the template with custom fields while maintaining compatibility with existing validation logic.
+
+This solution assumes that users are willing to explicitly mark their custom fields and that the rest of the Pylint system does not need to process these custom fields in any specific way. It offers a balance between flexibility for users and maintaining the integrity of the message template processing system.

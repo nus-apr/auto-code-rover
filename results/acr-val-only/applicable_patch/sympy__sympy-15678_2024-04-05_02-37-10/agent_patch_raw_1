@@ -1,0 +1,71 @@
+# modification 1
+```python
+<file>sympy/geometry/util.py</file>
+<original>else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</original>
+<patched>elif not isinstance(y, Function):
+        raise ValueError("expecting x-dependent symbol(s) or a function but got: %s" % y)
+    else:
+        # Assuming y is a function of x
+        dep = {y.args[0]}
+        y = y.func</patched>
+```
+
+# modification 2
+```python
+<file>sympy/geometry/util.py</file>
+<original>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</original>
+<patched>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    elif not isinstance(y, Function):
+        raise ValueError("expecting x-dependent symbol(s) or a function but got: %s" % y)
+    else:
+        # Handle case where y is a function, e.g., f(x)
+        dep = {y.args[0]}  # Assuming the first argument is the dependent variable
+        y = y.func  # Extract the function object to use as y</patched>
+```
+
+# modification 3
+```python
+<file>sympy/geometry/util.py</file>
+<original>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)
+
+    f = dict([(s, Function(
+        s.name)(x)) for s in eq.free_symbols if s != x and s in dep])
+    dydx = Function(y.name)(x).diff(x)
+    eq = eq.subs(f)</original>
+<patched>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    elif not isinstance(y, Function):
+        raise ValueError("expecting x-dependent symbol(s) or a function but got: %s" % y)
+    else:
+        # Handle case where y is a function, e.g., f(x)
+        dep = {y.args[0]}  # Assuming the first argument is the dependent variable
+        y = y.func  # Extract the function object to use as y
+
+    # Adjust handling for Eq objects
+    if isinstance(eq, Eq):
+        eq = eq.lhs - eq.rhs  # Convert Eq to expression
+
+    f = dict([(s, Function(s.name)(x)) for s in eq.free_symbols if s != x and s in dep])
+    dydx = Function(y.name)(x).diff(x) if isinstance(y, Symbol) else y(x).diff(x)
+    eq = eq.subs(f)</patched>
+```

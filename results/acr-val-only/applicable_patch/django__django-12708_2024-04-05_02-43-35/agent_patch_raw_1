@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>django/db/backends/base/schema.py</file>
+<original>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        if len(constraint_names) != 1:
+            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                len(constraint_names),
+                model._meta.db_table,
+                ", ".join(columns),
+            ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+</original>
+<patched>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        # Allow deletion of multiple indexes or constraints if they match the criteria, 
+        # addressing the issue when unique_together and index_together are on the same fields
+        for constraint_name in constraint_names:
+            self.execute(self._delete_constraint_sql(sql, model, constraint_name))
+</patched>
+```
+
+This modification addresses the core issue by allowing the deletion of multiple constraints or indexes when `unique_together` and `index_together` are defined on the same fields. The original code raised a `ValueError` if more than one constraint matched the criteria, which was too restrictive for this use case. The patched version iterates over all found constraint names and deletes each one, thus handling cases where both a unique constraint and an index exist on the same set of fields. This change ensures that the migration system can correctly handle the deletion of `index_together` without inadvertently being blocked by the presence of a `unique_together` constraint.

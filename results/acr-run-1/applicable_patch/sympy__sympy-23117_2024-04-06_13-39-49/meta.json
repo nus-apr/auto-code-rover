@@ -1,0 +1,31 @@
+{
+    "task_id": "sympy__sympy-23117",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.11",
+        "env_name": "setup_sympy__sympy__1.11",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/tensor/array/tests/test_ndim_array.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-23117",
+        "base_commit": "c5cef2499d6eed024b0db5c792d6ec7c53baa470",
+        "hints_text": "Technically, `Array([], shape=(0,))` works. It is just unable to understand the shape of `[]`.",
+        "created_at": "2022-02-19T13:15:18Z",
+        "test_patch": "diff --git a/sympy/tensor/array/tests/test_ndim_array.py b/sympy/tensor/array/tests/test_ndim_array.py\n--- a/sympy/tensor/array/tests/test_ndim_array.py\n+++ b/sympy/tensor/array/tests/test_ndim_array.py\n@@ -10,6 +10,11 @@\n \n from sympy.abc import x, y\n \n+mutable_array_types = [\n+    MutableDenseNDimArray,\n+    MutableSparseNDimArray\n+]\n+\n array_types = [\n     ImmutableDenseNDimArray,\n     ImmutableSparseNDimArray,\n@@ -46,7 +51,23 @@ def test_issue_18361():\n     assert simplify(B) == Array([1, 0])\n     assert simplify(C) == Array([x + 1, sin(2*x)])\n \n+\n def test_issue_20222():\n     A = Array([[1, 2], [3, 4]])\n     B = Matrix([[1,2],[3,4]])\n     raises(TypeError, lambda: A - B)\n+\n+\n+def test_issue_17851():\n+    for array_type in array_types:\n+        A = array_type([])\n+        assert isinstance(A, array_type)\n+        assert A.shape == (0,)\n+        assert list(A) == []\n+\n+\n+def test_issue_and_18715():\n+    for array_type in mutable_array_types:\n+        A = array_type([0, 1, 2])\n+        A[0] += 5\n+        assert A[0] == 5\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "sympy.Array([]) fails, while sympy.Matrix([]) works\nSymPy 1.4 does not allow to construct empty Array (see code below). Is this the intended behavior?\r\n\r\n```\r\n>>> import sympy\r\nKeyboardInterrupt\r\n>>> import sympy\r\n>>> from sympy import Array\r\n>>> sympy.__version__\r\n'1.4'\r\n>>> a = Array([])\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/dense_ndim_array.py\", line 130, in __new__\r\n    return cls._new(iterable, shape, **kwargs)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/dense_ndim_array.py\", line 136, in _new\r\n    shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 142, in _handle_ndarray_creation_inputs\r\n    iterable, shape = cls._scan_iterable_shape(iterable)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 127, in _scan_iterable_shape\r\n    return f(iterable)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 120, in f\r\n    elems, shapes = zip(*[f(i) for i in pointer])\r\nValueError: not enough values to unpack (expected 2, got 0)\r\n```\r\n\r\n@czgdp1807 \n",
+        "version": "1.11",
+        "FAIL_TO_PASS": [
+            "test_issue_17851"
+        ],
+        "PASS_TO_PASS": [
+            "test_array_negative_indices",
+            "test_issue_18361",
+            "test_issue_20222"
+        ],
+        "environment_setup_commit": "9a6104eab0ea7ac191a09c24f3e2d79dcd66bda5",
+        "patch": "diff --git a/sympy/tensor/array/ndim_array.py b/sympy/tensor/array/ndim_array.py\n--- a/sympy/tensor/array/ndim_array.py\n+++ b/sympy/tensor/array/ndim_array.py\n@@ -145,10 +145,12 @@ def __new__(cls, iterable, shape=None, **kwargs):\n \n     def _parse_index(self, index):\n         if isinstance(index, (SYMPY_INTS, Integer)):\n-            raise ValueError(\"Only a tuple index is accepted\")\n+            if index >= self._loop_size:\n+                raise ValueError(\"Only a tuple index is accepted\")\n+            return index\n \n         if self._loop_size == 0:\n-            raise ValueError(\"Index not valide with an empty array\")\n+            raise ValueError(\"Index not valid with an empty array\")\n \n         if len(index) != self._rank:\n             raise ValueError('Wrong number of array axes')\n@@ -194,6 +196,9 @@ def f(pointer):\n             if not isinstance(pointer, Iterable):\n                 return [pointer], ()\n \n+            if len(pointer) == 0:\n+                return [], (0,)\n+\n             result = []\n             elems, shapes = zip(*[f(i) for i in pointer])\n             if len(set(shapes)) != 1:\n@@ -567,11 +572,11 @@ def _check_special_bounds(cls, flat_list, shape):\n \n     def _check_index_for_getitem(self, index):\n         if isinstance(index, (SYMPY_INTS, Integer, slice)):\n-            index = (index, )\n+            index = (index,)\n \n         if len(index) < self.rank():\n-            index = tuple([i for i in index] + \\\n-                          [slice(None) for i in range(len(index), self.rank())])\n+            index = tuple(index) + \\\n+                          tuple(slice(None) for i in range(len(index), self.rank()))\n \n         if len(index) > self.rank():\n             raise ValueError('Dimension of index greater than rank of array')\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/23117"
+    }
+}

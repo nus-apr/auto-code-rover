@@ -1,0 +1,18 @@
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name:</original>
+<patched>if field.is_relation and opts.ordering and (getattr(field, 'attname', None) != name or field.model != opts.model):</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>return [(OrderBy(transform_function(t, alias), descending=descending), False) for t in targets]</original>
+<patched>return [(OrderBy(transform_function(t, alias), descending=descending if field.model == opts.model else not descending), False) for t in targets]</patched>
+```
+
+Explanation:
+- **Modification 1** addresses the issue where the default ordering of the parent model is not correctly applied to the child model. By adding a check for `field.model != opts.model`, we ensure that the ordering logic considers whether the field belongs to the current model being queried or a parent model. This helps in correctly applying the parent model's ordering to the child model when necessary.
+  
+- **Modification 2** ensures that the ordering direction (ascending or descending) is correctly applied based on whether the field belongs to the current model or a parent model. The condition `descending if field.model == opts.model else not descending` flips the ordering direction if the field is from a parent model and the ordering specified in the parent model is opposite to the default or specified ordering in the query. This helps in maintaining consistent ordering behavior across parent and child models, respecting the ordering specified in the parent model's `Meta` class.

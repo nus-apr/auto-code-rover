@@ -1,0 +1,32 @@
+Given the context and the nature of the issue, a potential patch would involve adding a check to ensure that paths containing null bytes are not processed by the `watched_files` method in `django/utils/autoreload.py`. This could prevent the `ValueError: embedded null byte` from being raised when `Pathlib`'s `resolve` method is called on such paths. Since the exact location and handling of the `resolve` method call are not directly shown in the provided code snippets, the patch will focus on sanitizing the input in the `watched_files` method.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>    def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs.
+        """
+        yield from iter_all_python_module_files()
+        yield from self.extra_files
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from directory.glob(pattern)</original>
+<patched>    def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs. Filters out paths with null bytes to avoid ValueError.
+        """
+        yield from iter_all_python_module_files()
+        yield from (file for file in self.extra_files if '\x00' not in str(file))
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from (file for file in directory.glob(pattern) if '\x00' not in str(file))</patched>
+```
+
+This modification adds a check to filter out any files from `self.extra_files` and files matched by `directory.glob(pattern)` that contain null bytes (`'\x00'`) in their paths. This approach aims to prevent problematic paths from being processed further down the line, specifically avoiding issues when such paths are resolved using `Pathlib`'s `resolve` method. 
+
+Note: This patch assumes that the presence of null bytes in file paths is the root cause of the `ValueError: embedded null byte` and that such paths are not valid for the application's purposes. If there are legitimate use cases for paths containing null bytes in this context, a different approach may be needed.

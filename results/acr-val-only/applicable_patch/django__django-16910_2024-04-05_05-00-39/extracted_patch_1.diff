@@ -1,0 +1,34 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index a5b0f464a9..d3c3a70e1d 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1562,7 +1562,7 @@ class QuerySet(AltersData):
+         if fields == (None,):
+             obj.query.select_related = False
+         elif fields:
+-            obj.query.add_select_related(fields)
++            obj.query.add_select_related(fields, only_fields=True)
+         else:
+             obj.query.select_related = True
+         return obj
+@@ -1743,7 +1743,19 @@ class QuerySet(AltersData):
+             if field in self.query._filtered_relations:
+                 raise ValueError("only() is not supported with FilteredRelation.")
+         clone = self._chain()
+-        clone.query.add_immediate_loading(fields)
++        if not any('__' in field for field in fields):
++            clone.query.add_immediate_loading(fields)
++        else:
++            related_fields = [field for field in fields if '__' in field]
++            for field in related_fields:
++                main_field, related_field = field.split('__', 1)
++                if main_field in [f.name for f in clone.model._meta.get_fields()]:
++                    clone.query.add_related_fields(main_field, related_field)
++                else:
++                    raise ValueError(f"Field '{main_field}' does not exist.")
++            immediate_fields = [field for field in fields if '__' not in field]
++            if immediate_fields:
++                clone.query.add_immediate_loading(immediate_fields)
+         return clone
+ 
+     def using(self, alias):

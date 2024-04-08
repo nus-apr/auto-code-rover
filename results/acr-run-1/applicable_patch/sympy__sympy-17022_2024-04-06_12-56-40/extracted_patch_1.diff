@@ -1,0 +1,46 @@
+diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py
+index 6ec7bd891c..a2a5ac7412 100644
+--- a/sympy/printing/pycode.py
++++ b/sympy/printing/pycode.py
+@@ -498,6 +498,13 @@ def _print_seq(self, seq):
+ 
+     def _print_MatMul(self, expr):
+         "Matrix multiplication printer"
++        from sympy import S, Identity
++        if any(isinstance(arg, Identity) for arg in expr.args):
++            non_identity_args = [arg for arg in expr.args if not isinstance(arg, Identity)]
++            if not non_identity_args:
++                return self._module_format('numpy.eye') + '(%d)' % expr.args[0].rows
++            if len(non_identity_args) == 1:
++                return self._print(non_identity_args[0])
+         if expr.as_coeff_matrices()[0] is not S(1):
+             expr_list = expr.as_coeff_matrices()[1]+[(expr.as_coeff_matrices()[0])]
+             return '({0})'.format(').dot('.join(self._print(i) for i in expr_list))
+@@ -505,11 +512,17 @@ def _print_MatMul(self, expr):
+ 
+     def _print_MatPow(self, expr):
+         "Matrix power printer"
++        from sympy.matrices import Identity
++        if isinstance(expr.args[0], Identity):
++            return self._module_format('numpy.eye') + '(%d)' % expr.args[0].rows
+         return '{0}({1}, {2})'.format(self._module_format('numpy.linalg.matrix_power'),
+             self._print(expr.args[0]), self._print(expr.args[1]))
+ 
+     def _print_Inverse(self, expr):
+         "Matrix inverse printer"
++        from sympy.matrices import Identity
++        if isinstance(expr.args[0], Identity):
++            return self._module_format('numpy.eye') + '(%d)' % expr.args[0].rows
+         return '{0}({1})'.format(self._module_format('numpy.linalg.inv'),
+             self._print(expr.args[0]))
+ 
+@@ -603,6 +616,9 @@ def _print_sinc(self, expr):
+         return "%s(%s)" % (self._module_format('numpy.sinc'), self._print(expr.args[0]/S.Pi))
+ 
+     def _print_MatrixBase(self, expr):
++        from sympy.matrices import Identity
++        if isinstance(expr, Identity):
++            return self._module_format('numpy.eye') + '(%d)' % expr.rows
+         func = self.known_functions.get(expr.__class__.__name__, None)
+         if func is None:
+             func = self._module_format('numpy.array')

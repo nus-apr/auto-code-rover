@@ -1,0 +1,47 @@
+Based on the issue description and the provided context, the goal is to ensure that `xlim_changed` callbacks are emitted for shared axes without introducing recursion issues. The original implementation sets `emit=False` when adjusting the limits of shared axes to prevent recursion. However, this also prevents `xlim_changed` callbacks from being triggered for these axes, which is the core of the reported issue.
+
+To address this, we can introduce a mechanism to track whether the `set_xlim` call is originating from a shared axis adjustment and conditionally emit the `xlim_changed` event only if it's not a recursive call. This approach aims to maintain the original intent of preventing recursion while ensuring that callbacks are appropriately triggered.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>lib/matplotlib/axes/_base.py</file>
+<original>return self.xaxis._set_lim(left, right, emit=emit, auto=auto)</original>
+<patched># Introduce a context manager to track recursion depth
+from contextlib import contextmanager
+@contextmanager
+def _shared_limit_update(self, axis, emit):
+    # Use a simple attribute to track if we're already updating shared limits
+    if not hasattr(self, '_updating_shared_limits'):
+        self._updating_shared_limits = { 'x': False, 'y': False }
+    if self._updating_shared_limits[axis]:
+        # If we're already updating this axis, do not emit to prevent recursion
+        emit = False
+    else:
+        self._updating_shared_limits[axis] = True
+    try:
+        yield
+    finally:
+        # Reset the flag after update
+        self._updating_shared_limits[axis] = False
+
+# Modify the set_xlim method to use the context manager
+def set_xlim(self, left=None, right=None, *, emit=True, auto=False,
+             xmin=None, xmax=None):
+    if right is None and np.iterable(left):
+        left, right = left
+    if xmin is not None:
+        if left is not None:
+            raise TypeError("Cannot pass both 'left' and 'xmin'")
+        left = xmin
+    if xmax is not None:
+        if right is not None:
+            raise TypeError("Cannot pass both 'right' and 'xmax'")
+        right = xmax
+    with self._shared_limit_update('x', emit):
+        return self.xaxis._set_lim(left, right, emit=emit, auto=auto)
+</patched>
+```
+
+This modification introduces a context manager `_shared_limit_update` to manage the state of whether an axis limit update is already in progress for a particular axis (`'x'` or `'y'`). It uses this context manager within the `set_xlim` method to conditionally suppress the `emit` argument if the method is called recursively due to shared axis adjustments. This approach aims to balance the need to prevent recursion with the requirement to trigger `xlim_changed` callbacks when axis limits are changed.

@@ -1,0 +1,48 @@
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>    def __init__(self, queryset, output_field=None, **extra):
+        # Allow the usage of both QuerySet and sql.Query objects.
+        self.query = getattr(queryset, 'query', queryset)
+        self.extra = extra
+        super().__init__(output_field)
+</original>
+<patched>    def __init__(self, queryset, output_field=None, **extra):
+        # Allow the usage of both QuerySet and sql.Query objects.
+        self.query = getattr(queryset, 'query', queryset)
+        self.query.subquery = True  # Ensure the query is marked as a subquery
+        self.extra = extra
+        super().__init__(output_field)
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/expressions.py</file>
+<original>    def as_sql(self, compiler, connection, template=None, query=None, **extra_context):
+        connection.ops.check_expression_support(self)
+        template_params = {**self.extra, **extra_context}
+        query = query or self.query
+        subquery_sql, sql_params = query.as_sql(compiler, connection)
+        template_params['subquery'] = subquery_sql[1:-1]
+
+        template = template or template_params.get('template', self.template)
+        sql = template % template_params
+        return sql, sql_params
+</original>
+<patched>    def as_sql(self, compiler, connection, template=None, query=None, **extra_context):
+        connection.ops.check_expression_support(self)
+        template_params = {**self.extra, **extra_context}
+        query = query or self.query
+        subquery_sql, sql_params = query.as_sql(compiler, connection)
+        # Check if the subquery_sql is already enclosed in parentheses
+        if subquery_sql.startswith('(') and subquery_sql.endswith(')'):
+            template_params['subquery'] = subquery_sql
+        else:
+            template_params['subquery'] = '(' + subquery_sql + ')'
+
+        template = template or template_params.get('template', self.template)
+        sql = template % template_params
+        return sql, sql_params
+</patched>
+```

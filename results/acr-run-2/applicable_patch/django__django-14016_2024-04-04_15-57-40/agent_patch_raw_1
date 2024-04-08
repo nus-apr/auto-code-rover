@@ -1,0 +1,55 @@
+# modification 1
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            return copy.deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            return copy.deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</original>
+<patched>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # Convert non-pickleable objects to pickleable before deepcopy
+        def make_pickleable(value):
+            if isinstance(value, dict_keys):
+                return list(value)
+            return value
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            self_clone = copy.deepcopy(self)
+            self_clone.children = [(key, make_pickleable(value)) for key, value in self_clone.children]
+            return self_clone
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            other_clone = copy.deepcopy(other)
+            other_clone.children = [(key, make_pickleable(value)) for key, value in other_clone.children]
+            return other_clone
+
+        obj = type(self)()
+        obj.connector = conn
+        self_clone = copy.deepcopy(self)
+        other_clone = copy.deepcopy(other)
+        self_clone.children = [(key, make_pickleable(value)) for key, value in self_clone.children]
+        other_clone.children = [(key, make_pickleable(value)) for key, value in other_clone.children]
+        obj.add(self_clone, conn)
+        obj.add(other_clone, conn)
+        return obj
+</patched>
+```
+
+**Explanation:**
+This patch introduces a helper function `make_pickleable` within the `_combine` method to convert non-pickleable objects like `dict_keys` to a pickleable format (in this case, a list) before performing a deep copy. This approach ensures that when `copy.deepcopy` is called on a `Q` object containing `dict_keys`, it will not raise a `TypeError` due to the inability to pickle `dict_keys` objects. The conversion is applied to the `children` attribute of `Q` objects, which is where conditions are stored. This solution maintains the original logic and behavior of the `_combine` method while addressing the issue with non-pickleable objects.

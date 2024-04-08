@@ -1,0 +1,27 @@
+# modification 1
+```python
+<file>django/urls/resolvers.py</file>
+<original>        if not hasattr(func, '__name__'):
+            # A class-based view
+            self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__
+        else:
+            # A function-based view
+            self._func_path = func.__module__ + '.' + func.__name__
+</original>
+<patched>        import functools
+        if isinstance(func, functools.partial):
+            # Handle functools.partial objects
+            partial_func = func.func
+            partial_args = func.args
+            partial_kwargs = func.keywords
+            self._func_path = f"{partial_func.__module__}.{partial_func.__name__}, args={partial_args}, kwargs={partial_kwargs}"
+        elif not hasattr(func, '__name__'):
+            # A class-based view
+            self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__
+        else:
+            # A function-based view
+            self._func_path = func.__module__ + '.' + func.__name__
+</patched>
+```
+
+This patch modifies the `__init__` method of the `ResolverMatch` class to handle `functools.partial` objects. It checks if the `func` argument is an instance of `functools.partial`. If so, it extracts the underlying function (`partial_func`), its arguments (`partial_args`), and keyword arguments (`partial_kwargs`). Then, it constructs the `_func_path` string to include the name of the underlying function along with its arguments and keyword arguments, providing a more informative representation. This approach ensures that when `__repr__` is called, it will display a more detailed and helpful representation of the `ResolverMatch` instance, especially when partial functions are involved.

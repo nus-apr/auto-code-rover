@@ -1,0 +1,46 @@
+{
+    "task_id": "pallets__flask-4992",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/pallets__flask/setup_pallets__flask__2.3",
+        "env_name": "setup_pallets__flask__2.3",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider tests/test_config.py"
+    },
+    "task_info": {
+        "instance_id": "pallets__flask-4992",
+        "base_commit": "4c288bc97ea371817199908d0d9b12de9dae327e",
+        "hints_text": "You can also use:\r\n\r\n```python\r\napp.config.from_file(\"config.toml\", lambda f: tomllib.load(f.buffer))\r\n```\nThanks - I was looking for another way to do it. I'm happy with that for now, although it's worth noting this about `io.TextIOBase.buffer` from the docs:\r\n\r\n> This is not part of the [TextIOBase](https://docs.python.org/3/library/io.html#io.TextIOBase) API and may not exist in some implementations.\nOh, didn't mean for you to close this, that was just a shorter workaround. I think a `text=True` parameter would be better, easier to use `True` or `False` rather than mode strings. Some libraries, like `tomllib`, have _Opinions_ about whether text or bytes are correct for parsing files, and we can accommodate that.\ncan i work on this?\nNo need to ask to work on an issue. As long as the issue is not assigned to anyone and doesn't have have a linked open PR (both can be seen in the sidebar), anyone is welcome to work on any issue.",
+        "created_at": "2023-02-22T14:00:17Z",
+        "test_patch": "diff --git a/tests/static/config.toml b/tests/static/config.toml\nnew file mode 100644\n--- /dev/null\n+++ b/tests/static/config.toml\n@@ -0,0 +1,2 @@\n+TEST_KEY=\"foo\"\n+SECRET_KEY=\"config\"\ndiff --git a/tests/test_config.py b/tests/test_config.py\n--- a/tests/test_config.py\n+++ b/tests/test_config.py\n@@ -6,7 +6,6 @@\n \n import flask\n \n-\n # config keys used for the TestConfig\n TEST_KEY = \"foo\"\n SECRET_KEY = \"config\"\n@@ -30,13 +29,23 @@ def test_config_from_object():\n     common_object_test(app)\n \n \n-def test_config_from_file():\n+def test_config_from_file_json():\n     app = flask.Flask(__name__)\n     current_dir = os.path.dirname(os.path.abspath(__file__))\n     app.config.from_file(os.path.join(current_dir, \"static\", \"config.json\"), json.load)\n     common_object_test(app)\n \n \n+def test_config_from_file_toml():\n+    tomllib = pytest.importorskip(\"tomllib\", reason=\"tomllib added in 3.11\")\n+    app = flask.Flask(__name__)\n+    current_dir = os.path.dirname(os.path.abspath(__file__))\n+    app.config.from_file(\n+        os.path.join(current_dir, \"static\", \"config.toml\"), tomllib.load, text=False\n+    )\n+    common_object_test(app)\n+\n+\n def test_from_prefixed_env(monkeypatch):\n     monkeypatch.setenv(\"FLASK_STRING\", \"value\")\n     monkeypatch.setenv(\"FLASK_BOOL\", \"true\")\n",
+        "repo": "pallets/flask",
+        "problem_statement": "Add a file mode parameter to flask.Config.from_file()\nPython 3.11 introduced native TOML support with the `tomllib` package. This could work nicely with the `flask.Config.from_file()` method as an easy way to load TOML config files:\r\n\r\n```python\r\napp.config.from_file(\"config.toml\", tomllib.load)\r\n```\r\n\r\nHowever, `tomllib.load()` takes an object readable in binary mode, while `flask.Config.from_file()` opens a file in text mode, resulting in this error:\r\n\r\n```\r\nTypeError: File must be opened in binary mode, e.g. use `open('foo.toml', 'rb')`\r\n```\r\n\r\nWe can get around this with a more verbose expression, like loading from a file opened with the built-in `open()` function and passing the `dict` to `app.Config.from_mapping()`:\r\n\r\n```python\r\n# We have to repeat the path joining that from_file() does\r\nwith open(os.path.join(app.config.root_path, \"config.toml\"), \"rb\") as file:\r\n    app.config.from_mapping(tomllib.load(file))\r\n```\r\n\r\nBut adding a file mode parameter to `flask.Config.from_file()` would enable the use of a simpler expression. E.g.:\r\n\r\n```python\r\napp.config.from_file(\"config.toml\", tomllib.load, mode=\"b\")\r\n```\r\n\n",
+        "version": "2.3",
+        "FAIL_TO_PASS": [
+            "tests/test_config.py::test_config_from_file_toml"
+        ],
+        "PASS_TO_PASS": [
+            "tests/test_config.py::test_config_from_class",
+            "tests/test_config.py::test_config_from_envvar",
+            "tests/test_config.py::test_config_from_envvar_missing",
+            "tests/test_config.py::test_config_from_file_json",
+            "tests/test_config.py::test_config_from_mapping",
+            "tests/test_config.py::test_config_from_object",
+            "tests/test_config.py::test_config_from_pyfile",
+            "tests/test_config.py::test_config_missing",
+            "tests/test_config.py::test_config_missing_file",
+            "tests/test_config.py::test_custom_config_class",
+            "tests/test_config.py::test_from_prefixed_env",
+            "tests/test_config.py::test_from_prefixed_env_custom_prefix",
+            "tests/test_config.py::test_from_prefixed_env_nested",
+            "tests/test_config.py::test_from_pyfile_weird_encoding[iso-8859-15]",
+            "tests/test_config.py::test_from_pyfile_weird_encoding[latin-1]",
+            "tests/test_config.py::test_from_pyfile_weird_encoding[utf-8]",
+            "tests/test_config.py::test_get_namespace",
+            "tests/test_config.py::test_session_lifetime"
+        ],
+        "environment_setup_commit": "182ce3dd15dfa3537391c3efaf9c3ff407d134d4",
+        "patch": "diff --git a/src/flask/config.py b/src/flask/config.py\n--- a/src/flask/config.py\n+++ b/src/flask/config.py\n@@ -234,6 +234,7 @@ def from_file(\n         filename: str,\n         load: t.Callable[[t.IO[t.Any]], t.Mapping],\n         silent: bool = False,\n+        text: bool = True,\n     ) -> bool:\n         \"\"\"Update the values in the config from a file that is loaded\n         using the ``load`` parameter. The loaded data is passed to the\n@@ -244,8 +245,8 @@ def from_file(\n             import json\n             app.config.from_file(\"config.json\", load=json.load)\n \n-            import toml\n-            app.config.from_file(\"config.toml\", load=toml.load)\n+            import tomllib\n+            app.config.from_file(\"config.toml\", load=tomllib.load, text=False)\n \n         :param filename: The path to the data file. This can be an\n             absolute path or relative to the config root path.\n@@ -254,14 +255,18 @@ def from_file(\n         :type load: ``Callable[[Reader], Mapping]`` where ``Reader``\n             implements a ``read`` method.\n         :param silent: Ignore the file if it doesn't exist.\n+        :param text: Open the file in text or binary mode.\n         :return: ``True`` if the file was loaded successfully.\n \n+        .. versionchanged:: 2.3\n+            The ``text`` parameter was added.\n+\n         .. versionadded:: 2.0\n         \"\"\"\n         filename = os.path.join(self.root_path, filename)\n \n         try:\n-            with open(filename) as f:\n+            with open(filename, \"r\" if text else \"rb\") as f:\n                 obj = load(f)\n         except OSError as e:\n             if silent and e.errno in (errno.ENOENT, errno.EISDIR):\n",
+        "pr_link": "https://github.com/pallets/flask/pull/4992"
+    }
+}

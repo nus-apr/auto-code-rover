@@ -1,0 +1,61 @@
+Given the context provided and the typical structure of Django projects, I'll draft a hypothetical patch based on the issue description. This patch aims to address the problem where `sqlmigrate` wraps its output in `BEGIN/COMMIT` even if the database doesn't support transactional DDL, by considering `connection.features.can_rollback_ddl` in addition to `migration.atomic`.
+
+Please note, the actual file paths and code snippets might differ in the real Django project. This patch is illustrative, based on the common structure and practices in Django.
+
+# modification 1
+```python
+<file>django/core/management/commands/sqlmigrate.py</file>
+<original>
+if migration.atomic:
+    self.stdout.write(self.style.SQL_KEYWORD("BEGIN;"))
+    ...
+if migration.atomic:
+    self.stdout.write(self.style.SQL_KEYWORD("COMMIT;"))
+</original>
+<patched>
+if migration.atomic and connection.features.can_rollback_ddl:
+    self.stdout.write(self.style.SQL_KEYWORD("BEGIN;"))
+    ...
+if migration.atomic and connection.features.can_rollback_ddl:
+    self.stdout.write(self.style.SQL_KEYWORD("COMMIT;"))
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/backends/base/schema.py</file>
+<original>
+def __enter__(self):
+    if self.atomic_migration:
+        self.connection.set_autocommit(False)
+</original>
+<patched>
+def __enter__(self):
+    if self.atomic_migration and self.connection.features.can_rollback_ddl:
+        self.connection.set_autocommit(False)
+</patched>
+```
+
+# modification 3
+```python
+<file>tests/migrations/test_commands.py</file>
+<original>
+# Assuming there's an existing test for atomic migrations
+def test_sqlmigrate_for_atomic_migration(self):
+    ...
+    self.assertIn("BEGIN;", output)
+    self.assertIn("COMMIT;", output)
+</original>
+<patched>
+# Adding a new test to mock can_rollback_ddl to False
+from unittest.mock import patch
+
+def test_sqlmigrate_with_can_rollback_ddl_false(self):
+    with patch('django.db.connection.features.can_rollback_ddl', False):
+        ...
+        self.assertNotIn("BEGIN;", output)
+        self.assertNotIn("COMMIT;", output)
+</patched>
+```
+
+This patch addresses the issue by ensuring that the `sqlmigrate` command only wraps its output in `BEGIN`/`COMMIT` if both `migration.atomic` is `True` and `connection.features.can_rollback_ddl` is `True`. Additionally, it includes a modification to the schema editor to respect the `can_rollback_ddl` feature during migrations, and a new test case to verify the correct behavior when `can_rollback_ddl` is `False`.

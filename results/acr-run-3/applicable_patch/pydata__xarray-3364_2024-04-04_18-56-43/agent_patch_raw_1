@@ -1,0 +1,60 @@
+# modification 1
+```python
+<file>xarray/core/concat.py</file>
+<original>def concat(
+    objs,
+    dim,
+    data_vars="all",
+    coords="different",
+    compat="equals",
+    positions=None,
+    fill_value=dtypes.NA,
+    join="outer",
+):</original>
+<patched>def concat(
+    objs,
+    dim,
+    data_vars="all",
+    coords="different",
+    compat="equals",
+    positions=None,
+    fill_value=dtypes.NA,
+    join="outer",
+    auto_fill=False,
+):</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/concat.py</file>
+<original>if compat not in _VALID_COMPAT:
+        raise ValueError(
+            "compat=%r invalid: must be 'broadcast_equals', 'equals', 'identical', 'no_conflicts' or 'override'"
+            % compat
+        )</original>
+<patched>if compat not in _VALID_COMPAT:
+        raise ValueError(
+            "compat=%r invalid: must be 'broadcast_equals', 'equals', 'identical', 'no_conflicts' or 'override'"
+            % compat
+        )
+    if auto_fill:
+        # Automatically add missing variables as NaNs
+        all_vars = set().union(*(obj.data_vars for obj in objs))
+        for obj in objs:
+            missing_vars = all_vars - set(obj.data_vars)
+            for var in missing_vars:
+                obj[var] = xr.full_like(obj[list(obj.data_vars)[0]], fill_value=fill_value, dtype=float)</patched>
+```
+
+# modification 3
+```python
+<file>xarray/core/concat.py</file>
+<original># TODO: add ignore_index arguments copied from pandas.concat
+    # TODO: support concatenating scalar coordinates even if the concatenated
+    # dimension already exists</original>
+<patched># Added auto_fill parameter to automatically fill missing variables with NaNs or specified fill_value
+    # This aligns more closely with pd.concat behavior, providing a more intuitive interface for users
+    # TODO: support concatenating scalar coordinates even if the concatenated dimension already exists</patched>
+```
+
+This patch introduces a new parameter `auto_fill` to the `concat` function in `xarray/core/concat.py`, allowing users to automatically fill missing variables with `NaNs` or a specified `fill_value` when concatenating datasets. This enhancement addresses the issue raised by providing a more intuitive and flexible way to handle datasets with different variables, making the behavior more consistent with `pd.concat` from pandas. The patch also includes a code snippet to implement the auto-filling functionality and updates the comments to reflect the new feature.

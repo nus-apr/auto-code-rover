@@ -1,0 +1,33 @@
+diff --git a/django/contrib/auth/tokens.py b/django/contrib/auth/tokens.py
+index 93e2d71af2..9552322026 100644
+--- a/django/contrib/auth/tokens.py
++++ b/django/contrib/auth/tokens.py
+@@ -78,12 +78,13 @@ class PasswordResetTokenGenerator:
+ 
+     def _make_hash_value(self, user, timestamp):
+         """
+-        Hash the user's primary key and some user state that's sure to change
++        Hash the user's primary key, email, and some user state that's sure to change
+         after a password reset to produce a token that invalidated when it's
+         used:
+-        1. The password field will change upon a password reset (even if the
++        1. The email field is included to ensure the token is invalidated if the email changes.
++        2. The password field will change upon a password reset (even if the
+            same password is chosen, due to password salting).
+-        2. The last_login field will usually be updated very shortly after
++        3. The last_login field will usually be updated very shortly after
+            a password reset.
+         Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+         invalidates the token.
+@@ -94,7 +95,10 @@ class PasswordResetTokenGenerator:
+         # Truncate microseconds so that tokens are consistent even if the
+         # database doesn't support microseconds.
+         login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+-        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)
++        # Correctly retrieve the email field name using the user model's method
++        email_field_name = user.get_email_field_name() if hasattr(user, 'get_email_field_name') else 'email'
++        user_email = getattr(user, email_field_name, '')
++        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp) + user_email
+ 
+     def _num_seconds(self, dt):
+         return int((dt - datetime(2001, 1, 1)).total_seconds())

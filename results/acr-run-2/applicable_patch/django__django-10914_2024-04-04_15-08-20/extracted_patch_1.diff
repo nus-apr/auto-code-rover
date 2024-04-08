@@ -1,0 +1,29 @@
+diff --git a/django/core/files/move.py b/django/core/files/move.py
+index 2cce7848ca..a133a3319b 100644
+--- a/django/core/files/move.py
++++ b/django/core/files/move.py
+@@ -46,6 +46,9 @@ def file_move_safe(old_file_name, new_file_name, chunk_size=1024 * 64, allow_ove
+             raise FileExistsError('Destination file %s exists and allow_overwrite is False.' % new_file_name)
+ 
+         os.rename(old_file_name, new_file_name)
++        # After moving the file, set the file permissions based on FILE_UPLOAD_PERMISSIONS
++        from django.conf import settings
++        os.chmod(new_file_name, settings.FILE_UPLOAD_PERMISSIONS)
+         return
+     except OSError:
+         # OSError happens with os.rename() if moving to another filesystem or
+diff --git a/django/core/files/uploadedfile.py b/django/core/files/uploadedfile.py
+index 48007b8682..cf78fea3af 100644
+--- a/django/core/files/uploadedfile.py
++++ b/django/core/files/uploadedfile.py
+@@ -58,7 +58,9 @@ class TemporaryUploadedFile(UploadedFile):
+     """
+     def __init__(self, name, content_type, size, charset, content_type_extra=None):
+         _, ext = os.path.splitext(name)
+-        file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR)
++        file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR, mode='w+', delete=False)
++        # Ensure the temporary file has the correct permissions set
++        os.chmod(file.name, settings.FILE_UPLOAD_PERMISSIONS)
+         super().__init__(file, name, content_type, size, charset, content_type_extra)
+ 
+     def temporary_file_path(self):

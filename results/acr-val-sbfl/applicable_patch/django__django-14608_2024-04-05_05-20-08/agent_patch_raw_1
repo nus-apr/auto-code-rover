@@ -1,0 +1,37 @@
+# modification 1
+```python
+<file>django/forms/utils.py</file>
+<original>    def as_ul(self):
+        if not self.data:
+            return ''
+
+        return format_html(
+            '<ul class="{}">{}</ul>',
+            self.error_class,
+            format_html_join('', '<li>{}</li>', ((e,) for e in self))
+        )</original>
+<patched>    def as_ul(self, non_form_errors=False):
+        if not self.data:
+            return ''
+        css_class = self.error_class
+        if non_form_errors:
+            css_class += " nonform"
+        return format_html(
+            '<ul class="{}">{}</ul>',
+            css_class,
+            format_html_join('', '<li>{}</li>', ((e,) for e in self))
+        )</patched>
+```
+
+# modification 2
+```python
+<file>django/forms/formsets.py</file>
+<original>        except ValidationError as e:
+            self._non_form_errors = self.error_class(e.error_list)</original>
+<patched>        except ValidationError as e:
+            self._non_form_errors = self.error_class(e.error_list)
+            # Apply the nonform CSS class to non-form errors
+            self._non_form_errors.error_class += " nonform"</patched>
+```
+
+These modifications address the issue by adding the capability to distinguish non-form errors in FormSets with a specific CSS class (`nonform`). The first modification in `django/forms/utils.py` adds an optional parameter to the `ErrorList.as_ul` method to indicate when it is being called for non-form errors, appending the `nonform` CSS class accordingly. The second modification in `django/forms/formsets.py` ensures that when non-form errors are added to the `_non_form_errors` attribute, they are marked with the `nonform` CSS class by modifying the `error_class` attribute of the `ErrorList` instance.

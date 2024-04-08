@@ -1,0 +1,31 @@
+# modification 1
+```python
+<file>src/_pytest/skipping.py</file>
+<original>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    rep.longrepr = str(filename), line + 1, reason</original>
+<patched>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+    and not item.config.option.runxfail  # Do not modify skip location when --runxfail is used
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    rep.longrepr = str(filename), line + 1, reason</patched>
+```
+
+This patch addresses the issue by ensuring that the skip location is not modified when the `--runxfail` option is used. This is achieved by adding a condition to check if `--runxfail` is active (`not item.config.option.runxfail`) before modifying the skip location. This way, the original behavior of reporting the skip location as the location of the test item itself is preserved, while still respecting the intention behind the `--runxfail` option.

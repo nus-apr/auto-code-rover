@@ -1,0 +1,33 @@
+diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
+index a26145117..bd54379d0 100644
+--- a/sklearn/compose/_column_transformer.py
++++ b/sklearn/compose/_column_transformer.py
+@@ -392,7 +392,12 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                 elif trans == "drop":
+                     continue
+                 elif _is_empty_column_selection(columns):
+-                    continue
++                    # Handle transformers with 0 features when output is set to pandas
++                    if self.output_config and self.output_config.get('transform') == 'pandas':
++                        # Proceed with the transformation to ensure correct handling in pandas output
++                        pass
++                    else:
++                        continue
+ 
+             if column_as_strings:
+                 # Convert all columns to using their string labels
+@@ -543,11 +548,11 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+         feature_names_out : ndarray of shape (n_features,), dtype=str
+             Transformed feature names.
+         """
+-        if self.verbose_feature_names_out:
+-            # Prefix the feature names out with the transformers name
++        if self.verbose_feature_names_out or (self.output_config and self.output_config.get('transform') == 'pandas'):
++            # Prefix the feature names out with the transformers name, also ensure compatibility with pandas output
+             names = list(
+                 chain.from_iterable(
+-                    (f"{name}__{i}" for i in feature_names_out)
++                    (f"{name}__{i}" if feature_names_out else f"{name}__empty_feature_{idx}" for idx, i in enumerate(feature_names_out))
+                     for name, feature_names_out in transformer_with_feature_names_out
+                 )
+             )

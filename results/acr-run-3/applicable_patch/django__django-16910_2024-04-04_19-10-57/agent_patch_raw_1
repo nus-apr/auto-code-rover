@@ -1,0 +1,31 @@
+Given the context and the issue described, a potential patch would involve ensuring that when `select_related` and `only` are used together, the fields specified by `only` are correctly handled for reverse `OneToOneField` relations. This would likely involve adjusting the logic within the `only` method to properly account for fields specified in `select_related` reverse relations. However, without a clear indication of the root cause from the provided context, the following patch is speculative and aims to illustrate a possible direction for resolving the issue.
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>        for field in fields:
+            field = field.split(LOOKUP_SEP, 1)[0]
+            if field in self.query._filtered_relations:
+                raise ValueError("only() is not supported with FilteredRelation.")
+        clone = self._chain()
+        clone.query.add_immediate_loading(fields)
+        return clone
+</original>
+<patched>        for field in fields:
+            split_field = field.split(LOOKUP_SEP, 1)
+            field = split_field[0]
+            if field in self.query._filtered_relations:
+                raise ValueError("only() is not supported with FilteredRelation.")
+            # Check if the field is a reverse relation and handle appropriately
+            if len(split_field) > 1 and hasattr(self.model, split_field[1]):
+                related_field = getattr(self.model, split_field[1])
+                if isinstance(related_field, models.OneToOneRel):
+                    self.query.add_select_related([field])
+                    continue
+        clone = self._chain()
+        clone.query.add_immediate_loading(fields)
+        return clone
+</patched>
+```
+
+This modification attempts to handle cases where a field specified in the `only` method is part of a reverse `OneToOneField` relation. It checks if the field is a reverse relation and, if so, adds it to the `select_related` set instead of treating it as a regular field. This is a speculative fix and assumes that the underlying issue is due to improper handling of reverse `OneToOneField` relations in the `only` method. Further testing and validation would be necessary to ensure that this patch correctly addresses the issue without introducing new problems.

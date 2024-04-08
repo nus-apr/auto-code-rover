@@ -1,0 +1,45 @@
+# modification 1
+```python
+<file>sympy/physics/units/prefixes.py</file>
+<original>    def __mul__(self, other):
+        from sympy.physics.units import Quantity
+        if not isinstance(other, (Quantity, Prefix)):
+            return super().__mul__(other)
+
+        fact = self.scale_factor * other.scale_factor
+
+        if fact == 1:
+            return 1
+        elif isinstance(other, Prefix):
+            # simplify prefix
+            for p in PREFIXES:
+                if PREFIXES[p].scale_factor == fact:
+                    return PREFIXES[p]
+            return fact
+
+        return self.scale_factor * other
+</original>
+<patched>    def __mul__(self, other):
+        from sympy.physics.units import Quantity
+        if not isinstance(other, (Quantity, Prefix)):
+            return super().__mul__(other)
+
+        fact = self.scale_factor * other.scale_factor
+
+        if fact == 1:
+            return 1
+        elif isinstance(other, Prefix):
+            # simplify prefix
+            for p in PREFIXES:
+                if PREFIXES[p].scale_factor == fact:
+                    return PREFIXES[p]
+            return fact
+        elif isinstance(other, Quantity):
+            # Return a new Quantity with the scaled unit
+            return Quantity(other.name, other.abbrev, other.scale * self.scale_factor, other.dimension)
+        else:
+            return self.scale_factor * other
+</patched>
+```
+
+This patch modifies the `__mul__` method in the `Prefix` class to handle the case when `other` is a `Quantity`. Instead of returning `self.scale_factor * other`, which does not correctly represent a prefixed unit, it constructs and returns a new `Quantity` object with the appropriate scale factor applied. This ensures that operations like `milli * W` return a `Quantity` representing milliwatts, aligning with the expected behavior.

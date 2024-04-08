@@ -1,0 +1,47 @@
+diff --git a/astropy/nddata/mixins/ndarithmetic.py b/astropy/nddata/mixins/ndarithmetic.py
+index 4153dfccb..2724ec095 100644
+--- a/astropy/nddata/mixins/ndarithmetic.py
++++ b/astropy/nddata/mixins/ndarithmetic.py
+@@ -718,33 +718,21 @@ class NDArithmeticMixin:
+             operand = cls(operand)
+ 
+         # At this point operand, operand2, kwargs and cls are determined.
+-        if operand2 is not None and not issubclass(
+-            operand2.__class__, NDArithmeticMixin
+-        ):
++        # Before attempting to do arithmetic, check if operand2 is None and handle accordingly
++        if operand2 is None:
++            # If operand2 is None, it implies no mask is present. We should handle this case to avoid TypeError
++            # when attempting bitwise operations with None.
++            operand2 = np.zeros_like(operand.data, dtype=bool)
++
++        if not issubclass(operand2.__class__, NDArithmeticMixin):
+             # Let's try to convert operand2 to the class of operand to allow for
+             # arithmetic operations with numbers, lists, numpy arrays, numpy masked
+             # arrays, astropy quantities, masked quantities and of other subclasses
+             # of NDData.
+             operand2 = cls(operand2)
+ 
+-            # Now call the _arithmetics method to do the arithmetic.
+-            result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)
+-        elif issubclass(operand2.__class__, NDArithmeticMixin):
+-            # calling as class method:
+-            result, init_kwds = cls._arithmetic(
+-                operand,
+-                operation,
+-                operand2,
+-                **kwargs,
+-            )
+-        else:
+-            # otherwise call the _arithmetic method on self for a collapse operation:
+-            # for collapse operations, use astropy.utils.masked rather than handle_mask
+-            result, init_kwds = self_or_cls._arithmetic(
+-                operation,
+-                operand2,
+-                **kwargs,
+-            )
++        # Now call the _arithmetic method to do the arithmetic.
++        result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)
+ 
+         # Return a new class based on the result
+         return cls(result, **init_kwds)

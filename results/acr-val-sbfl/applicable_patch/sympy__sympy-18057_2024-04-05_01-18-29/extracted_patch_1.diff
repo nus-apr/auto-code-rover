@@ -1,0 +1,37 @@
+diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py
+index ed4ea6ce5e..c1a6f86491 100644
+--- a/sympy/core/sympify.py
++++ b/sympy/core/sympify.py
+@@ -268,6 +268,12 @@ def sympify(a, locals=None, convert_xor=True, strict=False, rational=False,
+ 
+     if isinstance(a, CantSympify):
+         raise SympifyError(a)
++    # Prevent eval from executing arbitrary code via repr
++    if isinstance(a, str):
++        try:
++            a = ast.literal_eval(a)
++        except (ValueError, SyntaxError):
++            pass
+     cls = getattr(a, "__class__", None)
+     if cls is None:
+         cls = type(a)  # Probably an old-style class
+diff --git a/sympy/parsing/sympy_parser.py b/sympy/parsing/sympy_parser.py
+index 2ab43d9b31..cb00b5450c 100644
+--- a/sympy/parsing/sympy_parser.py
++++ b/sympy/parsing/sympy_parser.py
+@@ -899,8 +899,13 @@ def eval_expr(code, local_dict, global_dict):
+ 
+     Generally, ``parse_expr`` should be used.
+     """
+-    expr = eval(
+-        code, global_dict, local_dict)  # take local objects in preference
++    try:
++        # Use safer eval alternative if possible
++        expr = ast.literal_eval(code)
++    except ValueError:
++        # Fallback to eval if ast.literal_eval is not sufficient
++        expr = eval(
++            code, global_dict, local_dict)  # take local objects in preference
+ 
+     return expr
+ 

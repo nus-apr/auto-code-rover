@@ -1,0 +1,65 @@
+# modification 1
+```python
+<file>lib/mpl_toolkits/mplot3d/axes3d.py</file>
+<original>def set_visible(self, b):
+    """
+    Set the artist's visibility.
+
+    Parameters
+    ----------
+    b : bool
+    """
+    self._visible = b
+    self.pchanged()
+    self.stale = True
+</original>
+<patched>def set_visible(self, visible):
+    """
+    Set the artist's visibility.
+
+    Parameters
+    ----------
+    visible : bool
+    """
+    # Call the set_visible method of the base class with the visibility flag
+    super(Axes3D, self).set_visible(visible)
+    # Additionally, handle the visibility of 3D elements specifically
+    if not visible:
+        # Hide 3D specific elements like axes lines, labels, etc.
+        self.w_xaxis.set_visible(False)
+        self.w_yaxis.set_visible(False)
+        self.w_zaxis.set_visible(False)
+    else:
+        # Show 3D specific elements
+        self.w_xaxis.set_visible(True)
+        self.w_yaxis.set_visible(True)
+        self.w_zaxis.set_visible(True)
+    self.pchanged()
+    self.stale = True
+</patched>
+```
+
+# modification 2
+```python
+<file>lib/mpl_toolkits/mplot3d/axes3d.py</file>
+<original>class Axes3D(Axes):
+    name = '3d'
+    _axis_names = ("x", "y", "z")
+    Axes._shared_axes["z"] = cbook.Grouper()
+    dist = _api.deprecate_privatize_attribute("3.6")
+    ...
+</original>
+<patched>class Axes3D(Axes):
+    name = '3d'
+    _axis_names = ("x", "y", "z")
+    # Ensure the visibility attribute is correctly initialized for 3D axes
+    def __init__(self, *args, **kwargs):
+        self._visible = True  # Default visibility to True
+        super(Axes3D, self).__init__(*args, **kwargs)
+        Axes._shared_axes["z"] = cbook.Grouper()
+        self.dist = _api.deprecate_privatize_attribute("3.6")
+        ...
+</patched>
+```
+
+This patch addresses the issue by ensuring that when `set_visible(False)` is called on a 3D subplot, it not only sets the `_visible` attribute to `False` but also explicitly hides the 3D specific elements such as axes lines and labels. Additionally, it ensures that the visibility attribute is correctly initialized in the `Axes3D` constructor.

@@ -1,0 +1,55 @@
+To address the issue of supporting nullable pandas dtypes in `unique_labels`, we need to ensure that the `type_of_target` function can correctly identify these types and not just convert them to `object` dtype. This involves checking for nullable pandas dtypes explicitly and handling them as their non-nullable counterparts for the purpose of type identification. Additionally, we need to ensure that the `unique_labels` function can handle these types correctly once identified.
+
+# modification 1
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+    # [obj_1] and not ["label_1"]
+    return "unknown"</original>
+<patched>if not issparse(y):
+    # Handle nullable pandas dtypes explicitly
+    if y.dtype.name in ("Int64", "Float64", "boolean"):
+        if y.ndim == 2 and y.shape[1] > 1:
+            suffix = "-multioutput"
+        else:
+            suffix = ""
+        if y.dtype.name == "boolean":
+            return "binary" + suffix
+        else:
+            data = y.data if issparse(y) else y
+            if pd.api.types.is_integer_dtype(y.dtype) or (data != data.astype(int)).any():
+                return "continuous" + suffix
+            else:
+                return "multiclass" + suffix
+    elif y.dtype == object and not isinstance(y.flat[0], str):
+        # [obj_1] and not ["label_1"]
+        return "unknown"</patched>
+```
+
+This modification explicitly checks for nullable pandas dtypes (`"Int64"`, `"Float64"`, `"boolean"`) in the `type_of_target` function and handles them as their non-nullable counterparts (`int`, `float`, `bool`). This ensures that these types are correctly identified and not treated as `object` dtype, which leads to them being classified as `"unknown"`.
+
+# modification 2
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if not issparse(y):
+    try:
+        y = xp.asarray(y)
+    except (np.VisibleDeprecationWarning, ValueError):
+        # dtype=object should be provided explicitly for ragged arrays,
+        # see NEP 34
+        y = xp.asarray(y, dtype=object)</original>
+<patched>if not issparse(y):
+    # Convert nullable pandas dtypes to their numpy counterparts before conversion to array
+    if isinstance(y, pd.Series) and y.dtype.name in ("Int64", "Float64", "boolean"):
+        y = y.astype(y.dtype.name.lower())
+    try:
+        y = xp.asarray(y)
+    except (np.VisibleDeprecationWarning, ValueError):
+        # dtype=object should be provided explicitly for ragged arrays,
+        # see NEP 34
+        y = xp.asarray(y, dtype=object)</patched>
+```
+
+This modification ensures that nullable pandas dtypes are converted to their numpy counterparts before attempting to convert them to an array with `xp.asarray(y)`. This pre-conversion step helps in avoiding the conversion of these types to `object` dtype due to the handling of ragged arrays or the presence of `np.VisibleDeprecationWarning`.
+
+These modifications together aim to resolve the issue by ensuring that nullable pandas dtypes are correctly identified and handled by the `type_of_target` and `unique_labels` functions, thus allowing them to be used without causing errors.

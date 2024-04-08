@@ -1,0 +1,43 @@
+# modification 1
+```python
+<file>sklearn/compose/_column_transformer.py</file>
+<original>                transformer_names = [
+                    t[0] for t in self._iter(fitted=True, replace_strings=True)
+                ]
+                feature_names_outs = [X.columns for X in Xs]
+                names_out = self._add_prefix_for_feature_names_out(
+                    list(zip(transformer_names, feature_names_outs))
+                )
+                output.columns = names_out</original>
+<patched>                transformer_names = [
+                    t[0] for t in self._iter(fitted=True, replace_strings=True)
+                ]
+                feature_names_outs = [X.columns for X in Xs if hasattr(X, 'columns')]
+                # Only add prefixes if there are any feature names to process
+                if feature_names_outs:
+                    names_out = self._add_prefix_for_feature_names_out(
+                        list(zip(transformer_names, feature_names_outs))
+                    )
+                    output.columns = names_out
+                else:
+                    # Handle case with no features by setting an empty list
+                    output.columns = []</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/_set_output.py</file>
+<original>    if callable(columns):
+        try:
+            columns = columns()
+        except Exception:
+            columns = None</original>
+<patched>    if callable(columns):
+        try:
+            columns = columns()
+        except Exception:
+            # Ensure columns is set to an empty list if the callable fails and data_to_wrap is a DataFrame
+            columns = [] if isinstance(data_to_wrap, pd.DataFrame) else None</patched>
+```
+
+These modifications aim to address the issue by ensuring that when transformers with no features are involved, the code gracefully handles the absence of feature names, preventing the length mismatch error when setting the output to a pandas DataFrame. The first modification in `_column_transformer.py` ensures that feature names are only processed if they exist, and sets an empty list for column names if no features are present. The second modification in `_set_output.py` ensures that if the columns callable fails, it defaults to an empty list for DataFrames, maintaining consistency with the expected structure.

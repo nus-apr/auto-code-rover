@@ -1,0 +1,32 @@
+diff --git a/sympy/geometry/util.py b/sympy/geometry/util.py
+index d32adc3066..b9cbffe79f 100644
+--- a/sympy/geometry/util.py
++++ b/sympy/geometry/util.py
+@@ -565,10 +565,14 @@ def idiff(eq, y, x, n=1):
+     sympy.core.function.diff: explicitly differentiates wrt symbols
+ 
+     """
++    from sympy.core import Eq, Function, Symbol
++    
++    if isinstance(eq, Eq):
++        eq = eq.lhs - eq.rhs  # Convert Eq to expression assuming eq == 0
+     if is_sequence(y):
+         dep = set(y)
+         y = y[0]
+-    elif isinstance(y, Symbol):
++    elif isinstance(y, Symbol) or isinstance(y, Function):
+         dep = {y}
+     else:
+         raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)
+@@ -579,7 +583,10 @@ def idiff(eq, y, x, n=1):
+     eq = eq.subs(f)
+     derivs = {}
+     for i in range(n):
+-        yp = solve(eq.diff(x), dydx)[0].subs(derivs)
++        sol = solve(eq.diff(x), dydx)
++        if not sol:
++            raise ValueError("Unable to solve for dy/dx. No solutions found.")
++        yp = sol[0].subs(derivs)
+         if i == n - 1:
+             return yp.subs([(v, k) for k, v in f.items()])
+         derivs[dydx] = yp

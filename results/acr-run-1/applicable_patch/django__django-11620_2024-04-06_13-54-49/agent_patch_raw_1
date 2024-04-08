@@ -1,0 +1,81 @@
+To address the issue where raising `Http404` in a path converter's `to_python` method does not result in a technical response when `DEBUG` is `True`, we can modify the `resolve` method in `URLResolver` to catch `Http404` exceptions and handle them appropriately. This approach aims to provide a more informative debug response, helping developers understand why a particular path did not match.
+
+Given the context and the goal to improve the handling of `Http404` exceptions raised during the URL resolution process, here's a proposed patch:
+
+# modification 1
+```python
+<file>django/urls/resolvers.py</file>
+<original>            for pattern in self.url_patterns:
+                try:
+                    sub_match = pattern.resolve(new_path)
+                except Resolver404 as e:
+                    sub_tried = e.args[0].get('tried')
+                    if sub_tried is not None:
+                        tried.extend([pattern] + t for t in sub_tried)
+                    else:
+                        tried.append([pattern])
+                else:
+                    if sub_match:
+                        # Merge captured arguments in match with submatch
+                        sub_match_dict = {**kwargs, **self.default_kwargs}
+                        # Update the sub_match_dict with the kwargs from the sub_match.
+                        sub_match_dict.update(sub_match.kwargs)
+                        # If there are *any* named groups, ignore all non-named groups.
+                        # Otherwise, pass all non-named arguments as positional arguments.
+                        sub_match_args = sub_match.args
+                        if not sub_match_dict:
+                            sub_match_args = args + sub_match.args
+                        current_route = '' if isinstance(pattern, URLPattern) else str(pattern.pattern)
+                        return ResolverMatch(
+                            sub_match.func,
+                            sub_match_args,
+                            sub_match_dict,
+                            sub_match.url_name,
+                            [self.app_name] + sub_match.app_names,
+                            [self.namespace] + sub_match.namespaces,
+                            self._join_route(current_route, sub_match.route),
+                        )
+                    tried.append([pattern])</original>
+<patched>            for pattern in self.url_patterns:
+                try:
+                    sub_match = pattern.resolve(new_path)
+                except Http404 as http404_exc:
+                    # If DEBUG is True, enhance the debug response with Http404 exception details
+                    if settings.DEBUG:
+                        raise Http404(f"Http404 raised while resolving URL: {http404_exc}")
+                except Resolver404 as e:
+                    sub_tried = e.args[0].get('tried')
+                    if sub_tried is not None:
+                        tried.extend([pattern] + t for t in sub_tried)
+                    else:
+                        tried.append([pattern])
+                else:
+                    if sub_match:
+                        # Merge captured arguments in match with submatch
+                        sub_match_dict = {**kwargs, **self.default_kwargs}
+                        # Update the sub_match_dict with the kwargs from the sub_match.
+                        sub_match_dict.update(sub_match.kwargs)
+                        # If there are *any* named groups, ignore all non-named groups.
+                        # Otherwise, pass all non-named arguments as positional arguments.
+                        sub_match_args = sub_match.args
+                        if not sub_match_dict:
+                            sub_match_args = args + sub_match.args
+                        current_route = '' if isinstance(pattern, URLPattern) else str(pattern.pattern)
+                        return ResolverMatch(
+                            sub_match.func,
+                            sub_match_args,
+                            sub_match_dict,
+                            sub_match.url_name,
+                            [self.app_name] + sub_match.app_names,
+                            [self.namespace] + sub_match.namespaces,
+                            self._join_route(current_route, sub_match.route),
+                        )
+                    tried.append([pattern])
+                # Additional handling for Http404 to ensure it's not silently swallowed
+                except Http404:
+                    raise</patched>
+```
+
+This modification introduces a catch for `Http404` exceptions within the URL resolution process. When such an exception is caught, and `DEBUG` is `True`, the system raises a new `Http404` exception with a message that includes details from the original exception. This approach aims to provide clearer feedback during debugging, helping developers understand the cause of the `Http404` and how to address it.
+
+Please note, this patch assumes the import of necessary modules (`Http404` from `django.http` and `settings` from `django.conf`) at the beginning of the file, which should be verified and added if not already present.

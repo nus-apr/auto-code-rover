@@ -1,0 +1,49 @@
+Given the information provided and the nature of the issue with `ModelMultipleChoiceField` and `union()` queryset, I'll propose a hypothetical patch. This patch aims to address the issue where using `union()` with `ModelMultipleChoiceField` results in unexpected behavior when the form is submitted with no selections. The patch will be based on general Django practices and the context provided, as specific file paths or code snippets were not given.
+
+Please note, this is a conceptual solution crafted to illustrate how one might approach solving the described issue within a Django project. It's important to test any changes thoroughly in your development environment before applying them in production.
+
+# modification 1
+```python
+<file>django/forms/models.py</file>
+<original>
+def _get_queryset(self):
+    return self.queryset.all()
+</original>
+<patched>
+def _get_queryset(self):
+    if hasattr(self.queryset, 'union'):
+        # Preserving the original queryset's model
+        return self.queryset.model.objects.none()
+    return self.queryset.all()
+</patched>
+```
+
+# modification 2
+```python
+<file>your_project/forms.py</file>
+<original>
+publications = forms.ModelMultipleChoiceField(
+    Publication.objects.filter(id__lt=2).union(
+        Publication.objects.filter(id__gt=5)
+    ),
+    required=False,
+)
+</original>
+<patched>
+# Assuming the issue is with how union() querysets are evaluated in ModelMultipleChoiceField,
+# a possible workaround is to evaluate the queryset eagerly using list().
+# This forces the evaluation of the queryset before it's passed to ModelMultipleChoiceField,
+# potentially circumventing the issue.
+publications = forms.ModelMultipleChoiceField(
+    queryset=Publication.objects.none(),  # Initialize with none
+    required=False,
+)
+
+# Then, dynamically set the queryset in the form's __init__ method after evaluating the union.
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.fields['publications'].queryset = list(Publication.objects.filter(id__lt=2) | Publication.objects.filter(id__gt=5))
+</patched>
+```
+
+Please remember, these modifications are speculative and intended to illustrate potential approaches to resolving the described issue. The first modification attempts to handle `union()` querysets directly within Django's form framework, which might not be feasible without further modifications to Django itself. The second modification provides a workaround that can be implemented in your project, avoiding the direct use of `union()` in the form field declaration by eagerly evaluating the queryset. Always ensure to test any changes in a controlled environment to verify their effectiveness and to check for any unintended side effects.

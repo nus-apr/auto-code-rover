@@ -1,0 +1,26 @@
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>    def url(self, name):
+        if self.base_url is None:
+            raise ValueError("This file is not accessible via a URL.")
+        url = filepath_to_uri(name)
+        if url is not None:
+            url = url.lstrip('/')
+        return urljoin(self.base_url, url)
+</original>
+<patched>    def url(self, name):
+        from django.conf import settings
+        if self.base_url is None:
+            raise ValueError("This file is not accessible via a URL.")
+        url = filepath_to_uri(name)
+        if url is not None:
+            url = url.lstrip('/')
+        complete_url = urljoin(self.base_url, url)
+        # Prepend SCRIPT_NAME if present
+        script_name = settings.FORCE_SCRIPT_NAME or ''
+        return urljoin(script_name, complete_url)
+</patched>
+```
+
+This patch modifies the `url` method in the `FileSystemStorage` class to prepend the `SCRIPT_NAME` to the generated URLs. It first checks if `FORCE_SCRIPT_NAME` is set in Django's settings and uses it if available. This approach ensures that when Django is deployed in a sub-path, the generated URLs for static and media files correctly reflect the deployment path. Note that `FORCE_SCRIPT_NAME` is a placeholder for whatever setting or method you use to dynamically retrieve or define the `SCRIPT_NAME`. Adjust accordingly based on your project's configuration.

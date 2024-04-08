@@ -1,0 +1,22 @@
+# modification 1
+```python
+<file>sympy/physics/units/util.py</file>
+<original>depmat = _get_conversion_matrix_for_expr(expr, target_units, unit_system)
+if depmat is None:
+    return expr
+
+expr_scale_factor = get_total_scale_factor(expr)
+return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))</original>
+<patched>depmat = _get_conversion_matrix_for_expr(expr, target_units, unit_system)
+if depmat is None:
+    return expr
+
+# Check if the conversion results in an unchanged expression when target_units match the units in expr
+if all(p == 0 for p in depmat):
+    return expr
+
+expr_scale_factor = get_total_scale_factor(expr)
+return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))</patched>
+```
+
+This patch addresses the issue where `convert_to` returns unexpected results, such as `joule**(7/9)`, when attempting to convert units that should result in an unchanged expression or a more straightforward conversion. By adding a check to see if the conversion matrix (`depmat`) results in no change (all powers are 0), we can return the original expression directly, which aligns with the expected behavior in such cases. This should handle the specific case mentioned in the issue, as well as similar cases where the target units are essentially the same as the units in the original expression.

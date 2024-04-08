@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>sympy/simplify/trigsimp.py</file>
+<original>def trigsimp(expr, **opts):
+    ...
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    return trigsimpfunc(expr)</original>
+<patched>def trigsimp(expr, **opts):
+    ...
+    # Added check for complex expressions to handle sqrt(sin(x)**2) correctly
+    if expr.is_complex:
+        from sympy.functions.elementary.complexes import Abs
+        expr = expr.replace(lambda arg: arg.func == sin and arg.args[0].is_real, lambda arg: Abs(arg))
+        expr = expr.replace(lambda arg: arg.func == cos and arg.args[0].is_real, lambda arg: Abs(arg))
+
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    return trigsimpfunc(expr)</patched>
+```
+
+This patch introduces a check for complex expressions in the `trigsimp` function. If the expression is complex, it replaces `sin` and `cos` functions with their absolute values when their arguments are real. This approach aims to address the incorrect simplification of expressions like `cos(x) + sqrt(sin(x)**2)` for general complex `x`, ensuring that the simplification respects the properties of complex numbers.

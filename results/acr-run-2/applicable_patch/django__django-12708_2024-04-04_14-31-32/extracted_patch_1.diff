@@ -1,0 +1,26 @@
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 61f88401ab..41820095be 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -407,13 +407,19 @@ class BaseDatabaseSchemaEditor:
+             model, columns, exclude=meta_constraint_names | meta_index_names,
+             **constraint_kwargs
+         )
+-        if len(constraint_names) != 1:
++        # Allow deletion if there are exactly two constraints and one is a unique constraint
++        if len(constraint_names) == 2:
++            unique_constraints = {name for name in constraint_names if name.endswith('_uniq')}
++            if len(unique_constraints) == 1:
++                # Exclude the unique constraint and proceed with deleting the index
++                constraint_names = constraint_names - unique_constraints
++        elif len(constraint_names) != 1:
+             raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                 len(constraint_names),
+                 model._meta.db_table,
+                 ", ".join(columns),
+             ))
+-        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
++        self.execute(self._delete_constraint_sql(sql, model, constraint_names.pop()))
+ 
+     def alter_db_table(self, model, old_db_table, new_db_table):
+         """Rename the table a model points to."""

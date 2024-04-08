@@ -1,0 +1,16 @@
+Based on the analysis and the provided context, the issue seems to stem from how imported members are determined and filtered in the `generate_autosummary_content` function. The critical part of the code is where it decides whether to include or exclude members based on the `imported_members` setting and the member's `__module__` attribute.
+
+The problematic behavior described in the issue suggests that the condition used to determine whether a member is imported or not might not be correctly filtering out imported members when `imported_members` is set to `False`. Specifically, the comparison `getattr(value, '__module__', None) == obj.__name__` might not be the correct way to determine if a member is imported, as `obj.__name__` might not always match the module name stored in `__module__` for members defined in the same module (e.g., due to module aliasing, submodules, etc.).
+
+To address this issue, we can refine the condition to compare the member's `__module__` attribute with the module's actual `__name__` attribute, ensuring that only members that are truly defined within the module are included when `imported_members` is `False`.
+
+# modification 1
+```python
+<file>sphinx/ext/autosummary/generate.py</file>
+<original>if imported or getattr(value, '__module__', None) == obj.__name__:</original>
+<patched>if imported or getattr(value, '__module__', None) == getattr(obj, '__name__', None):</patched>
+```
+
+This patch ensures that the comparison correctly identifies members that are defined within the module by comparing the `__module__` attribute of the member with the `__name__` attribute of the module object itself, rather than using `obj.__name__` which may not accurately reflect the module's name in all cases.
+
+Please note, while this patch addresses the specific condition mentioned in the issue, further testing and validation would be necessary to ensure that it correctly resolves the issue in all scenarios and does not introduce any unintended side effects.

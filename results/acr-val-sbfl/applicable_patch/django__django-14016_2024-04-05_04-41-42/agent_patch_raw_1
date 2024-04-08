@@ -1,0 +1,72 @@
+# modification 1
+```python
+<file>django/utils/tree.py</file>
+<original>    def __deepcopy__(self, memodict):
+        obj = Node(connector=self.connector, negated=self.negated)
+        obj.__class__ = self.__class__
+        obj.children = copy.deepcopy(self.children, memodict)
+        return obj
+</original>
+<patched>    def __deepcopy__(self, memodict={}):
+        obj = self.__class__(connector=self.connector, negated=self.negated)
+        # Handle non-pickleable items in children
+        new_children = []
+        for child in self.children:
+            if isinstance(child, (dict_keys,)):
+                new_children.append(list(child))
+            else:
+                new_children.append(copy.deepcopy(child, memodict))
+        obj.children = new_children
+        return obj
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            return copy.deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            return copy.deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</original>
+<patched>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # Use a custom deepcopy to handle non-pickleable objects
+        def custom_deepcopy(obj):
+            try:
+                return copy.deepcopy(obj)
+            except TypeError:
+                if isinstance(obj, Q) and isinstance(obj.children, (dict_keys,)):
+                    obj.children = list(obj.children)
+                return copy.deepcopy(obj)
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            return custom_deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            return custom_deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</patched>
+```
+
+Note: The modifications aim to address the issue by introducing a custom deep copy logic that handles non-pickleable objects like `dict_keys` by converting them to a list or handling them appropriately before attempting a deep copy. The first modification in `Node`'s `__deepcopy__` method directly addresses the deep copy issue, while the second modification in `Q`'s `_combine` method ensures that the custom logic is applied when combining `Q` objects. This approach should resolve the "TypeError: cannot pickle" error when using the `|` operator with `Q` objects containing non-pickleable types.

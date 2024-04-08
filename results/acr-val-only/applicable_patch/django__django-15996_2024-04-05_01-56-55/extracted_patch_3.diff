@@ -1,0 +1,41 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..8c45c41efe 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -123,12 +123,32 @@ class DictionarySerializer(BaseSerializer):
+ 
+ class EnumSerializer(BaseSerializer):
+     def serialize(self):
++        import enum
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        return (
+-            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+-            {"import %s" % module},
+-        )
++
++        # Check if the value is an instance of an IntFlag (which supports bitwise operations)
++        if issubclass(enum_class, enum.IntFlag):
++            # Decompose the flag into individual flags using bitwise operations
++            individual_flags = []
++            for flag in enum_class:
++                if flag in self.value:
++                    individual_flags.append(flag)
++            if individual_flags:
++                flags_expression = ' | '.join(f'{module}.{enum_class.__qualname__}.{flag.name}' for flag in individual_flags)
++                return (flags_expression, {"import %s" % module})
++        elif issubclass(enum_class, enum.Enum):
++            # Handle regular Enums (not combined flags)
++            return (
++                "%s.%s.%s" % (module, enum_class.__qualname__, self.value.name),
++                {"import %s" % module},
++            )
++        else:
++            # Fallback for non-enum values
++            return (
++                "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
++                {"import %s" % module},
++            )
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):

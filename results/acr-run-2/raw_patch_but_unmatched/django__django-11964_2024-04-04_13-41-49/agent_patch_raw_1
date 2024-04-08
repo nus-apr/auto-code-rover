@@ -1,0 +1,45 @@
+Given the nature of the issue described, which involves the unexpected type of a Django model field value when using `TextChoices` or `IntegerChoices`, a potential solution would involve ensuring that the model field correctly interprets and returns the primitive value (string or integer) associated with the choice, rather than the enum member itself. Since the specific locations and implementations of the problematic code are not provided, I'll propose a generic patch that could address the described issue within a Django model definition context.
+
+### Assumed Problematic Code
+The issue seems to stem from the model's field value returning the enum member directly, which suggests that the retrieval or interpretation of the field's value does not convert the enum member to its corresponding primitive value.
+
+### Proposed Patch
+The patch will ensure that when the model field value is accessed, it returns the expected primitive value (the `.value` of the enum member) instead of the enum member itself. This can be achieved by overriding the `__get__` method of the field descriptor or by ensuring proper use of the `get_FOO_display` method provided by Django for fields with choices.
+
+Since the exact implementation details are not provided, below are hypothetical patches that could be applied:
+
+# modification 1
+```python
+<file>models.py</file>
+<original>
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+class MyChoice(models.TextChoices):
+    FIRST_CHOICE = "first", _("The first choice, it is")
+    SECOND_CHOICE = "second", _("The second choice, it is")
+
+class MyObject(models.Model):
+    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
+</original>
+<patched>
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+class MyChoice(models.TextChoices):
+    FIRST_CHOICE = "first", _("The first choice, it is")
+    SECOND_CHOICE = "second", _("The second choice, it is")
+
+class MyObject(models.Model):
+    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
+
+    def get_my_str_value_display(self):
+        # Override to ensure the primitive value is returned
+        value = getattr(self, "my_str_value", None)
+        return MyChoice(value).label if value else None
+</patched>
+```
+
+This modification assumes that the issue is with how the choice field's value is retrieved and displayed. By overriding or ensuring the correct implementation of a method similar to `get_my_str_value_display`, we can explicitly control the output to match the expected primitive value.
+
+Please note, the provided patch is hypothetical and based on the assumption of the issue's nature. The actual implementation might require adjustments based on the specific details of the codebase and Django's version.

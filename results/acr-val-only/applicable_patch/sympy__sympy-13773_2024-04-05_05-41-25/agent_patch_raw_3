@@ -1,0 +1,37 @@
+Given the constraints and the feedback received, it appears there might have been a misunderstanding in the application of the patches or perhaps an oversight in considering the full scope of the SymPy library's functionality and how it handles matrix operations. Without direct access to the test results or specific details on how the patches failed, I'll provide a more generalized and cautious approach to modifying the `__matmul__` methods, focusing on ensuring compatibility and checking for matrix-like behavior more conservatively.
+
+# modification 1
+```python
+<file>sympy/matrices/common.py</file>
+<original>    def __matmul__(self, other):
+        return self.__mul__(other)
+</original>
+<patched>    def __matmul__(self, other):
+        # Check if 'other' is a matrix-like object by checking for 'shape' attribute
+        if not hasattr(other, 'shape') or len(getattr(other, 'shape', ())) != 2:
+            raise ValueError("Only matrix-like objects can be multiplied using '@'. Use '*' for scalar multiplication.")
+        return self.__mul__(other)
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/matrices/expressions/matexpr.py</file>
+<original>    def __matmul__(self, other):
+        return MatMul(self, other).doit()
+</original>
+<patched>    def __matmul__(self, other):
+        from sympy.core.compatibility import Iterable
+        # Ensure 'other' is not a scalar by checking it's not an instance of Iterable
+        if isinstance(other, (int, float, complex)) or not isinstance(other, Iterable):
+            raise ValueError("Scalar operands are not allowed with '@', use '*' instead.")
+        return MatMul(self, other).doit()
+</patched>
+```
+
+In these revised patches, I've taken a more cautious approach:
+
+- For the `MatrixArithmetic` class, the patch now checks for the presence of a `shape` attribute to determine if `other` is matrix-like. This is a common heuristic used in numerical libraries to identify array-like objects.
+- For the `MatrixExpr` class, the patch uses a different strategy by checking if `other` is a scalar (int, float, complex) or not an instance of `Iterable`. This is intended to catch cases where `other` might not strictly be a matrix but still represents a collection of values that could potentially participate in matrix operations.
+
+These adjustments aim to provide a more robust solution to the issue, ensuring that the `@` operator is used strictly for matrix-like objects, aligning with the behavior observed in libraries like NumPy.

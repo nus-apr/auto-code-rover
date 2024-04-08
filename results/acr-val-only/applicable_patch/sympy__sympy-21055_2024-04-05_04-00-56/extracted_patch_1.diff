@@ -1,0 +1,32 @@
+diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py
+index e1f97190c0..a9ce9cc20b 100644
+--- a/sympy/assumptions/refine.py
++++ b/sympy/assumptions/refine.py
+@@ -54,6 +54,14 @@ def refine(expr, assumptions=True):
+         ref_expr = expr._eval_refine(assumptions)
+         if ref_expr is not None:
+             return ref_expr
++        # Handle Piecewise refinement specifically
++        elif isinstance(expr, Piecewise):
++            new_args = []
++            for e, c in expr.args:
++                new_e = refine(e, assumptions)
++                new_c = refine(c, assumptions)
++                new_args.append((new_e, new_c))
++            return Piecewise(*new_args)
+     name = expr.__class__.__name__
+     handler = handlers_dict.get(name, None)
+     if handler is None:
+diff --git a/sympy/functions/elementary/piecewise.py b/sympy/functions/elementary/piecewise.py
+index b986d9840f..2208881256 100644
+--- a/sympy/functions/elementary/piecewise.py
++++ b/sympy/functions/elementary/piecewise.py
+@@ -216,6 +216,8 @@ def eval(cls, *_args):
+             if isinstance(expr, Piecewise):
+                 unmatching = []
+                 for i, (e, c) in enumerate(expr.args):
++                    # Simplify condition based on assumptions
++                    c = refine(c, assumptions=True)
+                     if c in current_cond:
+                         # this would already have triggered
+                         continue

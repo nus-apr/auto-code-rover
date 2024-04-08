@@ -1,0 +1,126 @@
+# modification 1
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>def generate_created_models(self):
+        ...
+        for app_label, model_name in all_added_models:
+            model_state = self.to_state.models[app_label, model_name]
+            model_opts = self.new_apps.get_model(app_label, model_name)._meta
+            ...
+            if unique_together:
+                self.add_operation(
+                    app_label,
+                    operations.AlterUniqueTogether(
+                        name=model_name,
+                        unique_together=unique_together,
+                    ),
+                    dependencies=related_dependencies
+                )
+            ...
+</original>
+<patched>def generate_created_models(self):
+        ...
+        for app_label, model_name in all_added_models:
+            model_state = self.to_state.models[app_label, model_name]
+            model_opts = self.new_apps.get_model(app_label, model_name)._meta
+            ...
+            # Validate fields in unique_together exist in the model
+            if unique_together:
+                for fields_group in unique_together:
+                    for field_name in fields_group:
+                        if field_name not in model_opts.get_fields():
+                            raise ValueError(f"Field named '{field_name}' not found in model '{model_name}'. This field is referenced in unique_together.")
+                self.add_operation(
+                    app_label,
+                    operations.AlterUniqueTogether(
+                        name=model_name,
+                        unique_together=unique_together,
+                    ),
+                    dependencies=related_dependencies
+                )
+            ...
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/constraints.py</file>
+<original>def __init__(self, *, fields, name, condition=None, deferrable=None):
+        if not fields:
+            raise ValueError('At least one field is required to define a unique constraint.')
+        if not isinstance(condition, (type(None), Q)):
+            raise ValueError('UniqueConstraint.condition must be a Q instance.')
+        if condition and deferrable:
+            raise ValueError(
+                'UniqueConstraint with conditions cannot be deferred.'
+            )
+        if not isinstance(deferrable, (type(None), Deferrable)):
+            raise ValueError(
+                'UniqueConstraint.deferrable must be a Deferrable instance.'
+            )
+        self.fields = tuple(fields)
+        self.condition = condition
+        self.deferrable = deferrable
+        super().__init__(name)
+</original>
+<patched>def __init__(self, *, fields, name, condition=None, deferrable=None, model=None):
+        if not fields:
+            raise ValueError('At least one field is required to define a unique constraint.')
+        if not isinstance(condition, (type(None), Q)):
+            raise ValueError('UniqueConstraint.condition must be a Q instance.')
+        if condition and deferrable:
+            raise ValueError(
+                'UniqueConstraint with conditions cannot be deferred.'
+            )
+        if not isinstance(deferrable, (type(None), Deferrable)):
+            raise ValueError(
+                'UniqueConstraint.deferrable must be a Deferrable instance.'
+            )
+        self.fields = tuple(fields)
+        self.condition = condition
+        self.deferrable = deferrable
+        # Validate that fields exist in the model
+        if model:
+            model_fields = {field.name for field in model._meta.get_fields()}
+            undefined_fields = set(fields) - model_fields
+            if undefined_fields:
+                raise ValueError(f"Fields {undefined_fields} are not defined in model '{model._meta.object_name}'.")
+        super().__init__(name)
+</patched>
+```
+
+# modification 3
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>def generate_created_models(self):
+        ...
+            for constraint in constraints:
+                self.add_operation(
+                    app_label,
+                    operations.AddConstraint(
+                        model_name=model_name,
+                        constraint=constraint,
+                    ),
+                    dependencies=related_dependencies,
+                )
+        ...
+</original>
+<patched>def generate_created_models(self):
+        ...
+            for constraint in constraints:
+                # Pass the model to UniqueConstraint for field existence validation
+                if isinstance(constraint, models.UniqueConstraint):
+                    constraint.model = self.new_apps.get_model(app_label, model_name)
+                self.add_operation(
+                    app_label,
+                    operations.AddConstraint(
+                        model_name=model_name,
+                        constraint=constraint,
+                    ),
+                    dependencies=related_dependencies,
+                )
+        ...
+</patched>
+```
+
+These modifications aim to ensure that both during migration generation and at the model definition level, `UniqueConstraint` fields are validated to exist on the model. This brings the handling of `UniqueConstraint` in line with the existing validations for `unique_together`, enhancing the robustness of the migration system.

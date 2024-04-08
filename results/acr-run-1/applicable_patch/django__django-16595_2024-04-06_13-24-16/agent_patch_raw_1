@@ -1,0 +1,61 @@
+Based on the context retrieved and the issue described, here is a proposed patch to address the optimization problem with multiple `AlterField` operations in Django migrations. This patch aims to enhance the `AlterField.reduce` method to consider cases where it encounters another `AlterField` operation on the same field, allowing them to be combined into a single operation.
+
+Please note, this patch is conceptual and should be thoroughly tested within the Django framework's existing testing suite to ensure it does not introduce regressions or unintended behavior.
+
+# modification 1
+```python
+<file>django/db/migrations/operations/fields.py</file>
+<original>def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        return super().reduce(operation, app_label)</original>
+<patched>def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        # Added logic to handle multiple AlterField operations
+        elif isinstance(operation, AlterField) and self.is_same_field_operation(operation):
+            # Combine the attributes of the two AlterField operations
+            new_attributes = {**self.field.deconstruct()[3], **operation.field.deconstruct()[3]}
+            # Create a new field with combined attributes
+            new_field = self.field.__class__(**new_attributes)
+            return [AlterField(
+                model_name=self.model_name,
+                name=self.name,
+                field=new_field,
+            )]
+        return super().reduce(operation, app_label)</patched>
+```
+
+This modification introduces a new `elif` block within the `AlterField.reduce` method to handle the case when the operation being reduced is another `AlterField` operation on the same field. It combines the attributes of both fields into a new field instance, which is then used to create a single `AlterField` operation. This approach aims to consolidate multiple alterations into a single migration operation, potentially reducing the number of operations and simplifying the migration path.
+
+Remember, this patch is a starting point and might require adjustments based on Django's internal mechanisms and testing outcomes.

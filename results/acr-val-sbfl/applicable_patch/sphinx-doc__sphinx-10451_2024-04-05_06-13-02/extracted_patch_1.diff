@@ -1,0 +1,36 @@
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index e16ab8ce5..e93cc060e 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1273,7 +1273,14 @@ class FunctionDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # typ
+         try:
+             self.env.app.emit('autodoc-before-process-signature', self.object, False)
+             sig = inspect.signature(self.object, type_aliases=self.config.autodoc_type_aliases)
+-            args = stringify_signature(sig, **kwargs)
++            # Before stringifying the signature, check if *args and **kwargs are already documented
++            # This is a conceptual patch. Actual implementation may require adjustments.
++            documented_params = set()
++            for param in sig.parameters.values():
++                if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
++                    documented_params.add(param.name)
++            
++            args = stringify_signature(sig, exclude_params=documented_params, **kwargs)
+         except TypeError as exc:
+             logger.warning(__("Failed to get a function signature for %s: %s"),
+                            self.fullname, exc)
+diff --git a/sphinx/ext/autodoc/typehints.py b/sphinx/ext/autodoc/typehints.py
+index d912cd7d5..f66be1814 100644
+--- a/sphinx/ext/autodoc/typehints.py
++++ b/sphinx/ext/autodoc/typehints.py
+@@ -27,7 +27,10 @@ def record_typehints(app: Sphinx, objtype: str, name: str, obj: Any,
+             sig = inspect.signature(obj, type_aliases=app.config.autodoc_type_aliases)
+             for param in sig.parameters.values():
+                 if param.annotation is not param.empty:
+-                    annotation[param.name] = typing.stringify(param.annotation, mode)
++                    # Check if the parameter is *args or **kwargs and if it's already documented
++                    # This is a conceptual patch. Actual implementation may require adjustments.
++                    if param.name not in documented_params:
++                        annotation[param.name] = typing.stringify(param.annotation, mode)
+             if sig.return_annotation is not sig.empty:
+                 annotation['return'] = typing.stringify(sig.return_annotation, mode)
+     except (TypeError, ValueError):

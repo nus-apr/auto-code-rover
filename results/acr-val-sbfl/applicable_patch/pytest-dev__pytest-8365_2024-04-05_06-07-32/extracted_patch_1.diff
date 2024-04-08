@@ -1,0 +1,76 @@
+diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py
+index 29c7e19d7..6fa42836f 100644
+--- a/src/_pytest/tmpdir.py
++++ b/src/_pytest/tmpdir.py
+@@ -100,29 +100,28 @@ class TempPathFactory:
+         return p
+ 
+     def getbasetemp(self) -> Path:
+-        """Return base temporary directory."""
+-        if self._basetemp is not None:
+-            return self._basetemp
+-
+-        if self._given_basetemp is not None:
+-            basetemp = self._given_basetemp
+-            ensure_reset_dir(basetemp)
+-            basetemp = basetemp.resolve()
+-        else:
+-            from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+-            temproot = Path(from_env or tempfile.gettempdir()).resolve()
+-            user = get_user() or "unknown"
+-            # use a sub-directory in the temproot to speed-up
+-            # make_numbered_dir() call
+-            rootdir = temproot.joinpath(f"pytest-of-{user}")
+-            rootdir.mkdir(exist_ok=True)
+-            basetemp = make_numbered_dir_with_cleanup(
+-                prefix="pytest-", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT
+-            )
+-        assert basetemp is not None, basetemp
+-        self._basetemp = t = basetemp
+-        self._trace("new basetemp", t)
+-        return t
++            """Return base temporary directory."""
++            if self._basetemp is not None:
++                return self._basetemp
++    
++            if self._given_basetemp is not None:
++                basetemp = self._given_basetemp
++                ensure_reset_dir(basetemp)
++                basetemp = basetemp.resolve()
++            else:
++                from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
++                temproot = Path(from_env or tempfile.gettempdir()).resolve()
++                user = get_user() or "unknown"
++                # Sanitization of the username is now handled within get_user()
++                rootdir = temproot.joinpath(f"pytest-of-{user}")
++                rootdir.mkdir(exist_ok=True)
++                basetemp = make_numbered_dir_with_cleanup(
++                    prefix="pytest-", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT
++                )
++            assert basetemp is not None, basetemp
++            self._basetemp = t = basetemp
++            self._trace("new basetemp", t)
++            return t
+ 
+ 
+ @final
+@@ -148,13 +147,17 @@ class TempdirFactory:
+         return py.path.local(self._tmppath_factory.getbasetemp().resolve())
+ 
+ 
++import re
+ def get_user() -> Optional[str]:
+     """Return the current user name, or None if getuser() does not work
+-    in the current environment (see #1010)."""
++    in the current environment (see #1010). Also sanitizes the username to ensure it is valid for directory names."""
+     import getpass
+ 
+     try:
+-        return getpass.getuser()
++        user_name = getpass.getuser()
++        # Sanitize the username to ensure it is valid for directory names
++        sanitized_user_name = re.sub(r'[\\/*?:"<>|]', "_", user_name)
++        return sanitized_user_name
+     except (ImportError, KeyError):
+         return None
+ 

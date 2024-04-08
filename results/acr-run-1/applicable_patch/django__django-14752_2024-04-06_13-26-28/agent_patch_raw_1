@@ -1,0 +1,33 @@
+# modification 1
+```python
+<file>django/contrib/admin/views/autocomplete.py</file>
+<original>        return JsonResponse({
+            'results': [
+                {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}
+                for obj in context['object_list']
+            ],
+            'pagination': {'more': context['page_obj'].has_next()},
+        })</original>
+<patched>        return JsonResponse({
+            'results': self.serialize_results(context['object_list'], to_field_name),
+            'pagination': {'more': context['page_obj'].has_next()},
+        })
+
+    def serialize_results(self, object_list, to_field_name):
+        """
+        Serialize the queryset to a list of dictionaries. This method can be
+        overridden to add extra fields in the autocomplete response.
+        """
+        return [
+            self.serialize_result(obj, to_field_name) for obj in object_list
+        ]
+
+    def serialize_result(self, obj, to_field_name):
+        """
+        Serialize an individual object to a dictionary. This method can be
+        overridden to customize the representation of individual objects.
+        """
+        return {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}</patched>
+```
+
+This patch refactors the `get` method in the `AutocompleteJsonView` class to use a new method, `serialize_results`, which in turn calls `serialize_result` for each object in the queryset. This change allows developers to easily customize the autocomplete response by overriding the `serialize_result` method in a subclass, adding any extra fields as needed without having to override the entire `get` method. This approach reduces the maintenance overhead and makes the code more modular and easier to extend.

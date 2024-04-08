@@ -1,0 +1,65 @@
+# modification 1
+```python
+<file>xarray/core/concat.py</file>
+<original>def concat(
+    objs,
+    dim,
+    data_vars="all",
+    coords="different",
+    compat="equals",
+    positions=None,
+    fill_value=dtypes.NA,
+    join="outer",
+):</original>
+<patched>def concat(
+    objs,
+    dim,
+    data_vars="all",
+    coords="different",
+    compat="equals",
+    positions=None,
+    fill_value=dtypes.NA,
+    join="outer",
+    auto_fill=False,
+):</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/concat.py</file>
+<original>if isinstance(first_obj, DataArray):
+        f = _dataarray_concat
+    elif isinstance(first_obj, Dataset):
+        f = _dataset_concat
+    else:
+        raise TypeError(
+            "can only concatenate xarray Dataset and DataArray "
+            "objects, got %s" % type(first_obj)
+        )
+    return f(objs, dim, data_vars, coords, compat, positions, fill_value, join)</original>
+<patched>if isinstance(first_obj, DataArray):
+        f = _dataarray_concat
+    elif isinstance(first_obj, Dataset):
+        f = _dataset_concat
+    else:
+        raise TypeError(
+            "can only concatenate xarray Dataset and DataArray "
+            "objects, got %s" % type(first_obj)
+        )
+    if auto_fill:
+        # Adjust objs to include missing variables filled with fill_value
+        all_vars = set().union(*(obj.data_vars for obj in objs if hasattr(obj, 'data_vars')))
+        objs = [
+            obj.assign({var: (obj.dims, np.full(obj.shape, fill_value)) for var in all_vars if var not in obj.data_vars})
+            for obj in objs
+        ]
+    return f(objs, dim, data_vars, coords, compat, positions, fill_value, join)</patched>
+```
+
+**Explanation:**
+
+- **Modification 1**: Adds a new parameter `auto_fill` to the `concat` function signature. This parameter is intended to control whether the function should automatically handle missing variables by filling them with the specified `fill_value`.
+
+- **Modification 2**: Implements the logic for the `auto_fill` feature. Before calling the underlying concatenation function (`_dataarray_concat` or `_dataset_concat`), it checks if `auto_fill` is enabled. If so, it first computes the union of all variables present across the datasets to be concatenated. Then, for each dataset, it fills in any missing variables with arrays filled with the specified `fill_value`. This ensures that all datasets have the same set of variables, thus allowing for a smooth concatenation process without manual pre-processing.
+
+This patch aims to address the issue by providing a more flexible and user-friendly way to concatenate datasets with differing variables, aligning the behavior more closely with user expectations and the functionality provided by similar functions in other libraries (e.g., `pd.concat`).

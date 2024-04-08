@@ -1,0 +1,30 @@
+diff --git a/django/contrib/postgres/fields/array.py b/django/contrib/postgres/fields/array.py
+index c247387eb7..1834d199c9 100644
+--- a/django/contrib/postgres/fields/array.py
++++ b/django/contrib/postgres/fields/array.py
+@@ -225,14 +225,17 @@ class ArrayField(CheckFieldDefaultMixin, Field):
+                 )
+ 
+     def formfield(self, **kwargs):
+-        return super().formfield(
+-            **{
+-                "form_class": SimpleArrayField,
+-                "base_field": self.base_field.formfield(),
+-                "max_length": self.size,
+-                **kwargs,
+-            }
+-        )
++        # Adjust handling to ensure callable defaults are evaluated at form instantiation
++        kwargs.setdefault('form_class', SimpleArrayField)
++        kwargs.setdefault('base_field', self.base_field.formfield())
++        kwargs.setdefault('max_length', self.size)
++        
++        def default():
++            return self.default() if callable(self.default) else self.default
++        
++        kwargs.setdefault('default', default)
++        
++        return super().formfield(**kwargs)
+ 
+ 
+ class ArrayRHSMixin:

@@ -1,0 +1,27 @@
+# modification 1
+```python
+<file>xarray/core/dataarray.py</file>
+<original>        for k in variables:
+            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)</original>
+<patched>        for k in variables:
+            # Ensure that the selection does not drop dimensions that are single-dim in the original dataset
+            data_dict[k] = self.sel({variable_dim: k}).drop_vars(dim, errors='ignore')</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/dataarray.py</file>
+<original>        if not isinstance(idx, pd.MultiIndex):
+            raise ValueError(f"'{dim}' is not a stacked coordinate")</original>
+<patched>        import pandas as pd
+        if not isinstance(idx, pd.MultiIndex):
+            # Handle the case where 'dim' is not a MultiIndex, which can occur with single-dimension variables
+            # Convert the Index to a MultiIndex with a single level to maintain consistency
+            idx = pd.MultiIndex.from_arrays([idx], names=[dim])
+            self[dim] = idx</patched>
+```
+
+Explanation:
+- **Modification 1** addresses the issue where unstacking could inadvertently drop dimensions that are single-dimension in the original dataset. By using `.drop_vars(dim, errors='ignore')` instead of `.squeeze(drop=True)`, we ensure that dimensions are preserved unless they are explicitly the dimension being unstacked. This change aims to prevent the `MergeError` by maintaining the integrity of the dataset's dimensions throughout the unstacking process.
+  
+- **Modification 2** introduces a check and conversion for cases where the `dim` is not a `pd.MultiIndex`, which is a scenario that can occur with datasets containing single-dimension variables. By converting the Index to a MultiIndex with a single level, we ensure that the `to_unstacked_dataset` method can proceed without encountering the ValueError. This modification is necessary to handle the edge case described in the issue, where the unstacking process fails for variables with a single dimension. The inclusion of `import pandas as pd` ensures that `pd.MultiIndex` is available for use in this context.

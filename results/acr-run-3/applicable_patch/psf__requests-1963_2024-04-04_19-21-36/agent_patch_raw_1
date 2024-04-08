@@ -1,0 +1,25 @@
+# modification 1
+```python
+<file>requests/sessions.py</file>
+<original>            prepared_request = req.copy()</original>
+<patched>            # Check if the method was changed in the previous redirect
+            # If so, use the modified method instead of the original one
+            if i > 0 and resp.history and resp.history[-1].status_code == 303:
+                prepared_request = resp.request.copy()
+            else:
+                prepared_request = req.copy()</patched>
+```
+
+# modification 2
+```python
+<file>requests/sessions.py</file>
+<original>            method = req.method</original>
+<patched>            # Use the method from the prepared_request which might have been updated
+            # due to a 303 redirect in a previous iteration
+            method = prepared_request.method</patched>
+```
+
+Explanation:
+- **Modification 1**: This patch addresses the issue where the original request object is copied for each redirect, causing the method to revert to POST after a 303 See Other response has changed it to GET. By checking if the previous response was a 303 See Other and using the method from the last response's request if so, we ensure that the method change is preserved across subsequent redirects.
+  
+- **Modification 2**: Ensures that the method used for preparing the next request in the redirection chain is taken from the `prepared_request`, which might have been updated in the previous iteration of the loop. This change is necessary to ensure that the method change made in modification 1 is correctly applied to the next request in the chain.

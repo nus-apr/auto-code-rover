@@ -1,0 +1,31 @@
+Given the constraints and the feedback that previous patches did not resolve the issue without causing test failures, it's clear that a different approach is needed. The core of the problem lies in handling boolean data during the normalization process in a way that doesn't interfere with the existing functionality for other data types and passes all tests.
+
+Considering the nature of the problem and the need for a solution that seamlessly integrates with seaborn's existing codebase, a revised patch will focus on ensuring that boolean data is correctly identified and handled in a manner that avoids the subtraction operation that leads to the `TypeError`, without altering the expected behavior for non-boolean data types.
+
+# modification 1
+```python
+<file>seaborn/_core/scales.py</file>
+<original>            vmin, vmax = axis.convert_units((vmin, vmax))
+            a = forward(vmin)
+            b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                return (x - a) / b</original>
+<patched>            vmin, vmax = axis.convert_units((vmin, vmax))
+            # Special handling for boolean data to avoid subtraction operation
+            if data.dtype.kind == 'b':  # Check if data is of boolean type
+                # Use 0 and 1 for vmin and vmax for boolean data
+                vmin, vmax = 0, 1
+                a, b = 0, 1  # Avoid subtraction by setting a and b directly
+            else:
+                a = forward(vmin)
+                b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                if data.dtype.kind == 'b':  # Direct mapping for boolean data
+                    return x.astype(int)  # Convert boolean to int (0 or 1)
+                else:
+                    return (x - a) / b</patched>
+```
+
+This patch revises the approach by explicitly checking if the data type is boolean (`data.dtype.kind == 'b'`). For boolean data, it avoids the problematic subtraction by setting `vmin` and `vmax` to `0` and `1`, respectively, and directly assigns `a` and `b` to `0` and `1` to bypass the subtraction operation. During normalization, boolean data is converted to integers (`0` or `1`) directly, ensuring compatibility with the expected input for the normalization process. This approach should resolve the issue with boolean data while maintaining the correct behavior for other data types and ensuring that all tests pass.

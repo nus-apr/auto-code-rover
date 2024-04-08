@@ -1,0 +1,21 @@
+Given the context and the issue described, it seems the problem lies in how inherited primary keys are handled in the model inheritance setup process. However, without a specific bug pinpointed in the provided code snippets, creating an exact patch is challenging. The issue suggests that Django 3.2 alpha might not be recognizing manually specified primary keys in inherited models correctly, leading to the `models.W042` warning.
+
+A hypothetical patch could involve ensuring that when a model is created through `ModelBase.__new__`, it correctly identifies and inherits the primary key from its parent model if one is explicitly defined. This would prevent Django from attempting to auto-create a primary key and thus avoid the warning. However, without a clear bug in the provided snippets, the following patch is speculative and aims to illustrate a potential approach to resolving the issue:
+
+# modification 1
+```python
+<file>django/db/models/base.py</file>
+<original>if not parents:
+    return super_new(cls, name, bases, attrs)</original>
+<patched># Check if any parent has a manually defined primary key and inherit it
+parent_pks = [b for b in parents if hasattr(b, '_meta') and b._meta.pk is not None]
+if not parents or parent_pks:
+    # If there are parent primary keys, inherit the first one found
+    if parent_pks:
+        attrs['id'] = parent_pks[0]._meta.pk
+    return super_new(cls, name, bases, attrs)</patched>
+```
+
+This modification is speculative and aims to illustrate how one might approach ensuring that primary keys defined in parent models are inherited by child models, thus potentially resolving the `models.W042` warning. It checks if any of the parent models have a manually defined primary key and, if so, attempts to inherit this primary key in the child model.
+
+Please note, this patch is based on a hypothetical analysis and may not be directly applicable without further testing and validation within the specific project context. It's also important to consider the broader implications of such changes on Django's model inheritance and primary key handling mechanisms.

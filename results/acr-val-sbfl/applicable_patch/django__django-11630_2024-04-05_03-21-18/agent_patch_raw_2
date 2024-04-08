@@ -1,0 +1,38 @@
+Given the constraints and the need to address the issue without introducing new model Meta options or significantly altering Django's core behavior, a more feasible approach would be to refine the check in `check_all_models` to optionally skip the `db_table` uniqueness check based on a project-wide setting. This approach allows projects that intentionally use the same table names across different databases to bypass this specific system check while keeping the rest of Django's system checks intact.
+
+This solution introduces a new setting, `ALLOW_SHARED_TABLE_NAMES_ACROSS_DATABASES`, which projects can set to `True` in their `settings.py` if they use multiple databases and intentionally share table names across these databases. The default behavior (enforcing unique table names) remains unchanged unless this setting is explicitly enabled.
+
+# modification 1
+```python
+<file>django/core/checks/model_checks.py</file>
+<original>for db_table, model_labels in db_table_models.items():
+    if len(model_labels) != 1:
+        errors.append(
+            Error(
+                "db_table '%s' is used by multiple models: %s."
+                % (db_table, ', '.join(db_table_models[db_table])),
+                obj=db_table,
+                id='models.E028',
+            )
+        )</original>
+<patched>from django.conf import settings
+
+# Check if the project allows shared table names across databases
+allow_shared_table_names = getattr(settings, 'ALLOW_SHARED_TABLE_NAMES_ACROSS_DATABASES', False)
+
+if not allow_shared_table_names:
+    for db_table, model_labels in db_table_models.items():
+        if len(model_labels) != 1:
+            errors.append(
+                Error(
+                    "db_table '%s' is used by multiple models: %s."
+                    % (db_table, ', '.join(db_table_models[db_table])),
+                    obj=db_table,
+                    id='models.E028',
+                )
+            )</patched>
+```
+
+This modification checks for a new setting `ALLOW_SHARED_TABLE_NAMES_ACROSS_DATABASES` at the beginning of the `check_all_models` function. If this setting is `True`, the function will bypass the check for unique `db_table` names, effectively resolving the issue for projects that intentionally share table names across different databases. This solution allows for greater flexibility in project configurations without requiring significant changes to Django's core or model definitions.
+
+It's important to note that this approach assumes the project's database routing and model definitions are correctly set up to handle shared table names without causing conflicts. Projects using this setting should ensure their database schemas and Django model configurations are carefully managed to avoid unintended data access or manipulation across shared tables.

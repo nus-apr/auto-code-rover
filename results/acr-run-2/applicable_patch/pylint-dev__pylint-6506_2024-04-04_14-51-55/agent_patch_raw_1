@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>pylint/config/config_initialization.py</file>
+<original>if unrecognized_options:
+    msg = ", ".join(unrecognized_options)
+    linter.add_message("unrecognized-option", line=0, args=msg)
+    raise _UnrecognizedOptionError(options=unrecognized_options)</original>
+<patched># Instead of raising an exception, print a helpful message and exit.
+if unrecognized_options:
+    msg = ", ".join(unrecognized_options)
+    linter.add_message("unrecognized-option", line=0, args=msg)
+    print(f"Unrecognized options: {msg}\nFor help, use --help or -h.")
+    sys.exit(1)</patched>
+```
+
+# modification 2
+```python
+<file>pylint/__init__.py</file>
+<original>try:
+    PylintRun(argv or sys.argv[1:])
+except KeyboardInterrupt:
+    sys.exit(1)</original>
+<patched>try:
+    PylintRun(argv or sys.argv[1:])
+except KeyboardInterrupt:
+    sys.exit(1)
+except pylint.config.exceptions._UnrecognizedOptionError as e:
+    # Handle unrecognized options gracefully without a traceback.
+    print(f"Error: {e}\nFor help, use --help or -h.")
+    sys.exit(1)</patched>
+```
+
+**Explanation**:
+- **Modification 1** addresses the issue directly in the `_config_initialization` method within `pylint/config/config_initialization.py`. Instead of raising an `_UnrecognizedOptionError` when encountering unrecognized options, this patch prints a helpful message indicating the unrecognized options and suggests using `--help` or `-h` for more information, then exits gracefully with an error code. This approach prevents the traceback from being displayed to the user, aligning with the expected behavior described in the issue.
+  
+- **Modification 2** updates the `run_pylint` method in `pylint/__init__.py` to catch the `_UnrecognizedOptionError` and handle it gracefully. This additional safeguard ensures that if any other part of the code raises this exception, it will be caught here, providing a consistent and user-friendly error message across the application. This modification complements the first one by covering the scenario where the exception might still be raised from other parts of the code.

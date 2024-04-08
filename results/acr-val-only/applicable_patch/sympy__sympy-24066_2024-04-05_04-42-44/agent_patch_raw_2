@@ -1,0 +1,24 @@
+Given the feedback and the need to address the issue more comprehensively, let's refine the approach. The initial patch aimed to introduce a specific check for functions like `exp` that require dimensionless arguments. However, considering the feedback, it's possible that the solution needs to be more generic and applicable to a wider range of functions, not just `exp`. Let's adjust the patch to ensure it can handle any function that requires dimensionless arguments by improving the dimensionality check mechanism within the `_collect_factor_and_dimension` method.
+
+# modification 1
+```python
+<file>sympy/physics/units/unitsystem.py</file>
+<original>elif isinstance(expr, Function):
+    fds = [self._collect_factor_and_dimension(
+        arg) for arg in expr.args]
+    return (expr.func(*(f[0] for f in fds)),
+            *(d[1] for d in fds))</original>
+<patched>elif isinstance(expr, Function):
+    from sympy.core.function import AppliedUndef
+    fds = [self._collect_factor_and_dimension(arg) for arg in expr.args]
+    # Check for undefined functions or functions that inherently require dimensionless arguments
+    if isinstance(expr.func, AppliedUndef) or expr.func in [exp]:
+        for _, dim in fds:
+            if not self.get_dimension_system().is_dimensionless(dim):
+                raise ValueError(f"Arguments of {expr.func} must be dimensionless, got dimension {dim}")
+    # Assuming the result of the function is dimensionless for specific functions like exp
+    result_dimension = Dimension(1) if expr.func in [exp] else reduce(lambda x, y: x*y, (d[1] for d in fds), Dimension(1))
+    return (expr.func(*(f[0] for f in fds)), result_dimension)</patched>
+```
+
+This revised patch introduces a more generic solution that can be extended to other functions as needed. It checks if the function is either undefined (`AppliedUndef`) or specifically listed (e.g., `exp`) as requiring dimensionless arguments. For such functions, it verifies that each argument's dimension is dimensionless. If not, it raises a `ValueError`. The patch also adjusts the resulting dimension based on the function's expected output, defaulting to dimensionless for functions like `exp` but allowing for more complex behavior for other functions. This approach provides a more flexible and robust solution to the issue, ensuring that dimensionality checks are correctly applied across a broader range of functions.

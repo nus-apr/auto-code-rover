@@ -1,0 +1,75 @@
+# modification 1
+```python
+<file>sphinx/ext/napoleon/docstring.py</file>
+<original>def _escape_args_and_kwargs(self, name: str) -> str:
+        if name.endswith('_'):
+            name = name[:-1] + r'\_'
+
+        if name[:2] == '**':
+            return r'\*\*' + name[2:]
+        elif name[:1] == '*':
+            return r'\*' + name[1:]
+        else:
+            return name</original>
+<patched>def _escape_args_and_kwargs(self, name: str) -> str:
+        # Check if the name is used in a context where escaping is necessary
+        if self._in_code_block:
+            if name.endswith('_'):
+                name = name[:-1] + r'\_'
+
+            if name[:2] == '**':
+                return r'\*\*' + name[2:]
+            elif name[:1] == '*':
+                return r'\*' + name[1:]
+        return name
+
+    def __init__(self, docstring: Union[str, List[str]], config: SphinxConfig = None,
+                 app: Sphinx = None, what: str = '', name: str = '',
+                 obj: Any = None, options: Any = None) -> None:
+        super().__init__(docstring, config, app, what, name, obj, options)
+        self._in_code_block = False  # Initialize the flag as False</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/napoleon/docstring.py</file>
+<original>def _parse(self) -> None:
+        self._parsed_lines = self._consume_empty()
+
+        if self._name and self._what in ('attribute', 'data', 'property'):
+            # Implicit stop using StopIteration no longer allowed in
+            # Python 3.7; see PEP 479
+            res = []  # type: List[str]
+            try:
+                res = self._parse_attribute_docstring()
+            except StopIteration:
+                pass
+            self._parsed_lines.extend(res)
+            return
+
+        while self._line_iter.has_next():</original>
+<patched>def _parse(self) -> None:
+        self._parsed_lines = self._consume_empty()
+
+        # Before parsing, check if we are inside a code block
+        self._in_code_block = "```" in self._parsed_lines or ".. code-block::" in self._parsed_lines
+
+        if self._name and self._what in ('attribute', 'data', 'property'):
+            # Implicit stop using StopIteration no longer allowed in
+            # Python 3.7; see PEP 479
+            res = []  # type: List[str]
+            try:
+                res = self._parse_attribute_docstring()
+            except StopIteration:
+                pass
+            self._parsed_lines.extend(res)
+            return
+
+        while self._line_iter.has_next():</patched>
+```
+
+Explanation:
+- **Modification 1**: The `_escape_args_and_kwargs` method is updated to conditionally escape characters based on whether the current context is within a code block. A new instance variable `_in_code_block` is introduced in the `__init__` method to track this context. This approach aims to prevent unnecessary escaping of underscores in attribute names outside code blocks, addressing the issue without affecting the necessary escaping within code blocks.
+- **Modification 2**: In the `_parse` method, we set the `_in_code_block` flag based on the presence of code block indicators in the parsed lines. This heuristic aims to detect whether the subsequent parsing will occur within a code block context, influencing the behavior of the `_escape_args_and_kwargs` method accordingly. 
+
+Note: The actual implementation may require adjustments based on a more thorough understanding of the `napoleon` extension's parsing logic and how it interacts with Sphinx's overall documentation generation process. The proposed patch is a conceptual solution based on the provided context and aims to illustrate a potential approach to resolving the issue.

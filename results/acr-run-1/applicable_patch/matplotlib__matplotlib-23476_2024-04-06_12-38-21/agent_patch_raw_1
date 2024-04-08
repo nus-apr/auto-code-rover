@@ -1,0 +1,89 @@
+Based on the analysis and the provided code snippets, the issue seems to stem from the handling of DPI and device pixel ratio during the resize operation in the MacOSX backend. The DPI doubling after unpickling on M1 Macs suggests that the DPI scaling during the resize operation might not account for the initial DPI state correctly, especially after a figure is unpickled. A potential patch could involve ensuring that the DPI is not inadvertently scaled up during the resize operation. Here's a proposed modification:
+
+# modification 1
+```python
+<file>lib/matplotlib/backends/backend_macosx.py</file>
+<original>    def resize(self, width, height):
+        # Size from macOS is logical pixels, dpi is physical.
+        scale = self.figure.dpi / self.device_pixel_ratio
+        width /= scale
+        height /= scale
+        self.figure.set_size_inches(width, height, forward=False)
+        ResizeEvent("resize_event", self)._process()
+        self.draw_idle()
+</original>
+<patched>    def resize(self, width, height):
+        # Size from macOS is logical pixels, dpi is physical.
+        # Ensure DPI is not scaled up after unpickling.
+        if hasattr(self.figure, '_initial_dpi') and self.figure.dpi > self.figure._initial_dpi:
+            self.figure.dpi = self.figure._initial_dpi
+        scale = self.figure.dpi / self.device_pixel_ratio
+        width /= scale
+        height /= scale
+        self.figure.set_size_inches(width, height, forward=False)
+        ResizeEvent("resize_event", self)._process()
+        self.draw_idle()
+</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>    def __setstate__(self, state):
+        version = state.pop('__mpl_version__')
+        restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+        if version != mpl.__version__:
+            _api.warn_external(
+                f"This figure was saved with matplotlib version {version} and "
+                f"is unlikely to function correctly.")
+
+        self.__dict__ = state
+
+        # re-initialise some of the unstored state information
+        FigureCanvasBase(self)  # Set self.canvas.
+
+        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()
+
+        self.stale = True
+</original>
+<patched>    def __setstate__(self, state):
+        version = state.pop('__mpl_version__')
+        restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+        if version != mpl.__version__:
+            _api.warn_external(
+                f"This figure was saved with matplotlib version {version} and "
+                f"is unlikely to function correctly.")
+
+        self.__dict__ = state
+
+        # Store initial DPI to prevent unintended scaling after unpickling.
+        self._initial_dpi = self.dpi
+
+        # re-initialise some of the unstored state information
+        FigureCanvasBase(self)  # Set self.canvas.
+
+        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()
+
+        self.stale = True
+</patched>
+```
+
+These modifications aim to address the DPI doubling issue by introducing a mechanism to track the initial DPI of a figure and ensure that subsequent resize operations after unpickling do not inadvertently scale the DPI beyond this initial value. This approach assumes that the initial DPI of a figure (before any potential pickling and unpickling) is the intended DPI that should be preserved across operations.

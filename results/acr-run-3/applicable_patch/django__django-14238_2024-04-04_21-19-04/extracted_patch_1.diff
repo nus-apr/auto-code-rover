@@ -1,0 +1,32 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 0f53d9c30b..d68f0f9eac 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -2524,7 +2524,8 @@ class AutoFieldMeta(type):
+         return isinstance(instance, self._subclasses) or super().__instancecheck__(instance)
+ 
+     def __subclasscheck__(self, subclass):
+-        return subclass in self._subclasses or super().__subclasscheck__(subclass)
++        from . import BigAutoField, SmallAutoField
++        return subclass in self._subclasses or issubclass(subclass, (BigAutoField, SmallAutoField)) or super().__subclasscheck__(subclass)
+ 
+ 
+ class AutoField(AutoFieldMixin, IntegerField, metaclass=AutoFieldMeta):
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index 4028e05b99..257dc1a89a 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -242,10 +242,11 @@ class Options:
+                 f"not be imported."
+             )
+             raise ImproperlyConfigured(msg) from e
+-        if not issubclass(pk_class, AutoField):
++        from django.db.models.fields import BigAutoField, SmallAutoField
++        if not issubclass(pk_class, (AutoField, BigAutoField, SmallAutoField)):
+             raise ValueError(
+                 f"Primary key '{pk_class_path}' referred by {source} must "
+-                f"subclass AutoField."
++                f"subclass AutoField, BigAutoField, or SmallAutoField."
+             )
+         return pk_class
+ 

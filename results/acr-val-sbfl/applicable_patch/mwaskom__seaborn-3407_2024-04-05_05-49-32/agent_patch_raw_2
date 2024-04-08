@@ -1,0 +1,45 @@
+Given the constraints and the need to address the issue without causing other tests to fail, a more nuanced approach is required. The modifications should ensure compatibility with MultiIndex DataFrames without altering the DataFrame passed by the user. This means avoiding in-place modifications of the DataFrame's structure. Instead, the handling of MultiIndex should be internal to the plotting functions, ensuring that the original DataFrame remains unchanged for the user. Let's revise the approach with this consideration.
+
+# modification 1
+```python
+<file>seaborn/axisgrid.py</file>
+<original>if not isinstance(data, pd.DataFrame):
+    raise TypeError(
+        f"'data' must be pandas DataFrame object, not: {type(data)}")</original>
+<patched>if not isinstance(data, pd.DataFrame):
+    raise TypeError(
+        f"'data' must be pandas DataFrame object, not: {type(data)}")
+# Check for MultiIndex and adjust data for internal use without modifying original DataFrame
+if isinstance(data.columns, pd.MultiIndex):
+    data = data.copy()
+    data.columns = ['_'.join(col).strip() for col in data.columns.values]</patched>
+```
+
+This modification ensures that if the DataFrame has a MultiIndex, the columns are flattened for internal use within the `pairplot` function, without altering the original DataFrame passed by the user.
+
+# modification 2
+```python
+<file>seaborn/axisgrid.py</file>
+<original>self.diag_vars = np.array(diag_vars, np.object_)
+self.diag_axes = np.array(diag_axes, np.object_)</original>
+<patched># No change needed here, but ensuring that handling of diag_vars and diag_axes
+# does not assume a simple index structure and is compatible with potential adjustments
+# for MultiIndex handling earlier in the code.
+self.diag_vars = np.array(diag_vars, np.object_)
+self.diag_axes = np.array(diag_axes, np.object_)</patched>
+```
+
+This modification is more of a note to ensure that the handling of `diag_vars` and `diag_axes` within the `map_diag` method does not make assumptions about the index structure that could conflict with the adjustments for MultiIndex. No actual code change is needed here if the initial handling of the DataFrame is correctly abstracted.
+
+# modification 3
+```python
+<file>seaborn/axisgrid.py</file>
+<original>vector = self.data[var]</original>
+<patched># Ensure compatibility with adjusted column names for MultiIndex
+# This assumes that any necessary adjustments for MultiIndex have been made upstream
+vector = self.data[var]</patched>
+```
+
+Given the initial adjustment to the DataFrame (if it has a MultiIndex), no further modification is needed here. This note serves as a reminder to ensure that any references to `self.data[var]` throughout the plotting functions are compatible with the initial adjustments made to handle MultiIndex structures.
+
+These modifications aim to address the issue with MultiIndex DataFrames in a way that is transparent to the user, ensuring that the original DataFrame is not modified and that seaborn's plotting functions can handle the adjusted structure internally.

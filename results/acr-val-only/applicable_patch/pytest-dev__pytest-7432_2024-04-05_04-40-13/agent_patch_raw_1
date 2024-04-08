@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>src/_pytest/skipping.py</file>
+<original>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    rep.longrepr = str(filename), line + 1, reason</original>
+<patched>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    # Adjust line number only if it does not already point to the correct location
+    if "src/_pytest/skipping.py" not in filename:
+        rep.longrepr = str(filename), line + 1, reason
+    else:
+        rep.longrepr = str(filename), line, reason</patched>
+```
+
+This patch addresses the issue by ensuring that the adjustment to the line number in the report location for skipped tests is only applied when the skip does not originate from within `src/_pytest/skipping.py` itself. This should preserve the correct reporting location for skips induced by `@pytest.mark.skip` or `skipif` while still allowing for the intended functionality of the `--runxfail` flag.

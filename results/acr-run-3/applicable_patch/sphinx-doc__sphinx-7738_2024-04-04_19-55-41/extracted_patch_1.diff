@@ -1,0 +1,45 @@
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index 11409e6f6..c867c583a 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -318,15 +318,22 @@ class GoogleDocstring:
+             return [line[min_indent:] for line in lines]
+ 
+     def _escape_args_and_kwargs(self, name: str) -> str:
+-        if name.endswith('_'):
+-            name = name[:-1] + r'\_'
++        # Check if the name is used in a context where escaping is necessary
++        if self._in_code_block:
++            if name.endswith('_'):
++                name = name[:-1] + r'\_'
+ 
+-        if name[:2] == '**':
+-            return r'\*\*' + name[2:]
+-        elif name[:1] == '*':
+-            return r'\*' + name[1:]
+-        else:
+-            return name
++            if name[:2] == '**':
++                return r'\*\*' + name[2:]
++            elif name[:1] == '*':
++                return r'\*' + name[1:]
++        return name
++
++    def __init__(self, docstring: Union[str, List[str]], config: SphinxConfig = None,
++                 app: Sphinx = None, what: str = '', name: str = '',
++                 obj: Any = None, options: Any = None) -> None:
++        super().__init__(docstring, config, app, what, name, obj, options)
++        self._in_code_block = False  # Initialize the flag as False
+ 
+     def _fix_field_desc(self, desc: List[str]) -> List[str]:
+         if self._is_list(desc):
+@@ -532,6 +539,9 @@ class GoogleDocstring:
+     def _parse(self) -> None:
+         self._parsed_lines = self._consume_empty()
+ 
++        # Before parsing, check if we are inside a code block
++        self._in_code_block = "```" in self._parsed_lines or ".. code-block::" in self._parsed_lines
++
+         if self._name and self._what in ('attribute', 'data', 'property'):
+             # Implicit stop using StopIteration no longer allowed in
+             # Python 3.7; see PEP 479

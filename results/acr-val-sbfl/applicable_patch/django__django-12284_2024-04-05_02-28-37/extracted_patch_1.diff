@@ -1,0 +1,24 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 1a55d3d417..1d15447071 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -866,9 +866,17 @@ class Field(RegisterLookupMixin):
+         return str(self.value_from_object(obj))
+ 
+     def _get_flatchoices(self):
+-        """Flattened version of choices tuple."""
++        """Flattened version of choices tuple, including handling inherited choices."""
+         if self.choices is None:
+-            return []
++            # Attempt to retrieve inherited choices if direct choices are not defined
++            for base in self.model.__mro__[1:]:
++                base_field = getattr(base, self.name, None)
++                if base_field and getattr(base_field, 'choices', None) is not None:
++                    self.choices = base_field.choices
++                    break
++            if self.choices is None:
++                return []
++
+         flat = []
+         for choice, value in self.choices:
+             if isinstance(value, (list, tuple)):

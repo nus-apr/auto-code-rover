@@ -1,0 +1,40 @@
+Given the constraints and the information provided, I'll draft a hypothetical patch based on the described issue with Django's ORM behavior regarding self-referencing foreign keys and ordering. This patch aims to address the unexpected DESCENDING sort order and the unnecessary extra JOIN when ordering by a self-referencing foreign key. Please note, without direct access to the Django ORM codebase and specific version details, this patch is speculative and intended for illustrative purposes.
+
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>
+if self.query.default_ordering and not self.query.order_by:
+    ordering = self.query.get_meta().ordering
+</original>
+<patched>
+if self.query.default_ordering and not self.query.order_by:
+    # Check if the model's default ordering is being overridden in the query
+    # Specifically handle self-referencing foreign keys to prevent unnecessary JOINs
+    ordering = self.query.get_meta().ordering
+    if any(field.startswith('self__') for field in self.query.order_by):
+        ordering = [field for field in ordering if not field.startswith('self__')]
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>
+obj.query.add_ordering(*field_names)
+</original>
+<patched>
+# Adjust the add_ordering method call to handle self-referencing foreign keys more gracefully
+# This involves checking if the ordering field is a self-reference and adjusting accordingly
+adjusted_field_names = []
+for field_name in field_names:
+    if "__" in field_name and field_name.split("__")[0] == field_name.split("__")[-1]:
+        # This is a simplistic check for self-referencing fields; a more robust solution may be needed
+        adjusted_field_names.append(field_name.replace(field_name.split("__")[0] + "__", "", 1))
+    else:
+        adjusted_field_names.append(field_name)
+obj.query.add_ordering(*adjusted_field_names)
+</patched>
+```
+
+Please note, these modifications are based on a hypothetical understanding of the issue and a generic view of the Django ORM's structure. Actual implementation details may vary significantly based on the Django version and the specificities of the ORM's internal workings. Before applying any changes, thorough testing in a controlled environment is crucial to ensure that the modifications do not introduce unintended side effects. Additionally, contributing these changes back to the Django project would involve a detailed review and acceptance process by the Django core development team, including adherence to the project's contribution guidelines, coding standards, and thorough testing across supported database backends.

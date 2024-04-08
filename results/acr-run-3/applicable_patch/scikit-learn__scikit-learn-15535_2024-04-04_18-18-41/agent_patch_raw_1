@@ -1,0 +1,51 @@
+# modification 1
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>labels_true, labels_pred = check_clusterings(labels_true, labels_pred)</original>
+<patched>labels_true, labels_pred = check_clusterings(labels_true.astype(str), labels_pred.astype(str))</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/validation.py</file>
+<original>if dtype_numeric:
+        if dtype_orig is not None and dtype_orig.kind == "O":
+            # if input is object, convert to float.
+            dtype = np.float64
+        else:
+            dtype = None</original>
+<patched>if dtype_numeric:
+        if dtype_orig is not None and dtype_orig.kind == "O":
+            # if input is object, keep as object to allow string processing.
+            dtype = object
+        else:
+            dtype = None</patched>
+```
+
+# modification 3
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>if isinstance(contingency, np.ndarray):
+        # For an array
+        nzx, nzy = np.nonzero(contingency)
+        nz_val = contingency[nzx, nzy]
+    elif sp.issparse(contingency):
+        # For a sparse matrix
+        nzx, nzy, nz_val = sp.find(contingency)
+    else:
+        raise ValueError("Unsupported type for 'contingency': %s" %
+                         type(contingency))</original>
+<patched>if isinstance(contingency, np.ndarray) or sp.issparse(contingency):
+        # Convert contingency to a sparse format if it's not already, to handle both cases uniformly
+        if not sp.issparse(contingency):
+            contingency = sp.coo_matrix(contingency)
+        nzx, nzy, nz_val = sp.find(contingency)
+    else:
+        raise ValueError("Unsupported type for 'contingency': %s" %
+                         type(contingency))</patched>
+```
+
+These modifications aim to address the issue by ensuring that:
+1. The `check_clusterings` function receives labels as strings, preserving the ability to handle non-numeric labels without conversion errors.
+2. The `check_array` function in `validation.py` is modified to keep object-type arrays as objects instead of converting them to floats, allowing for string processing.
+3. The handling of the `contingency` matrix in `mutual_info_score` is unified for both dense and sparse formats by converting dense arrays to sparse format, simplifying the processing logic and ensuring compatibility with non-numeric data types.

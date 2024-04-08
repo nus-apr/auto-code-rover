@@ -1,0 +1,47 @@
+diff --git a/xarray/core/concat.py b/xarray/core/concat.py
+index ecae2566..f39dc6c1 100644
+--- a/xarray/core/concat.py
++++ b/xarray/core/concat.py
+@@ -313,14 +313,25 @@ def _dataset_concat(
+ 
+         for ds in datasets:
+             absent_merge_vars = variables_to_merge - set(ds.variables)
+-            if absent_merge_vars:
+-                raise ValueError(
+-                    "variables %r are present in some datasets but not others. "
+-                    % absent_merge_vars
+-                )
++            # if absent_merge_vars:
++            #     raise ValueError(
++            #         "variables %r are present in some datasets but not others. "
++            #         % absent_merge_vars
++            #     )
++            # Instead of raising an error, initialize missing variables with NaNs
++            for ds in datasets:
++                for var in absent_merge_vars:
++                    if var not in ds:
++                        ds[var] = xr.full_like(ds[list(ds.data_vars)[0]], fill_value=fill_value, dtype=float)
++                        ds[var].attrs['auto_filled'] = True
+ 
+             for var in variables_to_merge:
+-                to_merge[var].append(ds.variables[var])
++                if var in ds.variables:
++                    to_merge[var].append(ds.variables[var])
++                else:
++                    # If the variable is missing in the current dataset, create a placeholder variable filled with NaNs
++                    placeholder = xr.Variable(ds.dims, np.full(ds.sizes.values(), fill_value), attrs={'auto_filled': True})
++                    to_merge[var].append(placeholder)
+ 
+         for var in variables_to_merge:
+             result_vars[var] = unique_variable(
+@@ -361,7 +372,9 @@ def _dataset_concat(
+             try:
+                 vars = ensure_common_dims([ds.variables[k] for ds in datasets])
+             except KeyError:
+-                raise ValueError("%r is not present in all datasets." % k)
++                # Instead of raising an error, create a placeholder variable for missing data
++                placeholder = xr.Variable(datasets[0][k].dims, np.full(datasets[0][k].shape, fill_value), attrs={'auto_filled': True})
++                vars = [placeholder if k not in ds.variables else ds.variables[k] for ds in datasets]
+             combined = concat_vars(vars, dim, positions)
+             assert isinstance(combined, Variable)
+             result_vars[k] = combined

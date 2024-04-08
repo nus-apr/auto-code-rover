@@ -1,0 +1,107 @@
+diff --git a/src/_pytest/mark/evaluate.py b/src/_pytest/mark/evaluate.py
+index 759191668..a768007bf 100644
+--- a/src/_pytest/mark/evaluate.py
++++ b/src/_pytest/mark/evaluate.py
+@@ -18,17 +18,11 @@ from _pytest.store import StoreKey
+ evalcache_key = StoreKey[Dict[str, Any]]()
+ 
+ 
+-def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+-    default = {}  # type: Dict[str, object]
+-    evalcache = config._store.setdefault(evalcache_key, default)
+-    try:
+-        return evalcache[expr]
+-    except KeyError:
+-        import _pytest._code
++def eval_expr(config: Config, expr: str, d: Dict[str, object]) -> Any:
++    import _pytest._code
+ 
+-        exprcode = _pytest._code.compile(expr, mode="eval")
+-        evalcache[expr] = x = eval(exprcode, d)
+-        return x
++    exprcode = _pytest._code.compile(expr, mode="eval")
++    return eval(exprcode, d)
+ 
+ 
+ class MarkEvaluator:
+@@ -80,45 +74,45 @@ class MarkEvaluator:
+         return d
+ 
+     def _istrue(self) -> bool:
+-        if hasattr(self, "result"):
+-            result = getattr(self, "result")  # type: bool
+-            return result
+-        self._marks = self._get_marks()
+-
+-        if self._marks:
+-            self.result = False
+-            for mark in self._marks:
+-                self._mark = mark
+-                if "condition" not in mark.kwargs:
+-                    args = mark.args
+-                else:
+-                    args = (mark.kwargs["condition"],)
+-
+-                for expr in args:
+-                    self.expr = expr
+-                    if isinstance(expr, str):
+-                        d = self._getglobals()
+-                        result = cached_eval(self.item.config, expr, d)
++            if hasattr(self, "result"):
++                result = getattr(self, "result")  # type: bool
++                return result
++            self._marks = self._get_marks()
++    
++            if self._marks:
++                self.result = False
++                for mark in self._marks:
++                    self._mark = mark
++                    if "condition" not in mark.kwargs:
++                        args = mark.args
+                     else:
+-                        if "reason" not in mark.kwargs:
+-                            # XXX better be checked at collection time
+-                            msg = (
+-                                "you need to specify reason=STRING "
+-                                "when using booleans as conditions."
+-                            )
+-                            fail(msg)
+-                        result = bool(expr)
+-                    if result:
++                        args = (mark.kwargs["condition"],)
++    
++                    for expr in args:
++                        self.expr = expr
++                        if isinstance(expr, str):
++                            d = self._getglobals()
++                            result = eval_expr(self.item.config, expr, d)  # Use the updated eval_expr function
++                        else:
++                            if "reason" not in mark.kwargs:
++                                # XXX better be checked at collection time
++                                msg = (
++                                    "you need to specify reason=STRING "
++                                    "when using booleans as conditions."
++                                )
++                                fail(msg)
++                            result = bool(expr)
++                        if result:
++                            self.result = True
++                            self.reason = mark.kwargs.get("reason", None)
++                            self.expr = expr
++                            return self.result
++    
++                    if not args:
+                         self.result = True
+                         self.reason = mark.kwargs.get("reason", None)
+-                        self.expr = expr
+                         return self.result
+-
+-                if not args:
+-                    self.result = True
+-                    self.reason = mark.kwargs.get("reason", None)
+-                    return self.result
+-        return False
++            return False
+ 
+     def get(self, attr, default=None):
+         if self._mark is None:

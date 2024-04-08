@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>sympy/geometry/util.py</file>
+<original>if is_sequence(y):
+        dep = set(y)
+        y = y[0]
+    elif isinstance(y, Symbol):
+        dep = {y}
+    else:
+        raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</original>
+<patched>from sympy.core import Eq, Function
+from sympy.core.symbol import Symbol
+
+if isinstance(eq, Eq):
+    eq = eq.lhs - eq.rhs  # Convert Eq to an expression
+if is_sequence(y):
+    dep = set(y)
+    y = y[0]
+elif isinstance(y, Symbol) or (hasattr(y, 'func') and issubclass(y.func, Function)):
+    dep = {y}
+else:
+    raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/geometry/util.py</file>
+<original>f = dict([(s, Function(
+        s.name)(x)) for s in eq.free_symbols if s != x and s in dep])</original>
+<patched>f = dict([(s, Function(s.name)(x) if not hasattr(s, 'func') or not issubclass(s.func, Function) else s) for s in eq.free_symbols if s != x and s in dep])</patched>
+```
+
+These modifications address the two main issues reported:
+
+1. The first modification allows `idiff` to handle equations passed as `Eq` objects by converting them into expressions that are assumed to be equal to zero, which is the expected format for `idiff`.
+
+2. It also updates the validation of the dependent variable `y` to accept not only symbols but also functions of `x` (e.g., `f(x)`). This is achieved by checking if `y` has a `func` attribute and if its `func` is a subclass of `Function`, which is a common pattern for representing functions in SymPy.
+
+3. The second modification ensures that when creating the dictionary `f` for substituting symbols with their function representations, if the symbol is already a function of `x` (e.g., `f(x)`), it is left as is, rather than attempting to wrap it in another function call. This prevents the `ValueError` that was being raised when `f(x)` was passed as the dependent variable.
+
+These changes should resolve the issues with `idiff` not supporting `Eq` objects and not accepting functions of `x` as dependent variables.

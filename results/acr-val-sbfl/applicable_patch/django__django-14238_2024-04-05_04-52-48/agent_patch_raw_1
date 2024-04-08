@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>django/db/models/options.py</file>
+<original>        if not issubclass(pk_class, AutoField):
+            raise ValueError(
+                f"Primary key '{pk_class_path}' referred by {source} must "
+                f"subclass AutoField."
+            )</original>
+<patched>        from django.db.models.fields import BigAutoField, SmallAutoField
+        if not issubclass(pk_class, (AutoField, BigAutoField, SmallAutoField)):
+            raise ValueError(
+                f"Primary key '{pk_class_path}' referred by {source} must "
+                f"subclass AutoField, BigAutoField, or SmallAutoField."
+            )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __subclasscheck__(self, subclass):
+        return subclass in self._subclasses or super().__subclasscheck__(subclass)</original>
+<patched>    def __subclasscheck__(self, subclass):
+        from . import BigAutoField, SmallAutoField
+        return subclass in self._subclasses or \
+               issubclass(subclass, (BigAutoField, SmallAutoField)) or \
+               super().__subclasscheck__(subclass)</patched>
+```
+
+These modifications aim to address the issue by allowing `DEFAULT_AUTO_FIELD` to be set to subclasses of `BigAutoField` and `SmallAutoField`, in addition to `AutoField`. The first modification explicitly checks if the primary key class is a subclass of `BigAutoField` or `SmallAutoField` in the `_get_default_pk_class` method. The second modification updates the `__subclasscheck__` method in `AutoFieldMeta` to recognize subclasses of `BigAutoField` and `SmallAutoField` as valid subclasses of `AutoField`.

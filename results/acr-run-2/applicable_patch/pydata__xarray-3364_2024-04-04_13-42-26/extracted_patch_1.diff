@@ -1,0 +1,26 @@
+diff --git a/xarray/core/concat.py b/xarray/core/concat.py
+index ecae2566..9ccf82fc 100644
+--- a/xarray/core/concat.py
++++ b/xarray/core/concat.py
+@@ -16,6 +16,7 @@ def concat(
+     positions=None,
+     fill_value=dtypes.NA,
+     join="outer",
++    auto_fill=False,
+ ):
+     """Concatenate xarray objects along a new or existing dimension.
+ 
+@@ -128,6 +129,13 @@ def concat(
+             "can only concatenate xarray Dataset and DataArray "
+             "objects, got %s" % type(first_obj)
+         )
++    if auto_fill:
++        # Adjust objs to include missing variables filled with fill_value
++        all_vars = set().union(*(obj.data_vars for obj in objs if hasattr(obj, 'data_vars')))
++        objs = [
++            obj.assign({var: (obj.dims, np.full(obj.shape, fill_value)) for var in all_vars if var not in obj.data_vars})
++            for obj in objs
++        ]
+     return f(objs, dim, data_vars, coords, compat, positions, fill_value, join)
+ 
+ 

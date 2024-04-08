@@ -1,0 +1,20 @@
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index 92fe4affb9..0c09bb9016 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -321,7 +321,13 @@ class Collector:
+             for (field, value), instances in instances_for_fieldvalues.items():
+                 for obj in instances:
+                     setattr(obj, field.attname, value)
++        # Ensure PK is set to None for all instances after deletion, explicitly checking for models without dependencies
+         for model, instances in self.data.items():
+-            for instance in instances:
+-                setattr(instance, model._meta.pk.attname, None)
++            # Check if model has dependencies; if not, or if dependencies are already handled, proceed to set PK to None
++            if not self.dependencies.get(model) or all(instance in self.data for instance in self.dependencies.get(model, [])):
++                for instance in instances:
++                    setattr(instance, model._meta.pk.attname, None)
++            else:
++                # Log or handle cases where dependencies might affect setting PK to None
++                pass
+         return sum(deleted_counter.values()), dict(deleted_counter)

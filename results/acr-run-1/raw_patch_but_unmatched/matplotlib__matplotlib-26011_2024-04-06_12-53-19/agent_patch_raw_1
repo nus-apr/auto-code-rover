@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>lib/matplotlib/axes/_base.py</file>
+<original>if emit:
+    self.callbacks.process('xlim_changed', self)
+    # Call all of the other x-axes that are shared with this one
+    for other in self._shared_x_axes.get_siblings(self):
+        if other is not self:
+            other.set_xlim(self.viewLim.intervalx,
+                           emit=False, auto=auto)</original>
+<patched># Emit xlim_changed event for the original axis
+if emit:
+    self.callbacks.process('xlim_changed', self)
+# Call all of the other x-axes that are shared with this one
+for other in self._shared_x_axes.get_siblings(self):
+    if other is not self:
+        other.set_xlim(self.viewLim.intervalx,
+                       emit=False, auto=auto)
+        # Emit xlim_changed event for shared axes, avoiding recursion by setting emit=False in the call above
+        if emit:
+            other.callbacks.process('xlim_changed', other)</patched>
+```
+
+This patch moves the emission of the `xlim_changed` event outside of the conditional block that checks for `emit` being `True` for the original axis. It ensures that the `xlim_changed` event is also emitted for all shared axes, but avoids recursion by keeping the `emit=False` in the `set_xlim` call for the shared axes. This way, the callbacks for `xlim_changed` are triggered for all axes sharing the x-axis without causing an infinite loop.

@@ -1,0 +1,31 @@
+# modification 1
+```python
+<file>src/_pytest/mark/evaluate.py</file>
+<original>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    default = {}  # type: Dict[str, object]
+    evalcache = config._store.setdefault(evalcache_key, default)
+    try:
+        return evalcache[expr]
+    except KeyError:
+        import _pytest._code
+
+        exprcode = _pytest._code.compile(expr, mode="eval")
+        evalcache[expr] = x = eval(exprcode, d)
+        return x
+</original>
+<patched>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    default = {}  # type: Dict[str, object]
+    evalcache = config._store.setdefault(evalcache_key, default)
+    cache_key = (expr, frozenset(d.items()))  # Include globals in cache key
+    try:
+        return evalcache[cache_key]
+    except KeyError:
+        import _pytest._code
+
+        exprcode = _pytest._code.compile(expr, mode="eval")
+        evalcache[cache_key] = x = eval(exprcode, d)
+        return x
+</patched>
+```
+
+This patch modifies the `cached_eval` function to include the evaluation context (`d`) as part of the cache key. This is achieved by creating a `cache_key` that is a tuple of the expression string and a frozenset of the dictionary items. This ensures that the caching mechanism accounts for different evaluation contexts, addressing the issue where the same expression evaluated under different contexts could incorrectly return the same result due to caching.

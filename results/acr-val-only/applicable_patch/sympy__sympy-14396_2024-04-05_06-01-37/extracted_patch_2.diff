@@ -1,0 +1,32 @@
+diff --git a/sympy/polys/polyoptions.py b/sympy/polys/polyoptions.py
+index 6e504a3057..76607c3f28 100644
+--- a/sympy/polys/polyoptions.py
++++ b/sympy/polys/polyoptions.py
+@@ -480,7 +480,26 @@ def preprocess(cls, domain):
+                 gens = list(map(sympify, r.groups()[1].split(',')))
+                 return sympy.polys.domains.QQ.algebraic_field(*gens)
+ 
+-        raise OptionError('expected a valid domain specification, got %s' % domain)
++        # Assuming 'domain' is a string that failed to match any predefined domains
++        # Attempt to parse complex domain specifications like 'RR[x,y,z]'
++        import re
++        from sympy.core.sympify import sympify
++        from sympy.polys.domains import ZZ, QQ, RR, RealField, ComplexField, PolynomialRing
++        
++        complex_domain_pattern = re.compile(r'^(ZZ|QQ|RR)\[([^\]]+)\]$')
++        match = complex_domain_pattern.match(domain)
++        if match:
++            base_domain, gens_str = match.groups()
++            gens = [sympify(gen.strip()) for gen in gens_str.split(',')]
++            if base_domain == 'RR':
++                domain = RealField().poly_ring(*gens)
++            elif base_domain == 'QQ':
++                domain = QQ.poly_ring(*gens)
++            elif base_domain == 'ZZ':
++                domain = ZZ.poly_ring(*gens)
++            return domain
++        else:
++            raise OptionError('expected a valid domain specification, got %s' % domain)
+ 
+     @classmethod
+     def postprocess(cls, options):

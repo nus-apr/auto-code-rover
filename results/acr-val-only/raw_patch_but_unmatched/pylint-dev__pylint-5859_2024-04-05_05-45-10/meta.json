@@ -1,0 +1,38 @@
+{
+    "task_id": "pylint-dev__pylint-5859",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/pylint-dev__pylint/setup_pylint-dev__pylint__2.13",
+        "env_name": "setup_pylint-dev__pylint__2.13",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider tests/checkers/unittest_misc.py"
+    },
+    "task_info": {
+        "instance_id": "pylint-dev__pylint-5859",
+        "base_commit": "182cc539b8154c0710fcea7e522267e42eba8899",
+        "hints_text": "Did a little investigation, this is we're actually converting this option in a regular expression pattern (thereby making it awfully similar to the `notes-rgx` option). Since `?` is a special character in regex this doesn't get picked up. Using `\\?\\?\\?` in either `notes` or `notes-rgx` should work.",
+        "created_at": "2022-03-04T00:01:54Z",
+        "test_patch": "diff --git a/tests/checkers/unittest_misc.py b/tests/checkers/unittest_misc.py\n--- a/tests/checkers/unittest_misc.py\n+++ b/tests/checkers/unittest_misc.py\n@@ -68,6 +68,16 @@ def test_without_space_fixme(self) -> None:\n         ):\n             self.checker.process_tokens(_tokenize_str(code))\n \n+    @set_config(notes=[\"???\"])\n+    def test_non_alphanumeric_codetag(self) -> None:\n+        code = \"\"\"a = 1\n+                #???\n+                \"\"\"\n+        with self.assertAddsMessages(\n+            MessageTest(msg_id=\"fixme\", line=2, args=\"???\", col_offset=17)\n+        ):\n+            self.checker.process_tokens(_tokenize_str(code))\n+\n     @set_config(notes=[])\n     def test_absent_codetag(self) -> None:\n         code = \"\"\"a = 1\n",
+        "repo": "pylint-dev/pylint",
+        "problem_statement": "\"--notes\" option ignores note tags that are entirely punctuation\n### Bug description\n\nIf a note tag specified with the `--notes` option is entirely punctuation, pylint won't report a fixme warning (W0511).\r\n\r\n```python\r\n# YES: yes\r\n# ???: no\r\n```\r\n\r\n`pylint test.py --notes=\"YES,???\"` will return a fixme warning (W0511) for the first line, but not the second.\n\n### Configuration\n\n```ini\nDefault\n```\n\n\n### Command used\n\n```shell\npylint test.py --notes=\"YES,???\"\n```\n\n\n### Pylint output\n\n```shell\n************* Module test\r\ntest.py:1:1: W0511: YES: yes (fixme)\n```\n\n\n### Expected behavior\n\n```\r\n************* Module test\r\ntest.py:1:1: W0511: YES: yes (fixme)\r\ntest.py:2:1: W0511: ???: no (fixme)\r\n```\n\n### Pylint version\n\n```shell\npylint 2.12.2\r\nastroid 2.9.0\r\nPython 3.10.2 (main, Feb  2 2022, 05:51:25) [Clang 13.0.0 (clang-1300.0.29.3)]\n```\n\n\n### OS / Environment\n\nmacOS 11.6.1\n\n### Additional dependencies\n\n_No response_\n",
+        "version": "2.13",
+        "FAIL_TO_PASS": [
+            "tests/checkers/unittest_misc.py::TestFixme::test_non_alphanumeric_codetag"
+        ],
+        "PASS_TO_PASS": [
+            "tests/checkers/unittest_misc.py::TestFixme::test_absent_codetag",
+            "tests/checkers/unittest_misc.py::TestFixme::test_dont_trigger_on_todoist",
+            "tests/checkers/unittest_misc.py::TestFixme::test_fixme_with_message",
+            "tests/checkers/unittest_misc.py::TestFixme::test_issue_2321_should_not_trigger",
+            "tests/checkers/unittest_misc.py::TestFixme::test_issue_2321_should_trigger",
+            "tests/checkers/unittest_misc.py::TestFixme::test_other_present_codetag",
+            "tests/checkers/unittest_misc.py::TestFixme::test_todo_without_message",
+            "tests/checkers/unittest_misc.py::TestFixme::test_without_space_fixme",
+            "tests/checkers/unittest_misc.py::TestFixme::test_xxx_middle",
+            "tests/checkers/unittest_misc.py::TestFixme::test_xxx_without_space"
+        ],
+        "environment_setup_commit": "3b2fbaec045697d53bdd4435e59dbfc2b286df4b",
+        "patch": "diff --git a/pylint/checkers/misc.py b/pylint/checkers/misc.py\n--- a/pylint/checkers/misc.py\n+++ b/pylint/checkers/misc.py\n@@ -121,9 +121,9 @@ def open(self):\n \n         notes = \"|\".join(re.escape(note) for note in self.config.notes)\n         if self.config.notes_rgx:\n-            regex_string = rf\"#\\s*({notes}|{self.config.notes_rgx})\\b\"\n+            regex_string = rf\"#\\s*({notes}|{self.config.notes_rgx})(?=(:|\\s|\\Z))\"\n         else:\n-            regex_string = rf\"#\\s*({notes})\\b\"\n+            regex_string = rf\"#\\s*({notes})(?=(:|\\s|\\Z))\"\n \n         self._fixme_pattern = re.compile(regex_string, re.I)\n \n",
+        "pr_link": "https://github.com/pylint-dev/pylint/pull/5859"
+    }
+}

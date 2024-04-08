@@ -1,0 +1,77 @@
+diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py
+index 503f7f56fd..2a3b525738 100644
+--- a/django/db/backends/base/creation.py
++++ b/django/db/backends/base/creation.py
+@@ -92,34 +92,44 @@ class BaseDatabaseCreation:
+         self.connection.settings_dict['NAME'] = primary_settings_dict['NAME']
+ 
+     def serialize_db_to_string(self):
+-        """
+-        Serialize all data in the database into a JSON string.
+-        Designed only for test runner usage; will not handle large
+-        amounts of data.
+-        """
+-        # Iteratively return every object for all models to serialize.
+-        def get_objects():
+-            from django.db.migrations.loader import MigrationLoader
+-            loader = MigrationLoader(self.connection)
+-            for app_config in apps.get_app_configs():
+-                if (
+-                    app_config.models_module is not None and
+-                    app_config.label in loader.migrated_apps and
+-                    app_config.name not in settings.TEST_NON_SERIALIZED_APPS
+-                ):
+-                    for model in app_config.get_models():
+-                        if (
+-                            model._meta.can_migrate(self.connection) and
+-                            router.allow_migrate_model(self.connection.alias, model)
+-                        ):
+-                            queryset = model._default_manager.using(
+-                                self.connection.alias,
+-                            ).order_by(model._meta.pk.name)
+-                            yield from queryset.iterator()
+-        # Serialize to a string
+-        out = StringIO()
+-        serializers.serialize("json", get_objects(), indent=None, stream=out)
+-        return out.getvalue()
++            """
++            Serialize all data in the database into a JSON string.
++            Designed only for test runner usage; will not handle large
++            amounts of data.
++            """
++            # Check if essential tables exist, skip serialization if not.
++            def check_essential_tables_exist():
++                cursor = self.connection.cursor()
++                tables = self.connection.introspection.table_names(cursor)
++                essential_tables = ['django_admin_log']  # Add other essential tables as needed
++                return all(table in tables for table in essential_tables)
++    
++            if not check_essential_tables_exist():
++                return "{}"  # Return empty JSON string if essential tables do not exist
++    
++            # Iteratively return every object for all models to serialize.
++            def get_objects():
++                from django.db.migrations.loader import MigrationLoader
++                loader = MigrationLoader(self.connection)
++                for app_config in apps.get_app_configs():
++                    if (
++                        app_config.models_module is not None and
++                        app_config.label in loader.migrated_apps and
++                        app_config.name not in settings.TEST_NON_SERIALIZED_APPS
++                    ):
++                        for model in app_config.get_models():
++                            if (
++                                model._meta.can_migrate(self.connection) and
++                                router.allow_migrate_model(self.connection.alias, model)
++                            ):
++                                queryset = model._default_manager.using(
++                                    self.connection.alias,
++                                ).order_by(model._meta.pk.name)
++                                yield from queryset.iterator()
++            # Serialize to a string
++            out = StringIO()
++            serializers.serialize("json", get_objects(), indent=None, stream=out)
++            return out.getvalue()
+ 
+     def deserialize_db_from_string(self, data):
+         """

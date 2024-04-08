@@ -1,0 +1,26 @@
+Given the nature of the issue, which revolves around the handling of Unicode property escapes in regular expressions, a direct patch to pylint's code may not resolve the underlying problem, as it's related to the capabilities of the Python `re` module and how it interprets `\p{Han}`. Python's standard `re` module does not support Unicode property escapes until Python 3.8, and even then, its support is limited compared to other regex engines. However, a workaround or enhancement could be proposed to handle such cases more gracefully or to provide a clear error message indicating the limitation.
+
+Since the issue is about the lack of support for `\p{Han}` in the regex used in the `.pylintrc` configuration file and not a direct bug in pylint's code, the "patch" would be more of an enhancement to improve user experience when encountering unsupported regex features. One approach could be to catch the specific `re.error` thrown when encountering an unsupported escape sequence and provide a more informative error message. This would involve modifying the code where pylint compiles the regular expressions from the configuration file, but the exact location for this operation is not directly indicated in the provided context.
+
+Assuming a hypothetical location and mechanism for this operation, an enhancement could look like this:
+
+# modification 1
+```python
+<file>pylint/config/arguments_manager.py</file>
+<original>self.config, parsed_args = self._arg_parser.parse_known_args(
+    arguments, self.config
+)</original>
+<patched>try:
+    self.config, parsed_args = self._arg_parser.parse_known_args(
+        arguments, self.config
+    )
+except re.error as exc:
+    if "\\p{" in str(exc):
+        raise ValueError("Unsupported Unicode property escape in regex. Pylint's regex engine may not support '\\p{...}' escapes. Please adjust your configuration.") from exc
+    else:
+        raise</patched>
+```
+
+This modification is speculative and serves as an example of how one might approach enhancing error handling around regex compilation in pylint. It attempts to catch regex compilation errors related to unsupported Unicode property escapes and provides a more informative error message. The actual implementation would depend on where and how pylint compiles these regular expressions from the configuration file, which is not explicitly detailed in the provided context.
+
+Please note, this is a conceptual solution aimed at illustrating a possible approach to improving the situation described in the issue. The actual implementation details would require a deeper understanding of pylint's internal architecture and might involve different or additional modifications.

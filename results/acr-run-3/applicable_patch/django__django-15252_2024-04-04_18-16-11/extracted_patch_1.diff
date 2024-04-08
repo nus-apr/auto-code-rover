@@ -1,0 +1,34 @@
+diff --git a/django/db/migrations/recorder.py b/django/db/migrations/recorder.py
+index 1a37c6b7d0..b19ca0fa9d 100644
+--- a/django/db/migrations/recorder.py
++++ b/django/db/migrations/recorder.py
+@@ -57,10 +57,10 @@ class MigrationRecorder:
+         return self.Migration._meta.db_table in tables
+ 
+     def ensure_schema(self):
+-        """Ensure the table exists and has the correct schema."""
+-        # If the table's there, that's fine - we've never changed its schema
+-        # in the codebase.
+-        if self.has_table():
++        """Ensure the table exists and has the correct schema, respecting db_router allow_migrate rules."""
++        from django.db import router
++        # If the table's there, or the router does not allow migrating, that's fine.
++        if self.has_table() or not router.allow_migrate(self.connection.alias, self.Migration):
+             return
+         # Make the table
+         try:
+@@ -82,9 +82,11 @@ class MigrationRecorder:
+             return {}
+ 
+     def record_applied(self, app, name):
+-        """Record that a migration was applied."""
+-        self.ensure_schema()
+-        self.migration_qs.create(app=app, name=name)
++        """Record that a migration was applied, respecting db_router allow_migrate rules."""
++        from django.db import router
++        if router.allow_migrate(self.connection.alias, app_label=app):
++            self.ensure_schema()
++            self.migration_qs.create(app=app, name=name)
+ 
+     def record_unapplied(self, app, name):
+         """Record that a migration was unapplied."""

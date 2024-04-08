@@ -1,0 +1,38 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..01ba24f3a2 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,8 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Removed the check for duplicate elements in the case of cycles to allow non-disjoint cycles
++                # The handling of non-disjoint cycles will be addressed below
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +905,12 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
+-            for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++                    # Modified to handle non-disjoint cycles by applying them in left-to-right order
++                    from sympy.combinatorics import Permutation as Perm
++                    aform = list(range(max(flatten(args)) + 1))  # Initialize with the identity permutation up to the max element in cycles
++                    for cycle in args:
++                        for i in range(len(cycle) - 1, 0, -1):
++                            aform[cycle[i-1]], aform[cycle[i]] = aform[cycle[i]], aform[cycle[i-1]]  # Swap elements to apply the cycle
+         else:
+             aform = list(args)
+         if size and size > len(aform):

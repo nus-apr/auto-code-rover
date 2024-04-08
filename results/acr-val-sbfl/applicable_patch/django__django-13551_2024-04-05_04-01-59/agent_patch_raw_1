@@ -1,0 +1,45 @@
+# modification 1
+```python
+<file>django/contrib/auth/tokens.py</file>
+<original>    def _make_hash_value(self, user, timestamp):
+        """
+        Hash the user's primary key and some user state that's sure to change
+        after a password reset to produce a token that invalidated when it's
+        used:
+        1. The password field will change upon a password reset (even if the
+           same password is chosen, due to password salting).
+        2. The last_login field will usually be updated very shortly after
+           a password reset.
+        Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+        invalidates the token.
+
+        Running this data through salted_hmac() prevents password cracking
+        attempts using the reset token, provided the secret isn't compromised.
+        """
+        # Truncate microseconds so that tokens are consistent even if the
+        # database doesn't support microseconds.
+        login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)</original>
+<patched>    def _make_hash_value(self, user, timestamp):
+        """
+        Hash the user's primary key, email, and some user state that's sure to change
+        after a password reset to produce a token that invalidated when it's
+        used:
+        1. The email field will change upon an email address change.
+        2. The password field will change upon a password reset (even if the
+           same password is chosen, due to password salting).
+        3. The last_login field will usually be updated very shortly after
+           a password reset.
+        Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+        invalidates the token.
+
+        Running this data through salted_hmac() prevents password cracking
+        attempts using the reset token, provided the secret isn't compromised.
+        """
+        # Truncate microseconds so that tokens are consistent even if the
+        # database doesn't support microseconds.
+        login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+        return str(user.pk) + user.email + user.password + str(login_timestamp) + str(timestamp)</patched>
+```
+
+This modification ensures that the hash value used for generating password reset tokens now includes the user's email address. As a result, if a user changes their email address, any previously issued password reset tokens will be invalidated, enhancing the security of the password reset process.

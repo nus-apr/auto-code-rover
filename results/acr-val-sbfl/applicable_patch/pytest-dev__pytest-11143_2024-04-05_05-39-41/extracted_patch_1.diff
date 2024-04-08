@@ -1,0 +1,31 @@
+diff --git a/src/_pytest/assertion/rewrite.py b/src/_pytest/assertion/rewrite.py
+index 157903faf..5a5e8689e 100644
+--- a/src/_pytest/assertion/rewrite.py
++++ b/src/_pytest/assertion/rewrite.py
+@@ -164,7 +164,14 @@ class AssertionRewritingHook(importlib.abc.MetaPathFinder, importlib.abc.Loader)
+                     self._writing_pyc = False
+         else:
+             state.trace(f"found cached rewritten pyc for {fn}")
+-        exec(co, module.__dict__)
++        try:
++            exec(co, module.__dict__)
++        except TypeError as e:
++            if "not iterable" in str(e):
++                raise TypeError(f"TypeError encountered while trying to execute module {module.__name__}. "
++                                "This may be caused by a non-string (e.g., number) at the beginning of the file, "
++                                "which is being mistaken for a docstring.") from e
++            raise
+ 
+     def _early_rewrite_bailout(self, name: str, state: "AssertionState") -> bool:
+         """A fast way to get out of rewriting modules.
+@@ -742,7 +749,9 @@ class AssertionRewriter(ast.NodeVisitor):
+                     nodes.append(field)
+ 
+     @staticmethod
+-    def is_rewrite_disabled(docstring: str) -> bool:
++    def is_rewrite_disabled(docstring: Optional[str]) -> bool:
++        if docstring is None:
++            return False
+         return "PYTEST_DONT_REWRITE" in docstring
+ 
+     def variable(self) -> str:

@@ -1,0 +1,51 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index b821c42845..491c5ac569 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -233,18 +233,36 @@ def transpose(self):
+         return self._eval_transpose()
+ 
+     def _entry(self, i, j, **kwargs):
+-        # Find row entry
+-        for row_block, numrows in enumerate(self.rowblocksizes):
+-            if (i < numrows) != False:
++        # Initialize variables to keep track of the adjusted indices and the current block
++        adjusted_i = i
++        adjusted_j = j
++        row_block = None
++        col_block = None
++
++        # Determine the row block
++        cumulative_rows = 0
++        for idx, numrows in enumerate(self.rowblocksizes):
++            cumulative_rows += numrows
++            if i < cumulative_rows:
++                row_block = idx
++                adjusted_i = i - (cumulative_rows - numrows)  # Adjust i relative to the start of the block
+                 break
+-            else:
+-                i -= numrows
+-        for col_block, numcols in enumerate(self.colblocksizes):
+-            if (j < numcols) != False:
++
++        # Determine the column block
++        cumulative_cols = 0
++        for idx, numcols in enumerate(self.colblocksizes):
++            cumulative_cols += numcols
++            if j < cumulative_cols:
++                col_block = idx
++                adjusted_j = j - (cumulative_cols - numcols)  # Adjust j relative to the start of the block
+                 break
+-            else:
+-                j -= numcols
+-        return self.blocks[row_block, col_block][i, j]
++
++        # Ensure the indices are within the bounds of the matrix
++        if row_block is None or col_block is None:
++            raise IndexError("Index out of bounds")
++
++        # Fetch and return the element from the appropriate block
++        return self.blocks[row_block, col_block][adjusted_i, adjusted_j]
+ 
+     @property
+     def is_Identity(self):

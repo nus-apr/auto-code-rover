@@ -1,0 +1,53 @@
+Based on the issue and the context provided, the goal is to enhance the version information accessibility in Matplotlib by ensuring there's a `version_info` tuple or similar structure that can be easily compared. Given the current implementation in `lib/matplotlib/__init__.py` and the existence of `__version_tuple__` in `lib/matplotlib/_version.py`, we can make the `__version_tuple__` more accessible by modifying the `__getattr__` method to also return `__version_tuple__` when requested.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>lib/matplotlib/__init__.py</file>
+<original>def __getattr__(name):
+    if name == "__version__":
+        import setuptools_scm
+        global __version__  # cache it.
+        # Only shell out to a git subprocess if really needed, and not on a
+        # shallow clone, such as those used by CI, as the latter would trigger
+        # a warning from setuptools_scm.
+        root = Path(__file__).resolve().parents[2]
+        if (root / ".git").exists() and not (root / ".git/shallow").exists():
+            __version__ = setuptools_scm.get_version(
+                root=root,
+                version_scheme="post-release",
+                local_scheme="node-and-date",
+                fallback_version=_version.version,
+            )
+        else:  # Get the version from the _version.py setuptools_scm file.
+            __version__ = _version.version
+        return __version__
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+</original>
+<patched>def __getattr__(name):
+    if name == "__version__":
+        import setuptools_scm
+        global __version__  # cache it.
+        # Only shell out to a git subprocess if really needed, and not on a
+        # shallow clone, such as those used by CI, as the latter would trigger
+        # a warning from setuptools_scm.
+        root = Path(__file__).resolve().parents[2]
+        if (root / ".git").exists() and not (root / ".git/shallow").exists():
+            __version__ = setuptools_scm.get_version(
+                root=root,
+                version_scheme="post-release",
+                local_scheme="node-and-date",
+                fallback_version=_version.version,
+            )
+        else:  # Get the version from the _version.py setuptools_scm file.
+            __version__ = _version.version
+        return __version__
+    elif name == "__version_tuple__":
+        from . import _version
+        return _version.__version_tuple__
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+</patched>
+```
+
+This modification ensures that when `__version_tuple__` is requested, it is returned just like `__version__`. This change leverages the existing structure in `lib/matplotlib/_version.py` to make version comparison more accessible and straightforward for users. It's important to ensure that `_version.py` correctly defines and exports `__version_tuple__` as shown in the context provided earlier.

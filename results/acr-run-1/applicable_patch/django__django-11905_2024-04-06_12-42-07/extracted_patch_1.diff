@@ -1,0 +1,27 @@
+diff --git a/django/db/models/lookups.py b/django/db/models/lookups.py
+index 9344979c56..fbf1298b76 100644
+--- a/django/db/models/lookups.py
++++ b/django/db/models/lookups.py
+@@ -66,6 +66,8 @@ class Lookup:
+             self.lhs, self.rhs = new_exprs
+ 
+     def get_prep_lookup(self):
++        if self.lookup_name == 'isnull' and not isinstance(self.rhs, bool):
++            raise ValueError("__isnull lookup requires a boolean value.")
+         if hasattr(self.rhs, 'resolve_expression'):
+             return self.rhs
+         if self.prepare_rhs and hasattr(self.lhs.output_field, 'get_prep_value'):
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index ea51912e8b..f90cfc17ee 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1308,6 +1308,9 @@ class Query(BaseExpression):
+ 
+         condition = self.build_lookup(lookups, col, value)
+         lookup_type = condition.lookup_name
++        # Ensure __isnull lookup uses boolean value
++        if lookup_type == 'isnull' and not isinstance(value, bool):
++            raise ValueError("__isnull lookup requires a boolean value.")
+         clause.add(condition, AND)
+ 
+         require_outer = lookup_type == 'isnull' and condition.rhs is True and not current_negated

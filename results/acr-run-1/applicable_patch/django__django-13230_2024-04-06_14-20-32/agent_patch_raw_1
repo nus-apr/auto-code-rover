@@ -1,0 +1,63 @@
+# modification 1
+```python
+<file>django/contrib/syndication/views.py</file>
+<original>def item_extra_kwargs(self, item):
+        """
+        Return an extra keyword arguments dictionary that is used with
+        the `add_item` call of the feed generator.
+        """
+        return {}
+</original>
+<patched>def item_extra_kwargs(self, item):
+        """
+        Return an extra keyword arguments dictionary that is used with
+        the `add_item` call of the feed generator.
+        """
+        comments_url = self._get_dynamic_attr('item_comments_url', item, default=None)
+        if comments_url:
+            return {'comments': comments_url}
+        return {}
+</patched>
+```
+
+# modification 2
+```python
+<file>django/contrib/syndication/views.py</file>
+<original>feed.add_item(
+                title=title,
+                link=link,
+                description=description,
+                unique_id=self._get_dynamic_attr('item_guid', item, link),
+                unique_id_is_permalink=self._get_dynamic_attr(
+                    'item_guid_is_permalink', item),
+                enclosures=enclosures,
+                pubdate=pubdate,
+                updateddate=updateddate,
+                author_name=author_name,
+                author_email=author_email,
+                author_link=author_link,
+                categories=self._get_dynamic_attr('item_categories', item),
+                item_copyright=self._get_dynamic_attr('item_copyright', item),
+                **self.item_extra_kwargs(item)
+            )</original>
+<patched>feed.add_item(
+                title=title,
+                link=link,
+                description=description,
+                unique_id=self._get_dynamic_attr('item_guid', item, link),
+                unique_id_is_permalink=self._get_dynamic_attr(
+                    'item_guid_is_permalink', item),
+                enclosures=enclosures,
+                pubdate=pubdate,
+                updateddate=updateddate,
+                author_name=author_name,
+                author_email=author_email,
+                author_link=author_link,
+                categories=self._get_dynamic_attr('item_categories', item),
+                item_copyright=self._get_dynamic_attr('item_copyright', item),
+                comments=self._get_dynamic_attr('item_comments_url', item, default=None),
+                **self.item_extra_kwargs(item)
+            )</patched>
+```
+
+This patch introduces support for `item_comments` in the Django syndication framework by allowing a comments URL to be specified for each feed item. The `item_extra_kwargs` method is modified to check for a `item_comments_url` attribute on the item, and if present, include it in the extra keyword arguments passed to `feed.add_item`. Additionally, the `feed.add_item` call is updated to explicitly accept a `comments` parameter, which is derived from the `item_comments_url` attribute. This approach maintains backward compatibility by only including comments in the feed if the `item_comments_url` attribute is explicitly provided for an item.

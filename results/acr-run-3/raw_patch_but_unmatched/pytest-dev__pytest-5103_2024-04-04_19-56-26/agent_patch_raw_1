@@ -1,0 +1,45 @@
+Given the context and the goal to enhance the error reporting for `all` and `any` calls within assertions by unrolling them, we can propose a patch. This patch will focus on the `visit_Assert` method within the `AssertionRewriter` class, as this is where assert statements are processed. The idea is to detect `all` and `any` function calls within assert statements and rewrite them to provide more detailed error messages.
+
+However, it's important to note that implementing such a feature requires a deep understanding of the `pytest` codebase and the Python AST module. The following patch is a conceptual proposal and might require adjustments to fit into the actual codebase properly.
+
+# modification 1
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>
+def visit_Assert(self, assert_):
+    ...
+    top_condition, explanation = self.visit(assert_.test)
+    ...
+</original>
+<patched>
+def visit_Assert(self, assert_):
+    ...
+    # Check if the assert statement contains 'all' or 'any' calls
+    if isinstance(assert_.test, ast.Call) and isinstance(assert_.test.func, ast.Name) and assert_.test.func.id in ('all', 'any'):
+        # Handle 'all' and 'any' specially to unroll the iterable
+        top_condition, explanation = self._unroll_all_any(assert_.test)
+    else:
+        top_condition, explanation = self.visit(assert_.test)
+    ...
+
+def _unroll_all_any(self, call_node):
+    """Unroll 'all' and 'any' calls for better error reporting."""
+    assert isinstance(call_node, ast.Call)
+    func_name = call_node.func.id
+    iterable = call_node.args[0]  # Assuming 'all'/'any' is called with a single iterable argument
+
+    # Generate code that unrolls the 'all'/'any' call
+    # This is a simplified example. Actual implementation would need to generate AST nodes
+    unrolled_code = f"for item in {ast.unparse(iterable)}:\n    assert item"
+    if func_name == 'any':
+        unrolled_code = f"assert any(True for item in {ast.unparse(iterable)} if item)"
+
+    # Convert the unrolled code back into AST nodes
+    unrolled_ast = ast.parse(unrolled_code).body
+    return unrolled_ast[0].test, f"Unrolled {func_name} call for better error reporting"
+</patched>
+```
+
+This modification introduces a method `_unroll_all_any` to the `AssertionRewriter` class, which is responsible for transforming `all` and `any` calls within assert statements into a form that allows for more detailed error reporting. The `visit_Assert` method is modified to detect `all` and `any` calls and delegate to this new method for special handling.
+
+Please note, the actual implementation of `_unroll_all_any` would require careful construction of AST nodes to ensure the generated code is correct and integrates seamlessly with the rest of the assertion rewriting process. The example provided here uses string manipulation and `ast.parse` for simplicity, but a production implementation should directly manipulate AST nodes.

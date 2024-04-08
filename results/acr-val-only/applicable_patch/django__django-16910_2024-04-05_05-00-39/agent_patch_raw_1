@@ -1,0 +1,33 @@
+To address the issue where `QuerySet.only()` doesn't work as expected with `select_related()` on a reverse `OneToOneField` relation, we need to ensure that when `only()` is used in conjunction with `select_related()`, the query construction logic correctly limits the fields from the related model as specified. The problem seems to arise from the interaction between these two methods, where the expected behavior is for `only()` to limit fields from both the main and related models, but all fields from the related model are included in the generated SQL query.
+
+Given the complexity of Django's ORM, a precise patch without a deep dive into the entire ORM's query construction mechanism might be challenging. However, a conceptual patch could involve modifying the `select_related` and `only` methods in `QuerySet` to better handle field specification for reverse `OneToOneField` relations.
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>obj.query.add_select_related(fields)</original>
+<patched>obj.query.add_select_related(fields, only_fields=True)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>clone.query.add_immediate_loading(fields)</original>
+<patched>if not any('__' in field for field in fields):
+    clone.query.add_immediate_loading(fields)
+else:
+    related_fields = [field for field in fields if '__' in field]
+    for field in related_fields:
+        main_field, related_field = field.split('__', 1)
+        if main_field in [f.name for f in clone.model._meta.get_fields()]:
+            clone.query.add_related_fields(main_field, related_field)
+        else:
+            raise ValueError(f"Field '{main_field}' does not exist.")
+    immediate_fields = [field for field in fields if '__' not in field]
+    if immediate_fields:
+        clone.query.add_immediate_loading(immediate_fields)</patched>
+```
+
+**Note**: The `add_related_fields` method mentioned in modification 2 is a hypothetical method that does not exist in Django's `QuerySet` as of the current version. This method would need to be implemented to handle adding specific fields from related models to the query. The idea here is to differentiate between fields that belong to the main model and those that belong to related models, applying the `only` logic accordingly.
+
+This patch is conceptual and aims to illustrate a possible direction for resolving the issue. Actual implementation would require a thorough understanding of Django's ORM internals and extensive testing to ensure compatibility with existing functionalities and no regressions in performance or behavior.

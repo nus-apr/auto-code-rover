@@ -1,0 +1,25 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index f88662de12..cc71e64254 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1538,9 +1538,19 @@ class QuerySet(AltersData):
+         if fields == (None,):
+             obj.query.select_related = False
+         elif fields:
+-            obj.query.add_select_related(fields)
++            # Check for FilteredRelation annotations in the queryset
++            # and handle them appropriately before adding select_related fields.
++            filtered_relations = {field for field in fields if isinstance(obj.query.annotations.get(field, None), FilteredRelation)}
++            for fr in filtered_relations:
++                handle_filtered_relation(obj.query, fr)
++            obj.query.add_select_related([field for field in fields if field not in filtered_relations])
+         else:
+             obj.query.select_related = True
++        
++        def handle_filtered_relation(query, filtered_relation_name):
++            # Placeholder for logic to correctly handle FilteredRelation
++            # This might involve adjusting the query to account for the filtered conditions
++            pass
+         return obj
+ 
+     def prefetch_related(self, *lookups):

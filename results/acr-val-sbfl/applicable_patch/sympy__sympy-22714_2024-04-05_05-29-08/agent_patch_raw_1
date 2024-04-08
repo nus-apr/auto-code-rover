@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>def __new__(cls, *args, _nocheck=False, **kwargs):
+    if not _nocheck:
+        kwargs['dim'] = 2
+        args = Point(*args, **kwargs)
+    return GeometryEntity.__new__(cls, *args)</original>
+<patched>def __new__(cls, *args, _nocheck=False, **kwargs):
+    from sympy.core.evaluate import global_evaluate
+    evaluate = kwargs.pop('evaluate', global_evaluate[0])
+    if not _nocheck:
+        kwargs['dim'] = 2
+        with evaluate(False) if not evaluate else nullcontext():
+            args = Point(*args, **kwargs)
+    return GeometryEntity.__new__(cls, *args)</patched>
+```
+
+Explanation:
+- The patch introduces a conditional context management based on the `evaluate` flag's value. This ensures that when `Point2D` is instantiated with `evaluate=False`, the evaluation context is correctly propagated to the `Point` constructor, preventing the unexpected error.
+- The `from sympy.core.evaluate import global_evaluate` line is added to access the global evaluation state, which is necessary to determine the default state of evaluation unless explicitly overridden.
+- The `kwargs.pop('evaluate', global_evaluate[0])` line extracts the `evaluate` flag from the keyword arguments if present, defaulting to the global evaluation state otherwise. This flag is then used to decide whether to disable evaluation in the subsequent context.
+- The `with evaluate(False) if not evaluate else nullcontext():` line uses a context manager to temporarily disable evaluation if `evaluate` is `False`. The `nullcontext()` is used as a no-operation context manager when evaluation should not be disabled, ensuring that the existing behavior is preserved when `evaluate=True`.
+- This approach maintains backward compatibility while fixing the issue where `Point2D` instantiation with `evaluate=False` leads to an unexpected error.

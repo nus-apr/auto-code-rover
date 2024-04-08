@@ -1,0 +1,30 @@
+Given the constraints and the need to address the issue without directly modifying Django's source code, a recommended approach would be to subclass the Django model fields (`CharField` and `IntegerField`) to handle the conversion of `TextChoices` and `IntegerChoices` to their simple representations when accessed. This approach ensures compatibility with future Django updates and maintains the integrity of the Django source code.
+
+Below is an example of how you might implement such a solution in your application:
+
+# modification 1
+```python
+<file>your_app/models.py</file>
+<original></original>
+<patched>from django.db import models
+
+class CustomCharField(models.CharField):
+    def from_db_value(self, value, expression, connection):
+        if self.choices and isinstance(value, str):
+            choices_dict = dict(self.flatchoices)
+            return choices_dict.get(value, value)
+        return value
+
+class CustomIntegerField(models.IntegerField):
+    def from_db_value(self, value, expression, connection):
+        if self.choices and isinstance(value, int):
+            choices_dict = dict(self.flatchoices)
+            return choices_dict.get(value, value)
+        return value</patched>
+```
+
+This patch introduces two custom field classes, `CustomCharField` and `CustomIntegerField`, which override the `from_db_value` method. The `from_db_value` method is called when the value is loaded from the database, allowing us to convert the database value back to its simple representation if it corresponds to a choice defined in the field's `choices`. This ensures that when values are retrieved from the database, they are returned in the expected format, addressing the issue described.
+
+To use these custom fields in your models, you would replace instances of `models.CharField` and `models.IntegerField` with `CustomCharField` and `CustomIntegerField`, respectively, for any fields that use `TextChoices` or `IntegerChoices`.
+
+Please note, this solution assumes that the primary concern is the representation of the field values when they are loaded from the database and does not address the serialization of these values to external systems directly. For serialization, you might still need to ensure that the values are handled appropriately depending on the specific requirements of the external system or API.

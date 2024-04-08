@@ -1,0 +1,37 @@
+diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py
+index 29c7e19d7..b0aa9ebdd 100644
+--- a/src/_pytest/tmpdir.py
++++ b/src/_pytest/tmpdir.py
+@@ -112,9 +112,11 @@ class TempPathFactory:
+             from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+             temproot = Path(from_env or tempfile.gettempdir()).resolve()
+             user = get_user() or "unknown"
++            # Sanitize the user name to ensure it's safe for directory names
++            sanitized_user = re.sub(r'[\\/*?:"<>|]', "", user)
+             # use a sub-directory in the temproot to speed-up
+             # make_numbered_dir() call
+-            rootdir = temproot.joinpath(f"pytest-of-{user}")
++            rootdir = temproot.joinpath(f"pytest-of-{sanitized_user}")
+             rootdir.mkdir(exist_ok=True)
+             basetemp = make_numbered_dir_with_cleanup(
+                 prefix="pytest-", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT
+@@ -148,13 +150,17 @@ class TempdirFactory:
+         return py.path.local(self._tmppath_factory.getbasetemp().resolve())
+ 
+ 
++import re
+ def get_user() -> Optional[str]:
+     """Return the current user name, or None if getuser() does not work
+-    in the current environment (see #1010)."""
++    in the current environment (see #1010). Sanitize the username to remove illegal characters."""
+     import getpass
+ 
+     try:
+-        return getpass.getuser()
++        user_name = getpass.getuser()
++        # Sanitize the username by removing characters not allowed in directory names
++        sanitized_user_name = re.sub(r'[\\/*?:"<>|]', "", user_name)
++        return sanitized_user_name
+     except (ImportError, KeyError):
+         return None
+ 

@@ -1,0 +1,71 @@
+Given the context and the nature of the issue, the problem seems to stem from how the `NumpyDocstring` class processes attribute docstrings, particularly in handling trailing underscores in attribute names. The `expected` output in the test method `test_underscore_in_attribute_strip_signature_backslash` explicitly shows an escaped underscore (`\\_`), which suggests that the current logic intentionally escapes underscores. However, based on the issue reported, this behavior leads to an undesired visual representation in the generated HTML documentation.
+
+To address the issue, we need to modify the behavior so that trailing underscores in attribute names are not escaped in the final output when `strip_signature_backslash` is set to `True` in the configuration. This involves adjusting the logic within the `NumpyDocstring` processing, specifically where the attribute names are being prepared for output.
+
+Since the exact location within the `NumpyDocstring` class where this processing happens is not provided, I will outline a hypothetical patch based on the provided test method and the described behavior. This patch assumes there's a part of the `NumpyDocstring` class that handles the escaping of underscores in attribute names.
+
+# modification 1
+```python
+<file>path/to/napoleon/docstring.py</file>
+<original>
+# Hypothetical original code snippet that escapes underscores in attribute names
+attribute_name = attribute_name.replace("_", "\\_")
+</original>
+<patched>
+# Patched version to conditionally escape underscores based on `strip_signature_backslash` config
+if not config.strip_signature_backslash:
+    attribute_name = attribute_name.replace("_", "\\_")
+</patched>
+```
+
+# modification 2
+```python
+<file>tests/test_ext_napoleon_docstring.py</file>
+<original>
+def test_underscore_in_attribute_strip_signature_backslash(self):
+    docstring = """
+Attributes
+----------
+
+arg_ : type
+    some description
+"""
+
+    expected = """
+:ivar arg\\_: some description
+:vartype arg\\_: type
+"""
+
+    config = Config(napoleon_use_ivar=True)
+    config.strip_signature_backslash = True
+    app = mock.Mock()
+    actual = str(NumpyDocstring(docstring, config, app, "class"))
+
+    self.assertEqual(expected, actual)
+</original>
+<patched>
+def test_underscore_in_attribute_strip_signature_backslash(self):
+    docstring = """
+Attributes
+----------
+
+arg_ : type
+    some description
+"""
+
+    # Adjusted expected output to reflect the desired behavior without escaping underscores
+    expected = """
+:ivar arg_: some description
+:vartype arg_: type
+"""
+
+    config = Config(napoleon_use_ivar=True)
+    config.strip_signature_backslash = True
+    app = mock.Mock()
+    actual = str(NumpyDocstring(docstring, config, app, "class"))
+
+    self.assertEqual(expected, actual)
+</patched>
+```
+
+Please note, the first modification is hypothetical and assumes the existence of a specific code snippet responsible for escaping underscores in the `NumpyDocstring` class, which would need to be located and adjusted accordingly. The second modification updates the test to reflect the desired behavior based on the issue description.

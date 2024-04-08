@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>django/db/backends/base/schema.py</file>
+<original>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        if len(constraint_names) != 1:
+            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                len(constraint_names),
+                model._meta.db_table,
+                ", ".join(columns),
+            ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+</original>
+<patched>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        # Allow for the deletion of multiple constraints if they match the criteria, 
+        # specifically handling the case where unique_together and index_together overlap.
+        for constraint_name in constraint_names:
+            self.execute(self._delete_constraint_sql(sql, model, constraint_name))
+</patched>
+```
+
+This patch modifies the `_delete_composed_index` method in `BaseDatabaseSchemaEditor` to allow for the deletion of multiple constraints that match the criteria, rather than raising a `ValueError` when more than one constraint is found. This approach specifically addresses the issue where `unique_together` and `index_together` constraints overlap on the same fields, by iterating over all found constraint names and deleting each one, instead of expecting only a single constraint to match. This change should resolve the migration crash when attempting to delete an `index_together` that overlaps with a `unique_together` constraint.

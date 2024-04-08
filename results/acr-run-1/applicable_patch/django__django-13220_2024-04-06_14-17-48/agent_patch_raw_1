@@ -1,0 +1,23 @@
+# modification 1
+```python
+<file>django/core/exceptions.py</file>
+<original></original>
+<patched>    def __eq__(self, other):
+        if not isinstance(other, ValidationError):
+            return NotImplemented
+
+        # Compare based on error_dict if present
+        if hasattr(self, 'error_dict') and hasattr(other, 'error_dict'):
+            return self.error_dict == other.error_dict
+
+        # Compare based on error_list if present
+        if hasattr(self, 'error_list') and hasattr(other, 'error_list'):
+            # Ensure both lists contain the same errors in any order
+            return sorted(self.error_list, key=lambda x: x.message) == sorted(other.error_list, key=lambda x: x.message)
+
+        # Fallback to comparing messages, codes, and params for simple ValidationError instances
+        return (self.message, self.code, self.params) == (other.message, other.code, other.params)
+</patched>
+```
+
+This patch adds an `__eq__` method to the `ValidationError` class, enabling instances of `ValidationError` to be compared for equality. The method first checks if the instance to compare with is also a `ValidationError`, returning `NotImplemented` if not. It then compares `error_dict` attributes if they exist, ensuring dictionaries are identical. If `error_dict` is not present, it compares `error_list` attributes, sorting them to ensure the comparison is order-independent. Finally, for simple `ValidationError` instances, it compares the `message`, `code`, and `params` attributes. This implementation addresses the issue by allowing `ValidationError` instances with identical messages (and other attributes, if applicable) to be considered equal, regardless of the order of messages in lists or dictionaries.

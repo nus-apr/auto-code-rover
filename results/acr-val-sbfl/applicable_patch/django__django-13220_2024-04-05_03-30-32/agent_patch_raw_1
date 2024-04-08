@@ -1,0 +1,25 @@
+# modification 1
+```python
+<file>django/core/exceptions.py</file>
+<original>class ValidationError(Exception):
+    """An error while validating data."""</original>
+<patched>class ValidationError(Exception):
+    """An error while validating data."""
+    
+    def __eq__(self, other):
+        if not isinstance(other, ValidationError):
+            return NotImplemented
+        
+        # Compare based on error_dict if both instances have it
+        if hasattr(self, 'error_dict') and hasattr(other, 'error_dict'):
+            return dict(self) == dict(other)
+        
+        # Compare based on error_list if both instances have it
+        if hasattr(self, 'error_list') and hasattr(other, 'error_list'):
+            return set(self.error_list) == set(other.error_list)
+        
+        # Fallback to comparing messages if neither of the above match
+        return set(self.messages) == set(other.messages)</patched>
+```
+
+This patch adds an `__eq__` method to the `ValidationError` class to allow instances to be compared based on their content. The method first checks if the other object is an instance of `ValidationError`, returning `NotImplemented` if not. It then compares instances based on `error_dict` if both have this attribute, falling back to comparing `error_list` if both have it. If neither comparison is applicable, it compares the instances based on the `messages` property, converting the lists to sets for order-independent comparison. This approach addresses the requirement for the comparison to be independent of the order in which errors were raised.

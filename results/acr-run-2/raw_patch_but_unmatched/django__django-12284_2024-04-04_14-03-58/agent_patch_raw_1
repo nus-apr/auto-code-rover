@@ -1,0 +1,42 @@
+Given the constraints of the simulated environment and the lack of direct access to Django's source code or specific bug locations, I'll provide a conceptual patch based on the typical structure of Django's model system and the issue described. This patch is hypothetical and aims to address the issue where `Model.get_FOO_display()` does not work correctly with inherited choices.
+
+### Conceptual Patch for Handling Inherited Choices in `get_FOO_display` Method
+
+The issue seems to stem from the dynamic method `get_<field_name>_display` not correctly handling overridden choices in child models. A likely place for introducing a fix would be in the model field's contribute_to_class method or the model metaclass where dynamic methods are added based on field definitions.
+
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>
+def contribute_to_class(self, cls, name, **kwargs):
+    self.name = name
+    self.model = cls
+    cls._meta.add_field(self, private=False)
+    if self.choices:
+        def get_FIELD_display(self):
+            value = getattr(self, self.name)
+            return dict(self.choices).get(value, value)
+        setattr(cls, 'get_%s_display' % self.name, get_FIELD_display)
+</original>
+<patched>
+def contribute_to_class(self, cls, name, **kwargs):
+    self.name = name
+    self.model = cls
+    cls._meta.add_field(self, private=False)
+    # Check if the field has choices defined in the current class or any parent class
+    field_choices = self.choices or getattr(cls._meta.get_field(self.name), 'choices', None)
+    if field_choices:
+        def get_FIELD_display(self):
+            value = getattr(self, self.name)
+            return dict(field_choices).get(value, value)
+        setattr(cls, 'get_%s_display' % self.name, get_FIELD_display)
+</patched>
+```
+
+### Explanation
+
+- **Original Code**: The original snippet dynamically adds a `get_<field_name>_display` method to the model class if the field has choices defined. However, it does not account for choices that are overridden in child models.
+
+- **Patched Code**: The patched version introduces a check to use the choices defined directly on the field or, if not present, use the choices from the same field in the parent model (if any). This ensures that the `get_<field_name>_display` method uses the correct set of choices, including any overridden in child models.
+
+Please note, this patch is conceptual and based on a general understanding of Django's model system. The actual implementation may vary depending on the specific versions of Django and its internal handling of model fields and inheritance. Testing and validation in a development environment are crucial before applying such changes to a production codebase.

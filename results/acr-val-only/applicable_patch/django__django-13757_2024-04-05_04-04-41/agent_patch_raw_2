@@ -1,0 +1,37 @@
+Given the feedback that the initial patch did not resolve the issue and some tests have failed, it's clear that the approach needs to be reconsidered. The goal remains to ensure that `isnull=True` lookups on JSON fields do not match objects where the key exists with a value of JSON null, specifically for SQLite and Oracle databases. Let's revise the patch with a more accurate approach, considering the nuances of JSON handling in these databases.
+
+# modification 1
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_oracle(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
+        return super().as_sql(compiler, connection)
+</original>
+<patched>    def as_oracle(self, compiler, connection):
+        if not self.rhs:
+            # Use JSON_QUERY to avoid matching keys with null values
+            # JSON_QUERY returns null if the key does not exist or the value is JSON null, allowing differentiation
+            return "COALESCE(JSON_QUERY(%s, '$.%s'), 'KEY_DOES_NOT_EXIST') = 'KEY_DOES_NOT_EXIST'" % (self.lhs.lhs, self.lhs.key_name), []
+        return super().as_sql(compiler, connection)
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_sqlite(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
+        return super().as_sql(compiler, connection)
+</original>
+<patched>    def as_sqlite(self, compiler, connection):
+        if not self.rhs:
+            # Adjust the logic to explicitly check for the absence of the key
+            # SQLite JSON functions return null if the key does not exist, which can be distinguished from a key with a null value
+            return "JSON_TYPE(%s, '$.%s') IS NULL" % (self.lhs.lhs, self.lhs.key_name), []
+        return super().as_sql(compiler, connection)
+</patched>
+```
+
+These revised patches for the `as_oracle` and `as_sqlite` methods in the `KeyTransformIsNull` class aim to more accurately address the issue by leveraging database-specific JSON functions (`JSON_QUERY` for Oracle and `JSON_TYPE` for SQLite) to differentiate between keys that do not exist and keys that exist with a value of JSON null. This approach should ensure that `isnull=True` lookups correctly match only objects that do not have the specified key, aligning with the expected behavior and hopefully resolving the issue without causing test failures.

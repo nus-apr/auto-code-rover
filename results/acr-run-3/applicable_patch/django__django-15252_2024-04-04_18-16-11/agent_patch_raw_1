@@ -1,0 +1,49 @@
+# modification 1
+```python
+<file>django/db/migrations/recorder.py</file>
+<original>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema."""
+        # If the table's there, that's fine - we've never changed its schema
+        # in the codebase.
+        if self.has_table():
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</original>
+<patched>    def ensure_schema(self):
+        """Ensure the table exists and has the correct schema, respecting db_router allow_migrate rules."""
+        from django.db import router
+        # If the table's there, or the router does not allow migrating, that's fine.
+        if self.has_table() or not router.allow_migrate(self.connection.alias, self.Migration):
+            return
+        # Make the table
+        try:
+            with self.connection.schema_editor() as editor:
+                editor.create_model(self.Migration)
+        except DatabaseError as exc:
+            raise MigrationSchemaMissing("Unable to create the django_migrations table (%s)" % exc)
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/recorder.py</file>
+<original>    def record_applied(self, app, name):
+        """Record that a migration was applied."""
+        self.ensure_schema()
+        self.migration_qs.create(app=app, name=name)
+</original>
+<patched>    def record_applied(self, app, name):
+        """Record that a migration was applied, respecting db_router allow_migrate rules."""
+        from django.db import router
+        if router.allow_migrate(self.connection.alias, app_label=app):
+            self.ensure_schema()
+            self.migration_qs.create(app=app, name=name)
+</patched>
+```
+
+These modifications ensure that the `MigrationRecorder` respects the `allow_migrate` rules defined in the database routers before attempting to create the migration table (`django_migrations`) or recording migrations. This should address the issue by preventing the creation of migration tables and recording of migrations in databases where they are not allowed according to the project's multi-database setup.

@@ -1,0 +1,23 @@
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 6c6ee8cee7..eb04a7ae10 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -902,9 +902,17 @@ class ModelAdmin(BaseModelAdmin):
+     def get_formsets_with_inlines(self, request, obj=None):
+         """
+         Yield formsets and the corresponding inlines.
++        Ensure that formsets correctly handle default values and validation errors.
+         """
+         for inline in self.get_inline_instances(request, obj):
+-            yield inline.get_formset(request, obj), inline
++            formset_class = inline.get_formset(request, obj)
++            formset = formset_class(request.POST or None, instance=obj)
++            if request.method == 'POST':
++                # Ensure default values are correctly set on form resubmission
++                for form in formset.forms:
++                    if not form.has_changed() and form.instance.pk is None:
++                        form.instance = form._meta.model(**form.initial)
++            yield formset, inline
+ 
+     def get_paginator(
+         self, request, queryset, per_page, orphans=0, allow_empty_first_page=True

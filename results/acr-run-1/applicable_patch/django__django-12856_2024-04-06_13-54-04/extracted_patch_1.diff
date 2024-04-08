@@ -1,0 +1,22 @@
+diff --git a/django/db/migrations/autodetector.py b/django/db/migrations/autodetector.py
+index 30616c0172..c2a5fbf94c 100644
+--- a/django/db/migrations/autodetector.py
++++ b/django/db/migrations/autodetector.py
+@@ -1123,7 +1123,16 @@ class MigrationAutodetector:
+                 )
+ 
+     def generate_altered_unique_together(self):
+-        self._generate_altered_foo_together(operations.AlterUniqueTogether)
++        # Added validation for unique constraints fields existence
++        def validate_unique_constraints_changes(app_label, model_name, unique_together):
++            model_state = self.to_state.models[app_label, model_name]
++            for constraint in model_state.options.get('constraints', []):
++                if isinstance(constraint, models.UniqueConstraint):
++                    for field in constraint.fields:
++                        if field not in model_state.fields:
++                            raise ValueError(f"Field '{field}' used in a UniqueConstraint for model '{model_state.name}' does not exist.")
++            # Original functionality
++            self._generate_altered_foo_together(operations.AlterUniqueTogether, validate_unique_constraints_changes)
+ 
+     def generate_altered_index_together(self):
+         self._generate_altered_foo_together(operations.AlterIndexTogether)

@@ -1,0 +1,20 @@
+# modification 1
+```python
+<file>sympy/physics/units/unitsystem.py</file>
+<original>elif isinstance(expr, Function):
+    fds = [self._collect_factor_and_dimension(
+        arg) for arg in expr.args]
+    return (expr.func(*(f[0] for f in fds)),
+            *(d[1] for d in fds))</original>
+<patched>elif isinstance(expr, Function):
+    # Check if the function requires dimensionless arguments, e.g., exp
+    from sympy.functions.elementary.exponential import exp
+    fds = [self._collect_factor_and_dimension(arg) for arg in expr.args]
+    if expr.func == exp:
+        for _, dim in fds:
+            if not self.get_dimension_system().is_dimensionless(dim):
+                raise ValueError(f"Argument of {expr.func} must be dimensionless, got dimension {dim}")
+    return (expr.func(*(f[0] for f in fds)), Dimension(1))</patched>
+```
+
+This patch addresses the issue by adding a specific check for functions that require dimensionless arguments, such as the exponential function (`exp`). When encountering such a function, it verifies that each argument's dimension is dimensionless. If not, it raises a `ValueError`. This ensures that expressions like `exp(expr)` are correctly handled when `expr` is not dimensionless, thus preventing the incorrect dimensionality error. The patch also assumes that the result of such functions is dimensionless, which aligns with the mathematical properties of functions like `exp`.

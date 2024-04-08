@@ -1,0 +1,54 @@
+To address the issue of missing `hostname` and `timestamp` properties in the generated JUnit XML reports, we need to modify the `pytest_sessionfinish` method in the `src/_pytest/junitxml.py` file. This method is responsible for finalizing the XML report, making it the appropriate place to add the missing attributes. We will import the necessary libraries to obtain the hostname and generate the timestamp.
+
+# modification 1
+```python
+<file>src/_pytest/junitxml.py</file>
+<original>def pytest_sessionfinish(self):
+        dirname = os.path.dirname(os.path.abspath(self.logfile))
+        if not os.path.isdir(dirname):
+            os.makedirs(dirname)
+        logfile = open(self.logfile, "w", encoding="utf-8")
+        suite_stop_time = time.time()
+        suite_time_delta = suite_stop_time - self.suite_start_time</original>
+<patched>import socket
+import datetime
+
+def pytest_sessionfinish(self):
+        dirname = os.path.dirname(os.path.abspath(self.logfile))
+        if not os.path.isdir(dirname):
+            os.makedirs(dirname)
+        logfile = open(self.logfile, "w", encoding="utf-8")
+        suite_stop_time = time.time()
+        suite_time_delta = suite_stop_time - self.suite_start_time
+        hostname = socket.gethostname()
+        timestamp = datetime.datetime.now().isoformat()</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/junitxml.py</file>
+<original>suite_node = Junit.testsuite(
+            self._get_global_properties_node(),
+            [x.to_xml() for x in self.node_reporters_ordered],
+            name=self.suite_name,
+            errors=self.stats["error"],
+            failures=self.stats["failure"],
+            skipped=self.stats["skipped"],
+            tests=numtests,
+            time="%.3f" % suite_time_delta,
+        )</original>
+<patched>suite_node = Junit.testsuite(
+            self._get_global_properties_node(),
+            [x.to_xml() for x in self.node_reporters_ordered],
+            name=self.suite_name,
+            errors=self.stats["error"],
+            failures=self.stats["failure"],
+            skipped=self.stats["skipped"],
+            tests=numtests,
+            time="%.3f" % suite_time_delta,
+            hostname=hostname,  # Added hostname
+            timestamp=timestamp,  # Added timestamp
+        )</patched>
+```
+
+These modifications ensure that the generated JUnit XML reports will include the `hostname` and `timestamp` attributes in the `<testsuite>` element. The first modification imports the necessary libraries and retrieves the hostname and current timestamp. The second modification updates the `suite_node` creation to include these new attributes.

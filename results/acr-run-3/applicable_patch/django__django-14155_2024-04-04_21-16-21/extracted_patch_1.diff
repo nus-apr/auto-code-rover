@@ -1,0 +1,47 @@
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 9b00e24509..3d80b25a7f 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -45,12 +45,26 @@ class ResolverMatch:
+         self.namespaces = [x for x in namespaces if x] if namespaces else []
+         self.namespace = ':'.join(self.namespaces)
+ 
+-        if not hasattr(func, '__name__'):
++        import functools
++        if isinstance(func, functools.partial):
++            # Handle functools.partial objects
++            partial_func = func.func
++            if not hasattr(partial_func, '__name__'):
++                # A class-based view wrapped in functools.partial
++                self._func_path = partial_func.__class__.__module__ + '.' + partial_func.__class__.__name__
++            else:
++                # A function-based view wrapped in functools.partial
++                self._func_path = partial_func.__module__ + '.' + partial_func.__name__
++            self._partial_args_str = ', '.join(map(str, func.args))
++            self._partial_kwargs_str = ', '.join(f"{k}={v}" for k, v in func.keywords.items())
++        elif not hasattr(func, '__name__'):
+             # A class-based view
+             self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__
+         else:
+             # A function-based view
+             self._func_path = func.__module__ + '.' + func.__name__
++            self._partial_args_str = ''
++            self._partial_kwargs_str = ''
+ 
+         view_path = url_name or self._func_path
+         self.view_name = ':'.join(self.namespaces + [view_path])
+@@ -59,9 +73,13 @@ class ResolverMatch:
+         return (self.func, self.args, self.kwargs)[index]
+ 
+     def __repr__(self):
+-        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
++        partial_info = ""
++        if hasattr(self, '_partial_args_str') and hasattr(self, '_partial_kwargs_str'):
++            partial_info = f", partial_args=({self._partial_args_str}), partial_kwargs=({self._partial_kwargs_str})"
++        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s%s)" % (
+             self._func_path, self.args, self.kwargs, self.url_name,
+             self.app_names, self.namespaces, self.route,
++            partial_info
+         )
+ 
+ 

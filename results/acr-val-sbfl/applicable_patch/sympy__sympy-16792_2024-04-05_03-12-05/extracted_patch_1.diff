@@ -1,0 +1,88 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..85a103d92c 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -407,34 +407,35 @@ def dump_pyx(self, routines, f, prefix):
+         f.write('\n'.join(functions))
+ 
+     def _partition_args(self, args):
+-        """Group function arguments into categories."""
+-        py_args = []
+-        py_returns = []
+-        py_locals = []
+-        py_inferred = {}
+-        for arg in args:
+-            if isinstance(arg, OutputArgument):
+-                py_returns.append(arg)
+-                py_locals.append(arg)
+-            elif isinstance(arg, InOutArgument):
+-                py_returns.append(arg)
+-                py_args.append(arg)
+-            else:
+-                py_args.append(arg)
+-        # Find arguments that are array dimensions. These can be inferred
+-        # locally in the Cython code.
+-            if isinstance(arg, (InputArgument, InOutArgument)) and arg.dimensions:
+-                dims = [d[1] + 1 for d in arg.dimensions]
+-                sym_dims = [(i, d) for (i, d) in enumerate(dims) if
+-                            isinstance(d, Symbol)]
+-                for (i, d) in sym_dims:
+-                    py_inferred[d] = (arg.name, i)
+-        for arg in args:
+-            if arg.name in py_inferred:
+-                py_inferred[arg] = py_inferred.pop(arg.name)
+-        # Filter inferred arguments from py_args
+-        py_args = [a for a in py_args if a not in py_inferred]
+-        return py_returns, py_args, py_locals, py_inferred
++            """Group function arguments into categories, ensuring array arguments are correctly handled."""
++            py_args = []
++            py_returns = []
++            py_locals = []
++            py_inferred = {}
++            for arg in args:
++                if isinstance(arg, OutputArgument):
++                    py_returns.append(arg)
++                    py_locals.append(arg)
++                elif isinstance(arg, InOutArgument):
++                    py_returns.append(arg)
++                    py_args.append(arg)
++                else:
++                    py_args.append(arg)
++            # Find arguments that are array dimensions. These can be inferred
++            # locally in the Cython code.
++                if isinstance(arg, (InputArgument, InOutArgument)) and arg.dimensions:
++                    dims = [d[1] + 1 for d in arg.dimensions]
++                    sym_dims = [(i, d) for (i, d) in enumerate(dims) if
++                                isinstance(d, Symbol)]
++                    for (i, d) in sym_dims:
++                        py_inferred[d] = (arg.name, i)
++            for arg in args:
++                if arg.name in py_inferred:
++                    py_inferred[arg] = py_inferred.pop(arg.name)
++            # Ensure array arguments are kept in py_args even if they are not directly used
++            # This is crucial for functions where array arguments may not appear in the expression
++            py_args = [a for a in args if isinstance(a, (InputArgument, InOutArgument))]
++            return py_returns, py_args, py_locals, py_inferred
+ 
+     def _prototype_arg(self, arg):
+         mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
+@@ -450,12 +451,13 @@ def _prototype_arg(self, arg):
+             return "%s %s" % (t, self._string_var(arg.name))
+ 
+     def _declare_arg(self, arg):
+-        proto = self._prototype_arg(arg)
+-        if arg.dimensions:
+-            shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
+-            return proto + " = np.empty({shape})".format(shape=shape)
+-        else:
+-            return proto + " = 0"
++            proto = self._prototype_arg(arg)
++            # Ensure that array arguments are initialized correctly, even if not used
++            if arg.dimensions:
++                shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
++                return proto + " = np.empty({shape}, dtype=np.float64)".format(shape=shape)  # Specify dtype explicitly
++            else:
++                return proto + " = 0"
+ 
+     def _call_arg(self, arg):
+         if arg.dimensions:

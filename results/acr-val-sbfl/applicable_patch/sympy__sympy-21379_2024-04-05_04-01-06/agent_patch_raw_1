@@ -1,0 +1,72 @@
+Given the complexity of the issue and the insights from the provided context, a potential patch could involve ensuring that operations involving `Piecewise` functions, especially when combined with hyperbolic functions and under the presence of real assumptions, are handled correctly. The error seems to stem from a combination of factors including assumptions handling and the evaluation of expressions involving `Piecewise`. However, without the ability to run and test code, the following patch is speculative and aims to address the potential root causes identified in the analysis. It focuses on improving the handling of assumptions in the context of `Piecewise` expressions.
+
+# modification 1
+```python
+<file>sympy/assumptions/wrapper.py</file>
+<original>def is_extended_nonnegative(obj, assumptions=None):
+    if assumptions is None:
+        return obj.is_extended_nonnegative
+    return ask(Q.extended_nonnegative(obj), assumptions)
+</original>
+<patched>def is_extended_nonnegative(obj, assumptions=None):
+    try:
+        if assumptions is None:
+            return obj.is_extended_nonnegative
+        return ask(Q.extended_nonnegative(obj), assumptions)
+    except PolynomialError:
+        # Handle PolynomialError for specific cases involving Piecewise expressions
+        if isinstance(obj, Piecewise):
+            # Attempt to evaluate the condition under the given assumptions
+            for expr, cond in obj.args:
+                if ask(cond, assumptions):
+                    return ask(Q.extended_nonnegative(expr), assumptions)
+        raise
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/core/add.py</file>
+<original>def _unevaluated_Add(*args):
+    args = list(args)
+    newargs = []
+    co = S.Zero
+    while args:
+        a = args.pop()
+        if a.is_Add:
+            args.extend(a.args)
+        elif a.is_Number:
+            co += a
+        else:
+            newargs.append(a)
+    _addsort(newargs)
+    if co:
+        newargs.insert(0, co)
+    return Add._from_args(newargs)
+</original>
+<patched>def _unevaluated_Add(*args):
+    args = list(args)
+    newargs = []
+    co = S.Zero
+    while args:
+        a = args.pop()
+        if a.is_Add:
+            args.extend(a.args)
+        elif a.is_Number:
+            co += a
+        else:
+            # Special handling for Piecewise within Add to prevent PolynomialError
+            if isinstance(a, Piecewise):
+                newargs.extend(a.args)
+            else:
+                newargs.append(a)
+    _addsort(newargs)
+    if co:
+        newargs.insert(0, co)
+    return Add._from_args(newargs)
+</patched>
+```
+
+These modifications aim to address the issue by adding error handling for `PolynomialError` in the context of assumptions checking, specifically for `Piecewise` expressions, and by adjusting the behavior of `_unevaluated_Add` to better handle `Piecewise` expressions. The goal is to mitigate the conditions that lead to the `PolynomialError` when substituting values into expressions involving `Piecewise` and hyperbolic functions. 
+
+Please note, these patches are speculative and would need thorough testing with the provided examples and additional cases to ensure they resolve the issue without introducing new ones.

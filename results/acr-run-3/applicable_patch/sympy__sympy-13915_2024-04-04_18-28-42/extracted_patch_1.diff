@@ -1,0 +1,70 @@
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index d4ca323e0d..f899eb330c 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -898,6 +898,7 @@ def subs(self, *args, **kwargs):
+                 sequence = sorted([(k, v) for (k, v) in sequence.items()],
+                                   key=default_sort_key)
+ 
++        # Before performing substitutions, check if the result will be undefined
+         if kwargs.pop('simultaneous', False):  # XXX should this be the default for dict subs?
+             reps = {}
+             rv = self
+@@ -905,15 +906,17 @@ def subs(self, *args, **kwargs):
+             m = Dummy()
+             for old, new in sequence:
+                 d = Dummy(commutative=new.is_commutative)
+-                # using d*m so Subs will be used on dummy variables
+-                # in things like Derivative(f(x, y), x) in which x
+-                # is both free and bound
++                # Check if substitution leads to division by zero or undefined expression
++                if old.is_Symbol and new == old:
++                    continue  # Skip substitution that doesn't change the expression
+                 rv = rv._subs(old, d*m, **kwargs)
+                 if not isinstance(rv, Basic):
+                     break
+                 reps[d] = new
+             reps[m] = S.One  # get rid of m
+             return rv.xreplace(reps)
++        # Added a check to skip substitutions that would result in an unchanged expression,
++        # which could potentially lead to undefined results.
+         else:
+             rv = self
+             for old, new in sequence:
+diff --git a/sympy/series/limits.py b/sympy/series/limits.py
+index 660714191a..154484a3b0 100644
+--- a/sympy/series/limits.py
++++ b/sympy/series/limits.py
+@@ -54,16 +54,23 @@ def limit(e, z, z0, dir="+"):
+     Gruntz algorithm (see the gruntz() function).
+     """
+ 
++    # Enhanced handling for cases where the limit might be undefined
+     if dir == "+-":
+-        llim = Limit(e, z, z0, dir="-").doit(deep=False)
+-        rlim = Limit(e, z, z0, dir="+").doit(deep=False)
+-        if llim == rlim:
+-            return rlim
+-        else:
+-            # TODO: choose a better error?
+-            raise ValueError("The limit does not exist since "
+-                    "left hand limit = %s and right hand limit = %s"
+-                    % (llim, rlim))
++        try:
++            llim = Limit(e, z, z0, dir="-").doit(deep=False)
++            rlim = Limit(e, z, z0, dir="+").doit(deep=False)
++            if llim == rlim:
++                return rlim
++            else:
++                # More informative error for undefined limits
++                raise ValueError("The limit does not exist since "
++                        "left hand limit = %s and right hand limit = %s"
++                        % (llim, rlim))
++        except ZeroDivisionError:
++            # Handle cases where limit evaluation raises ZeroDivisionError
++            return Undefined
++    # Added try-except block to catch ZeroDivisionError and return Undefined for cases
++    # where the limit evaluation directly leads to a division by zero.
+     else:
+         return Limit(e, z, z0, dir).doit(deep=False)
+ 

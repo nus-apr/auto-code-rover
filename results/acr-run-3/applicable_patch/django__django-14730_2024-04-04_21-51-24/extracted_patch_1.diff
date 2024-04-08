@@ -1,0 +1,36 @@
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index febaadbb5b..b040885473 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -1208,13 +1208,24 @@ class ManyToManyField(RelatedField):
+         self.swappable = swappable
+ 
+     def check(self, **kwargs):
+-        return [
+-            *super().check(**kwargs),
+-            *self._check_unique(**kwargs),
+-            *self._check_relationship_model(**kwargs),
+-            *self._check_ignored_options(**kwargs),
+-            *self._check_table_uniqueness(**kwargs),
+-        ]
++        errors = super().check(**kwargs)
++        errors.extend(self._check_unique(**kwargs))
++        errors.extend(self._check_relationship_model(**kwargs))
++        errors.extend(self._check_ignored_options(**kwargs))
++        errors.extend(self._check_symmetrical_related_name(**kwargs))
++        errors.extend(self._check_table_uniqueness(**kwargs))
++        return errors
++
++    def _check_symmetrical_related_name(self, **kwargs):
++        from django.core.exceptions import ValidationError
++        if self.symmetrical and self.related_name is not None:
++            return [
++                ValidationError(
++                    "Defining a related_name is not allowed on symmetrical ManyToManyFields.",
++                    code='invalid_related_name_for_symmetrical_m2m',
++                )
++            ]
++        return []
+ 
+     def _check_unique(self, **kwargs):
+         if self.unique:

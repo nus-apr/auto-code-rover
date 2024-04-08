@@ -1,0 +1,28 @@
+Based on the context provided and the issue described, the missing import statement for `models` in the generated migration file seems to be due to the way imports are handled during the serialization of operations and their arguments. The `MigrationWriter` class is responsible for assembling the final set of imports to be included in the migration file. However, it seems that the conditional logic for including `"from django.db import models"` might not always work as intended, especially when custom fields or mixins are involved that require this import but do not directly trigger its inclusion.
+
+Here's a proposed patch to ensure that the necessary `models` import is included when custom fields or mixins are serialized and require it:
+
+# modification 1
+```python
+<file>django/db/migrations/writer.py</file>
+<original>if "from django.db import models" in imports:
+    imports.discard("from django.db import models")
+    imports.add("from django.db import migrations, models")
+else:
+    imports.add("from django.db import migrations")</original>
+<patched># Ensure "models" is always imported if any operation or field requires it
+# This is a simplistic approach; more sophisticated logic might be needed based on actual dependencies
+needs_models_import = any(
+    "models." in operation_string for operation_string in operations
+) or "models." in "\n".join(dependencies)
+if needs_models_import:
+    if "from django.db import models" not in imports and "from django.db import migrations, models" not in imports:
+        imports.add("from django.db import migrations, models")
+else:
+    if "from django.db import models" not in imports:
+        imports.add("from django.db import migrations")</patched>
+```
+
+This patch modifies the logic for determining when to include the `models` import. Instead of relying solely on whether `"from django.db import models"` was explicitly added to the `imports` set during serialization, it introduces a check (`needs_models_import`) to see if any operation strings or dependencies contain a reference to `models.`. If such a reference is found, it ensures that `"from django.db import migrations, models"` is added to the imports, covering cases where custom fields or mixins might require the `models` import but do not directly trigger its inclusion through the existing logic.
+
+Please note, this patch provides a basic approach to addressing the issue based on the provided context. Depending on the complexity and variety of operations, fields, and mixins used in migrations, further refinement of this logic might be necessary to accurately capture all scenarios requiring the `models` import.

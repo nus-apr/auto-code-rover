@@ -1,0 +1,50 @@
+Given the context and the identified potential bug locations, a patch needs to ensure that the `rst_prolog` insertion does not interfere with the rendering of headings, especially those containing domain directives. The issue seems to stem from how the `rst_prolog` is prepended to the content, potentially disrupting the document structure. Here's a proposed patch:
+
+# modification 1
+```python
+<file>sphinx/util/rst.py</file>
+<original>def prepend_prolog(content: StringList, prolog: str) -> None:
+    """Prepend a string to content body as prolog."""
+    if prolog:
+        pos = 0
+        for line in content:
+            if docinfo_re.match(line):
+                pos += 1
+            else:
+                break
+
+        if pos > 0:
+            # insert a blank line after docinfo
+            content.insert(pos, '', '<generated>', 0)
+            pos += 1
+
+        # insert prolog (after docinfo if exists)
+        for lineno, line in enumerate(prolog.splitlines()):
+            content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+
+        content.insert(pos + lineno + 1, '', '<generated>', 0)</original>
+<patched>def prepend_prolog(content: StringList, prolog: str) -> None:
+    """Prepend a string to content body as prolog, ensuring top-level headings are preserved."""
+    if prolog:
+        pos = 0
+        # Look for the first non-empty line that does not match docinfo to insert prolog
+        # This ensures that prolog does not interfere with document's top-level structure
+        for idx, line in enumerate(content):
+            if line.strip() and not docinfo_re.match(line):
+                pos = idx
+                break
+
+        # Insert a blank line before prolog to separate it from document content if needed
+        if pos > 0:
+            content.insert(pos, '', '<generated>', 0)
+            pos += 1
+
+        # Insert prolog at the determined position
+        for lineno, line in enumerate(prolog.splitlines()):
+            content.insert(pos + lineno, line, '<rst_prolog>', lineno)
+
+        # Ensure there's a blank line after the prolog for clarity
+        content.insert(pos + lineno + 1, '', '<generated>', 0)</patched>
+```
+
+This modification aims to adjust the insertion logic of `rst_prolog` to ensure it does not disrupt the structure of the document, particularly the top-level headings. By carefully placing the prolog in a position that respects the document's original structure, we can avoid the issue where headings, especially those with domain directives, are rendered incorrectly or omitted from the toctree.

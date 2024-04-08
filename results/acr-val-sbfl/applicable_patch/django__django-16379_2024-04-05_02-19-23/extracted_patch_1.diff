@@ -1,0 +1,37 @@
+diff --git a/django/core/cache/backends/filebased.py b/django/core/cache/backends/filebased.py
+index 631da49444..69bc9ccb7e 100644
+--- a/django/core/cache/backends/filebased.py
++++ b/django/core/cache/backends/filebased.py
+@@ -90,10 +90,11 @@ class FileBasedCache(BaseCache):
+ 
+     def has_key(self, key, version=None):
+         fname = self._key_to_file(key, version)
+-        if os.path.exists(fname):
++        try:
+             with open(fname, "rb") as f:
+                 return not self._is_expired(f)
+-        return False
++        except FileNotFoundError:
++            return False
+ 
+     def _cull(self):
+         """
+@@ -150,11 +151,14 @@ class FileBasedCache(BaseCache):
+         """
+         try:
+             exp = pickle.load(f)
+-        except EOFError:
+-            exp = 0  # An empty file is considered expired.
++        except (EOFError, FileNotFoundError):
++            exp = 0  # An empty file or a missing file is considered expired.
+         if exp is not None and exp < time.time():
+-            f.close()  # On Windows a file has to be closed before deleting
+-            self._delete(f.name)
++            try:
++                f.close()  # On Windows a file has to be closed before deleting
++                self._delete(f.name)
++            except FileNotFoundError:
++                pass  # File was already deleted, ignore
+             return True
+         return False
+ 

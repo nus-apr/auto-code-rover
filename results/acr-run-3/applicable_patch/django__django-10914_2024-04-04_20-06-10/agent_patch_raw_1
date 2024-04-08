@@ -1,0 +1,25 @@
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>if self.file_permissions_mode is not None:
+    os.chmod(full_path, self.file_permissions_mode)</original>
+<patched># Ensure a default file permission if FILE_UPLOAD_PERMISSIONS is not set
+if self.file_permissions_mode is not None:
+    os.chmod(full_path, self.file_permissions_mode)
+else:
+    # Set default file permissions to 0o644 to address inconsistency
+    os.chmod(full_path, 0o644)</patched>
+```
+
+# modification 2
+```python
+<file>django/core/files/storage.py</file>
+<original>def file_permissions_mode(self):
+    return self._value_or_setting(self._file_permissions_mode, settings.FILE_UPLOAD_PERMISSIONS)</original>
+<patched>def file_permissions_mode(self):
+    # Set a default permission mode if FILE_UPLOAD_PERMISSIONS is not explicitly configured
+    default_permissions = 0o644
+    return self._value_or_setting(self._file_permissions_mode, getattr(settings, 'FILE_UPLOAD_PERMISSIONS', default_permissions))</patched>
+```
+
+These modifications ensure that if the `FILE_UPLOAD_PERMISSIONS` setting is not explicitly configured, Django will use a default file permission of `0o644` for uploaded files. This addresses the inconsistency in file permissions between `MemoryUploadedFile` and `TemporaryUploadedFile` as described in the issue.

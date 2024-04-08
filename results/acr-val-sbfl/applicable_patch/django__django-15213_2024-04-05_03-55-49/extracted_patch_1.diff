@@ -1,0 +1,20 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 8642e1f151..4639970c81 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -979,7 +979,14 @@ class ExpressionWrapper(SQLiteNumericMixin, Expression):
+         return super().get_group_by_cols()
+ 
+     def as_sql(self, compiler, connection):
+-        return compiler.compile(self.expression)
++        sql, params = compiler.compile(self.expression)
++        if self.output_field.get_internal_type() == 'BooleanField':
++            if sql:
++                sql = 'NOT (' + sql + ')' if 'NOT' in sql.upper() else '(' + sql + ')'
++            else:
++                # Handle the case where sql is empty, particularly for empty Q() objects
++                sql = '1=1' if 'NOT' in sql.upper() else '1=0'
++        return sql, params
+ 
+     def __repr__(self):
+         return "{}({})".format(self.__class__.__name__, self.expression)

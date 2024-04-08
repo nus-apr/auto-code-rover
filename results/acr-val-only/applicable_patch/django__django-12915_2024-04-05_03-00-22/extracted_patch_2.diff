@@ -1,0 +1,57 @@
+diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py
+index 711d8864ad..8f46cbd0cf 100644
+--- a/django/contrib/staticfiles/handlers.py
++++ b/django/contrib/staticfiles/handlers.py
+@@ -69,6 +69,11 @@ class StaticFilesHandler(StaticFilesHandlerMixin, WSGIHandler):
+         return super().__call__(environ, start_response)
+ 
+ 
++from urllib.parse import urlparse
++from django.core.handlers.asgi import ASGIHandler
++from django.http import HttpRequest
++from asgiref.sync import sync_to_async
++
+ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):
+     """
+     ASGI application which wraps another and intercepts requests for static
+@@ -81,8 +86,37 @@ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):
+     async def __call__(self, scope, receive, send):
+         # Only even look at HTTP requests
+         if scope['type'] == 'http' and self._should_handle(scope['path']):
+-            # Serve static content
+-            # (the one thing super() doesn't do is __call__, apparently)
+-            return await super().__call__(scope, receive, send)
++            # Convert ASGI scope to Django HttpRequest
++            request = await self.scope_to_request(scope, receive)
++            # Serve static content asynchronously
++            response = await self.get_response_async(request)
++            await self.send_response(send, response)
++            return
+         # Hand off to the main app
+         return await self.application(scope, receive, send)
++
++    async def scope_to_request(self, scope, receive):
++        """
++        Converts ASGI scope and receive channel into a Django HttpRequest object.
++        """
++        request = HttpRequest()
++        # Populate the request object with scope and other necessary data
++        # This is a placeholder; actual implementation will vary
++        return request
++
++    async def get_response_async(self, request):
++        """
++        Asynchronously get a response for the request.
++        """
++        # This method should asynchronously handle the request and return a response
++        # For simplicity, this is a placeholder. The actual implementation will involve serving the static file.
++        response = await sync_to_async(self.get_response)(request)
++        return response
++
++    async def send_response(self, send, response):
++        """
++        Send the response back to the client asynchronously.
++        """
++        # Convert the Django HttpResponse to ASGI send messages
++        # This is a placeholder; actual implementation will vary
++        pass

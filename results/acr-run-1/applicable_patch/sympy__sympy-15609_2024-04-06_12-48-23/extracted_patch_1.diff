@@ -1,0 +1,30 @@
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 901918674a..dbb7a2df94 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -2430,6 +2430,14 @@ def latex(expr, fold_frac_powers=False, fold_func_brackets=False,
+     if symbol_names is None:
+         symbol_names = {}
+ 
++    # Patch: Adjust the handling of indexed expressions to avoid double subscript errors
++    def adjust_double_subscript(latex_str):
++        import re
++        # This regex finds occurrences of double underscores which lead to double subscript in LaTeX
++        pattern = re.compile(r'(_{[^}]*}){2,}')
++        # Replace occurrences of double subscripts with a single underscore and bracket notation
++        return pattern.sub(lambda x: '_{' + ''.join(x.group(0).split('_')[1:]).replace('{', '').replace('}', '') + '}', latex_str)
++
+     settings = {
+         'fold_frac_powers' : fold_frac_powers,
+         'fold_func_brackets' : fold_func_brackets,
+@@ -2446,7 +2454,9 @@ def latex(expr, fold_frac_powers=False, fold_func_brackets=False,
+         'symbol_names' : symbol_names,
+     }
+ 
+-    return LatexPrinter(settings).doprint(expr)
++    latex_str = LatexPrinter(settings).doprint(expr)
++    # Apply the adjustment to the generated LaTeX string
++    return adjust_double_subscript(latex_str)
+ 
+ 
+ def print_latex(expr, **settings):

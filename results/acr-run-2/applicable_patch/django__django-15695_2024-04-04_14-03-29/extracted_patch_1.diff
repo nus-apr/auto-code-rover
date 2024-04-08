@@ -1,0 +1,32 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index d17232e4ec..7b8580a8e2 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -962,8 +962,12 @@ class RenameIndex(IndexOperation):
+             old_index = from_model_state.get_index_by_name(self.old_name)
+ 
+         to_model_state = to_state.models[app_label, self.model_name_lower]
+-        new_index = to_model_state.get_index_by_name(self.new_name)
+-        schema_editor.rename_index(model, old_index, new_index)
++        try:
++            new_index = to_model_state.get_index_by_name(self.new_name)
++            schema_editor.rename_index(model, old_index, new_index)
++        except ValueError as e:
++            if "does not exist" not in str(e):
++                raise
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+         if self.old_fields:
+@@ -976,7 +980,11 @@ class RenameIndex(IndexOperation):
+         )
+         self.new_name, self.old_name = self.old_name, self.new_name
+ 
+-        self.database_forwards(app_label, schema_editor, from_state, to_state)
++        try:
++            self.database_forwards(app_label, schema_editor, from_state, to_state)
++        except ProgrammingError as e:
++            if "already exists" not in str(e):
++                raise
+ 
+         self.new_name_lower, self.old_name_lower = (
+             self.old_name_lower,

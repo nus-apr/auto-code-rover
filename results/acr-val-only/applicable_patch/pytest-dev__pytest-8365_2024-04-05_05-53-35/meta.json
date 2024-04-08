@@ -1,0 +1,60 @@
+{
+    "task_id": "pytest-dev__pytest-8365",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/pytest-dev__pytest/setup_pytest-dev__pytest__6.3",
+        "env_name": "setup_pytest-dev__pytest__6.3",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest -rA testing/test_tmpdir.py"
+    },
+    "task_info": {
+        "instance_id": "pytest-dev__pytest-8365",
+        "base_commit": "4964b468c83c06971eb743fbc57cc404f760c573",
+        "hints_text": "Thanks for the report @pborsutzki!",
+        "created_at": "2021-02-22T20:26:35Z",
+        "test_patch": "diff --git a/testing/test_tmpdir.py b/testing/test_tmpdir.py\n--- a/testing/test_tmpdir.py\n+++ b/testing/test_tmpdir.py\n@@ -11,6 +11,7 @@\n import pytest\n from _pytest import pathlib\n from _pytest.config import Config\n+from _pytest.monkeypatch import MonkeyPatch\n from _pytest.pathlib import cleanup_numbered_dir\n from _pytest.pathlib import create_cleanup_lock\n from _pytest.pathlib import make_numbered_dir\n@@ -445,3 +446,14 @@ def test(tmp_path):\n     # running a second time and ensure we don't crash\n     result = pytester.runpytest(\"--basetemp=tmp\")\n     assert result.ret == 0\n+\n+\n+def test_tmp_path_factory_handles_invalid_dir_characters(\n+    tmp_path_factory: TempPathFactory, monkeypatch: MonkeyPatch\n+) -> None:\n+    monkeypatch.setattr(\"getpass.getuser\", lambda: \"os/<:*?;>agnostic\")\n+    # _basetemp / _given_basetemp are cached / set in parallel runs, patch them\n+    monkeypatch.setattr(tmp_path_factory, \"_basetemp\", None)\n+    monkeypatch.setattr(tmp_path_factory, \"_given_basetemp\", None)\n+    p = tmp_path_factory.getbasetemp()\n+    assert \"pytest-of-unknown\" in str(p)\n",
+        "repo": "pytest-dev/pytest",
+        "problem_statement": "tmpdir creation fails when the username contains illegal characters for directory names\n`tmpdir`, `tmpdir_factory` and `tmp_path_factory` rely on `getpass.getuser()` for determining the `basetemp` directory. I found that the user name returned by `getpass.getuser()` may return characters that are not allowed for directory names. This may lead to errors while creating the temporary directory.\r\n\r\nThe situation in which I reproduced this issue was while being logged in through an ssh connection into my Windows 10 x64 Enterprise version (1909) using an OpenSSH_for_Windows_7.7p1 server. In this configuration the command `python -c \"import getpass; print(getpass.getuser())\"` returns my domain username e.g. `contoso\\john_doe` instead of `john_doe` as when logged in regularly using a local session.\r\n\r\nWhen trying to create a temp directory in pytest through e.g. `tmpdir_factory.mktemp('foobar')` this fails with the following error message:\r\n```\r\nself = WindowsPath('C:/Users/john_doe/AppData/Local/Temp/pytest-of-contoso/john_doe')\r\nmode = 511, parents = False, exist_ok = True\r\n\r\n    def mkdir(self, mode=0o777, parents=False, exist_ok=False):\r\n        \"\"\"\r\n        Create a new directory at this given path.\r\n        \"\"\"\r\n        if self._closed:\r\n            self._raise_closed()\r\n        try:\r\n>           self._accessor.mkdir(self, mode)\r\nE           FileNotFoundError: [WinError 3] The system cannot find the path specified: 'C:\\\\Users\\\\john_doe\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-contoso\\\\john_doe'\r\n\r\nC:\\Python38\\lib\\pathlib.py:1266: FileNotFoundError\r\n```\r\n\r\nI could also reproduce this without the complicated ssh/windows setup with pytest 6.2.2 using the following commands from a `cmd`:\r\n```bat\r\necho def test_tmpdir(tmpdir):>test_tmp.py\r\necho   pass>>test_tmp.py\r\nset LOGNAME=contoso\\john_doe\r\npy.test test_tmp.py\r\n```\r\n\r\nThanks for having a look at this!\n",
+        "version": "6.3",
+        "FAIL_TO_PASS": [
+            "testing/test_tmpdir.py::test_tmp_path_factory_handles_invalid_dir_characters"
+        ],
+        "PASS_TO_PASS": [
+            "testing/test_tmpdir.py::TestConfigTmpdir::test_getbasetemp_custom_removes_old",
+            "testing/test_tmpdir.py::TestNumberedDir::test_cleanup_ignores_symlink",
+            "testing/test_tmpdir.py::TestNumberedDir::test_cleanup_keep",
+            "testing/test_tmpdir.py::TestNumberedDir::test_cleanup_lock_create",
+            "testing/test_tmpdir.py::TestNumberedDir::test_cleanup_locked",
+            "testing/test_tmpdir.py::TestNumberedDir::test_lock_register_cleanup_removal",
+            "testing/test_tmpdir.py::TestNumberedDir::test_make",
+            "testing/test_tmpdir.py::TestNumberedDir::test_removal_accepts_lock",
+            "testing/test_tmpdir.py::TestRmRf::test_on_rm_rf_error",
+            "testing/test_tmpdir.py::TestRmRf::test_rm_rf",
+            "testing/test_tmpdir.py::TestRmRf::test_rm_rf_with_read_only_directory",
+            "testing/test_tmpdir.py::TestRmRf::test_rm_rf_with_read_only_file",
+            "testing/test_tmpdir.py::TestTempdirHandler::test_mktemp",
+            "testing/test_tmpdir.py::TestTempdirHandler::test_tmppath_relative_basetemp_absolute",
+            "testing/test_tmpdir.py::test_basetemp_with_read_only_files",
+            "testing/test_tmpdir.py::test_get_user_uid_not_found",
+            "testing/test_tmpdir.py::test_mktemp[../../mypath4-False]",
+            "testing/test_tmpdir.py::test_mktemp[../mypath3-False]",
+            "testing/test_tmpdir.py::test_mktemp[./mypath1-True]",
+            "testing/test_tmpdir.py::test_mktemp[/mypath1-False]",
+            "testing/test_tmpdir.py::test_mktemp[mypath-True]",
+            "testing/test_tmpdir.py::test_mktemp[mypath5/..-False]",
+            "testing/test_tmpdir.py::test_mktemp[mypath6/../mypath6-True]",
+            "testing/test_tmpdir.py::test_mktemp[mypath7/../mypath7/..-False]",
+            "testing/test_tmpdir.py::test_tmp_path_always_is_realpath",
+            "testing/test_tmpdir.py::test_tmpdir_always_is_realpath",
+            "testing/test_tmpdir.py::test_tmpdir_equals_tmp_path",
+            "testing/test_tmpdir.py::test_tmpdir_factory",
+            "testing/test_tmpdir.py::test_tmpdir_fallback_tox_env",
+            "testing/test_tmpdir.py::test_tmpdir_fallback_uid_not_found",
+            "testing/test_tmpdir.py::test_tmpdir_fixture",
+            "testing/test_tmpdir.py::test_tmpdir_too_long_on_parametrization"
+        ],
+        "environment_setup_commit": "634312b14a45db8d60d72016e01294284e3a18d4",
+        "patch": "diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py\n--- a/src/_pytest/tmpdir.py\n+++ b/src/_pytest/tmpdir.py\n@@ -115,7 +115,12 @@ def getbasetemp(self) -> Path:\n             # use a sub-directory in the temproot to speed-up\n             # make_numbered_dir() call\n             rootdir = temproot.joinpath(f\"pytest-of-{user}\")\n-            rootdir.mkdir(exist_ok=True)\n+            try:\n+                rootdir.mkdir(exist_ok=True)\n+            except OSError:\n+                # getuser() likely returned illegal characters for the platform, use unknown back off mechanism\n+                rootdir = temproot.joinpath(\"pytest-of-unknown\")\n+                rootdir.mkdir(exist_ok=True)\n             basetemp = make_numbered_dir_with_cleanup(\n                 prefix=\"pytest-\", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT\n             )\n",
+        "pr_link": "https://github.com/pytest-dev/pytest/pull/8365"
+    }
+}

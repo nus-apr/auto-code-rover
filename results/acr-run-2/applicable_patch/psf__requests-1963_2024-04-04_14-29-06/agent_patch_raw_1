@@ -1,0 +1,23 @@
+# modification 1
+```python
+<file>requests/sessions.py</file>
+<original>prepared_request = req.copy()</original>
+<patched># Instead of copying the original request, we now initialize prepared_request with None
+# and only create a copy of the request if it's the first redirect (i.e., i == 0).
+# For subsequent redirects, we modify the existing prepared_request to preserve changes made during the redirect chain.
+if i == 0:
+    prepared_request = req.copy()
+else:
+    prepared_request.method = method
+    prepared_request.url = to_native_string(url)
+    if 'Content-Length' in prepared_request.headers:
+        del prepared_request.headers['Content-Length']
+    prepared_request.body = None
+    try:
+        del prepared_request.headers['Cookie']
+    except KeyError:
+        pass
+    prepared_request.prepare_cookies(prepared_request._cookies)</patched>
+```
+
+This patch addresses the issue by modifying the `resolve_redirects` method in the `SessionRedirectMixin` class. Instead of copying the original request for every redirect, it now only copies the original request for the first redirect. For subsequent redirects, it modifies the existing `prepared_request` object. This approach preserves changes made to the request method during the redirect chain, such as the change from POST to GET after a 303 See Other response, ensuring that these changes are correctly applied to all subsequent requests in the redirect chain.

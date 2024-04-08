@@ -1,0 +1,67 @@
+# modification 1
+```python
+<file>lib/matplotlib/widgets.py</file>
+<original>    def on_changed(self, func):
+        """
+        Connect *func* as callback function to changes of the slider value.
+
+        Parameters
+        ----------
+        func : callable
+            Function to call when slider is changed. The function
+            must accept a 2-tuple of floats as its argument.
+
+        Returns
+        -------
+        int
+            Connection id (which can be used to disconnect *func*).
+        """
+        return self._observers.connect('changed', lambda val: func(val))</original>
+<patched>    def on_changed(self, func):
+        """
+        Connect *func* as callback function to changes of the slider value.
+
+        Parameters
+        ----------
+        func : callable
+            Function to call when slider is changed. The function
+            must accept a 2-tuple of floats as its argument.
+
+        Returns
+        -------
+        int
+            Connection id (which can be used to disconnect *func*).
+        """
+        # Ensure the figure is not cleared before calling the callback
+        def callback_wrapper(val):
+            if not pyplot.fignum_exists(self.figure.number):
+                return
+            func(val)
+        return self._observers.connect('changed', callback_wrapper)</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/widgets.py</file>
+<original>    def on_clicked(self, func):
+        """
+        Connect the callback function *func* to button click events.
+
+        Returns a connection id, which can be used to disconnect the callback.
+        """
+        return self._observers.connect('clicked', lambda event: func(event))</original>
+<patched>    def on_clicked(self, func):
+        """
+        Connect the callback function *func* to button click events.
+
+        Returns a connection id, which can be used to disconnect the callback.
+        """
+        # Ensure the figure is not cleared before calling the callback
+        def callback_wrapper(event):
+            if not pyplot.fignum_exists(self.figure.number):
+                return
+            func(event)
+        return self._observers.connect('clicked', callback_wrapper)</patched>
+```
+
+**Explanation**: The issue described involves input to widgets being blocked after the figure is cleared (`clf()`) and redrawn within the `on_changed` callback of a `RangeSlider`. This patch introduces a wrapper for the callback functions connected via `on_changed` and `on_clicked` methods. The wrapper checks if the figure associated with the widget still exists before calling the original callback function. This approach aims to prevent potential issues arising from attempting to interact with widgets that are no longer part of an existing figure, which could be part of the problem leading to blocked input. Note that for this solution to work, it assumes access to the `pyplot.fignum_exists` method and the widget's associated figure, which might require additional context or adjustments based on the actual structure and capabilities of the Matplotlib widgets and figure classes.

@@ -1,0 +1,35 @@
+Based on the context provided and the issue described, here is a hypothetical patch to address the issue with `sqlmigrate` wrapping its output in `BEGIN/COMMIT` even if the database doesn't support transactional DDL. This patch assumes the structure of Django's codebase and typical patterns in its implementation. Note that actual file paths and code might differ in the real Django project.
+
+# modification 1
+```python
+<file>django/core/management/commands/sqlmigrate.py</file>
+<original>
+with self.connection.schema_editor(collect_sql=True, atomic=migration.atomic) as schema_editor:
+</original>
+<patched>
+with self.connection.schema_editor(collect_sql=True, atomic=migration.atomic and self.connection.features.can_rollback_ddl) as schema_editor:
+</patched>
+```
+
+This modification ensures that when the `sqlmigrate` command collects SQL statements using the schema editor, it considers not only whether the migration is marked as atomic but also if the database connection's features support rolling back DDL statements. This change is made in the hypothetical location of the `sqlmigrate` command implementation, specifically where it invokes the schema editor for collecting SQL statements.
+
+# modification 2
+```python
+<file>django/db/migrations/executor.py</file>
+<original>
+def collect_sql(self, plan):
+    ...
+    for migration, backwards in plan:
+        with self.connection.schema_editor(collect_sql=True, atomic=migration.atomic) as schema_editor:
+</original>
+<patched>
+def collect_sql(self, plan):
+    ...
+    for migration, backwards in plan:
+        with self.connection.schema_editor(collect_sql=True, atomic=migration.atomic and self.connection.features.can_rollback_ddl) as schema_editor:
+</patched>
+```
+
+In this modification, the `collect_sql` method of the `MigrationExecutor` class is updated to ensure that the `atomic` parameter passed to the schema editor is conditioned not only on the migration's atomic attribute but also on the database's capability to rollback DDL, as indicated by `connection.features.can_rollback_ddl`.
+
+Please note, these patches are based on the provided context and a hypothetical understanding of the Django codebase structure. Actual implementation details may vary, and thorough testing should be conducted to ensure the changes address the issue without introducing regressions.

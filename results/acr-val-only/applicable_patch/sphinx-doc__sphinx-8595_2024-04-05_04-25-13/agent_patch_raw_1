@@ -1,0 +1,54 @@
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if want_all:
+            if not self.__all__:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())
+            else:
+                for member in members.values():
+                    if member.__name__ not in self.__all__:
+                        member.skipped = True
+
+                return False, list(members.values())</original>
+<patched>if want_all:
+            if self.__all__ is not None:
+                if not self.__all__:
+                    # If __all__ is explicitly empty, skip all members
+                    return False, []
+                else:
+                    for member in members.values():
+                        if member.__name__ not in self.__all__:
+                            member.skipped = True
+
+                    return False, list(members.values())
+            else:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/util/inspect.py</file>
+<original>if __all__ is None:
+        return None
+    else:
+        if (isinstance(__all__, (list, tuple)) and all(isinstance(e, str) for e in __all__)):
+            return __all__
+        else:
+            raise ValueError(__all__)</original>
+<patched>if __all__ is None:
+        return None
+    elif isinstance(__all__, (list, tuple)) and all(isinstance(e, str) for e in __all__):
+        return __all__
+    else:
+        # Ensure that an empty __all__ is treated as a valid case
+        if isinstance(__all__, (list, tuple)) and len(__all__) == 0:
+            return __all__
+        else:
+            raise ValueError(__all__)</patched>
+```
+
+These modifications address the issue where an empty `__all__` attribute in a module is ignored by Sphinx autodoc, leading to all members being documented instead of none. The first modification ensures that if `__all__` is explicitly empty, no members are documented. The second modification ensures that an empty `__all__` list is treated as a valid case, preventing errors or unintended behavior in the utility function that retrieves `__all__`.

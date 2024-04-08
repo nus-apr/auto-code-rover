@@ -1,0 +1,41 @@
+Given the context and the issue at hand, the problem seems to be related to how the `StatReloader` class's `snapshot_files` method selects files to monitor for changes. Specifically, the issue is that changes to `manage.py` do not trigger the autoreloader as expected. The provided code snippets do not directly show why `manage.py` would be excluded from the files being monitored. However, a potential solution could involve ensuring that `manage.py` is explicitly included in the set of watched files, or adjusting the logic that determines which files to monitor to ensure it does not inadvertently exclude `manage.py`.
+
+Since the exact cause of the issue (e.g., `manage.py` being excluded from `watched_files`) is not directly visible from the provided snippets, the patch below is speculative and aims to ensure `manage.py` is considered a watched file. This approach might involve modifying the `watched_files` method or related logic to explicitly include `manage.py`. However, without access to the implementation of `watched_files`, this patch will focus on a conceptual fix within the `snapshot_files` method, highlighting the kind of change that might be necessary.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime</original>
+<patched>def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        # Ensure manage.py is always included in the watched files
+        manage_py_path = Path('manage.py').resolve()
+        if manage_py_path.exists():
+            seen_files.add(manage_py_path)
+            yield manage_py_path, manage_py_path.stat().st_mtime
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime</patched>
+```
+
+This modification ensures that `manage.py` is explicitly included in the set of files to be monitored for changes. It does so by resolving the path to `manage.py`, checking if it exists, and then adding it to the `seen_files` set and yielding it along with its modification time before proceeding with the rest of the files. This is a speculative fix and assumes that the root cause of the issue is `manage.py` not being included in the watched files. Further investigation and testing would be necessary to confirm this and to ensure that this change does not introduce any unintended side effects.

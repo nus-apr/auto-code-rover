@@ -1,0 +1,31 @@
+Given the feedback, let's revise the approach to handle the issue in a way that avoids raising an immediate error, which might be too disruptive for existing projects. Instead, we can log a warning when duplicate template tag libraries are detected, allowing the application to continue running while still alerting the developer to the potential issue. This approach maintains backward compatibility and developer experience while addressing the reported problem.
+
+# modification 1
+```python
+<file>django/template/engine.py</file>
+<original>    def get_template_libraries(self, libraries):
+        loaded = {}
+        for name, path in libraries.items():
+            loaded[name] = import_library(path)
+        return loaded
+</original>
+<patched>    import logging
+    from django.utils.module_loading import import_string
+
+    def get_template_libraries(self, libraries):
+        loaded = {}
+        for name, path in libraries.items():
+            if name in loaded:
+                # Log a warning if the same library name is used for different paths
+                existing_path = loaded[name].__module__
+                if existing_path != path:
+                    logging.warning(f"Duplicate template tag library name detected: '{name}'. "
+                                    f"Existing path: '{existing_path}', new path: '{path}'. "
+                                    "Using the first occurrence. Please ensure each library name is unique.")
+                continue  # Keep the first occurrence and skip adding the duplicate
+            loaded[name] = import_string(path)
+        return loaded
+</patched>
+```
+
+This modified patch changes the strategy to handle duplicate template tag libraries more gracefully. Instead of raising an error, it logs a warning when a duplicate name is detected with a different path, indicating which library name is duplicated and what the conflicting paths are. It then skips adding the duplicate library, effectively using the first occurrence of each library name. This approach should help developers identify and resolve configuration issues without immediately breaking existing applications that might unknowingly rely on the current behavior.

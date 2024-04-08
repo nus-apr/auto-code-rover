@@ -1,0 +1,38 @@
+{
+    "task_id": "sympy__sympy-17655",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.5",
+        "env_name": "setup_sympy__sympy__1.5",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/geometry/tests/test_point.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-17655",
+        "base_commit": "f5e965947af2410ded92cfad987aaf45262ea434",
+        "hints_text": "You can multiply a Point on the right by a scalar but not on the left. I think this would be a matter of defining `__rmul__` for Point.",
+        "created_at": "2019-09-25T17:04:26Z",
+        "test_patch": "diff --git a/sympy/geometry/tests/test_point.py b/sympy/geometry/tests/test_point.py\n--- a/sympy/geometry/tests/test_point.py\n+++ b/sympy/geometry/tests/test_point.py\n@@ -26,7 +26,6 @@ def test_point():\n     assert p2.y == y2\n     assert (p3 + p4) == p4\n     assert (p2 - p1) == Point(y1 - x1, y2 - x2)\n-    assert p4*5 == Point(5, 5)\n     assert -p2 == Point(-y1, -y2)\n     raises(ValueError, lambda: Point(3, I))\n     raises(ValueError, lambda: Point(2*I, I))\n@@ -92,6 +91,7 @@ def test_point():\n \n     assert p4 * 5 == Point(5, 5)\n     assert p4 / 5 == Point(0.2, 0.2)\n+    assert 5 * p4 == Point(5, 5)\n \n     raises(ValueError, lambda: Point(0, 0) + 10)\n \n@@ -140,7 +140,6 @@ def test_point3D():\n     assert p2.y == y2\n     assert (p3 + p4) == p4\n     assert (p2 - p1) == Point3D(y1 - x1, y2 - x2, y3 - x3)\n-    assert p4*5 == Point3D(5, 5, 5)\n     assert -p2 == Point3D(-y1, -y2, -y3)\n \n     assert Point(34.05, sqrt(3)) == Point(Rational(681, 20), sqrt(3))\n@@ -169,6 +168,7 @@ def test_point3D():\n \n     assert p4 * 5 == Point3D(5, 5, 5)\n     assert p4 / 5 == Point3D(0.2, 0.2, 0.2)\n+    assert 5 * p4 == Point3D(5, 5, 5)\n \n     raises(ValueError, lambda: Point3D(0, 0, 0) + 10)\n \n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Unexpected exception when multiplying geometry.Point and number\n```python\r\nfrom sympy import geometry as ge\r\nimport sympy\r\n\r\npoint1 = ge.Point(0,0)\r\npoint2 = ge.Point(1,1)\r\n```\r\n\r\nThis line works fine\r\n```python\r\npoint1 + point2 * sympy.sympify(2.0)\r\n```\r\n\r\nBut when I write the same this way it raises an exception\r\n```python\r\npoint1 + sympy.sympify(2.0) * point2\r\n```\r\n\r\n```\r\n---------------------------------------------------------------------------\r\nTypeError                                 Traceback (most recent call last)\r\n~/.virtualenvs/test/lib/python3.6/site-packages/sympy/geometry/point.py in __add__(self, other)\r\n    219         try:\r\n--> 220             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))\r\n    221         except TypeError:\r\n\r\n~/.virtualenvs/test/lib/python3.6/site-packages/sympy/geometry/point.py in __new__(cls, *args, **kwargs)\r\n    128                 Expecting sequence of coordinates, not `{}`'''\r\n--> 129                                        .format(func_name(coords))))\r\n    130         # A point where only `dim` is specified is initialized\r\n\r\nTypeError: \r\nExpecting sequence of coordinates, not `Mul`\r\n\r\nDuring handling of the above exception, another exception occurred:\r\n\r\nGeometryError                             Traceback (most recent call last)\r\n<ipython-input-20-6dcbddac1ee2> in <module>\r\n----> 1 point1 + sympy.sympify(2.0)* point2\r\n\r\n~/.virtualenvs/test/lib/python3.6/site-packages/sympy/geometry/point.py in __add__(self, other)\r\n    220             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))\r\n    221         except TypeError:\r\n--> 222             raise GeometryError(\"Don't know how to add {} and a Point object\".format(other))\r\n    223 \r\n    224         coords = [simplify(a + b) for a, b in zip(s, o)]\r\n\r\nGeometryError: Don't know how to add 2.0*Point2D(1, 1) and a Point object\r\n```\r\n\r\nThe expected behaviour is, that both lines give the same result\n",
+        "version": "1.5",
+        "FAIL_TO_PASS": [
+            "test_point",
+            "test_point3D"
+        ],
+        "PASS_TO_PASS": [
+            "test_Point2D",
+            "test__normalize_dimension",
+            "test_arguments",
+            "test_concyclic_doctest_bug",
+            "test_dot",
+            "test_issue_11617",
+            "test_issue_9214",
+            "test_transform",
+            "test_unit"
+        ],
+        "environment_setup_commit": "70381f282f2d9d039da860e391fe51649df2779d",
+        "patch": "diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py\n--- a/sympy/geometry/point.py\n+++ b/sympy/geometry/point.py\n@@ -278,6 +278,10 @@ def __mul__(self, factor):\n         coords = [simplify(x*factor) for x in self.args]\n         return Point(coords, evaluate=False)\n \n+    def __rmul__(self, factor):\n+        \"\"\"Multiply a factor by point's coordinates.\"\"\"\n+        return self.__mul__(factor)\n+\n     def __neg__(self):\n         \"\"\"Negate the point.\"\"\"\n         coords = [-x for x in self.args]\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/17655"
+    }
+}

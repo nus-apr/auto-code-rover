@@ -1,0 +1,47 @@
+{
+    "task_id": "matplotlib__matplotlib-23964",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/matplotlib__matplotlib/setup_matplotlib__matplotlib__3.6",
+        "env_name": "setup_matplotlib__matplotlib__3.6",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider lib/matplotlib/tests/test_backend_ps.py"
+    },
+    "task_info": {
+        "instance_id": "matplotlib__matplotlib-23964",
+        "base_commit": "269c0b94b4fcf8b1135011c1556eac29dc09de15",
+        "hints_text": "",
+        "created_at": "2022-09-20T13:49:19Z",
+        "test_patch": "diff --git a/lib/matplotlib/tests/test_backend_ps.py b/lib/matplotlib/tests/test_backend_ps.py\n--- a/lib/matplotlib/tests/test_backend_ps.py\n+++ b/lib/matplotlib/tests/test_backend_ps.py\n@@ -256,6 +256,15 @@ def test_linedash():\n     assert buf.tell() > 0\n \n \n+def test_empty_line():\n+    # Smoke-test for gh#23954\n+    figure = Figure()\n+    figure.text(0.5, 0.5, \"\\nfoo\\n\\n\")\n+    buf = io.BytesIO()\n+    figure.savefig(buf, format='eps')\n+    figure.savefig(buf, format='ps')\n+\n+\n def test_no_duplicate_definition():\n \n     fig = Figure()\n",
+        "repo": "matplotlib/matplotlib",
+        "problem_statement": "[Bug]: Text label with empty line causes a \"TypeError: cannot unpack non-iterable NoneType object\" in PostScript backend\n### Bug summary\n\nWhen saving a figure with the PostScript backend, a\r\n> TypeError: cannot unpack non-iterable NoneType object\r\n\r\nhappens if the figure contains a multi-line text label with an empty line (see example).\n\n### Code for reproduction\n\n```python\nfrom matplotlib.figure import Figure\r\n\r\nfigure = Figure()\r\nax = figure.add_subplot(111)\r\n# ax.set_title('\\nLower title')  # this would cause an error as well\r\nax.annotate(text='\\nLower label', xy=(0, 0))\r\nfigure.savefig('figure.eps')\n```\n\n\n### Actual outcome\n\n$ ./venv/Scripts/python save_ps.py\r\nTraceback (most recent call last):\r\n  File \"C:\\temp\\matplotlib_save_ps\\save_ps.py\", line 7, in <module>\r\n    figure.savefig('figure.eps')\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\figure.py\", line 3272, in savefig\r\n    self.canvas.print_figure(fname, **kwargs)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backend_bases.py\", line 2338, in print_figure\r\n    result = print_method(\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backend_bases.py\", line 2204, in <lambda>\r\n    print_method = functools.wraps(meth)(lambda *args, **kwargs: meth(\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\_api\\deprecation.py\", line 410, in wrapper\r\n    return func(*inner_args, **inner_kwargs)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backends\\backend_ps.py\", line 869, in _print_ps\r\n    printer(fmt, outfile, dpi=dpi, dsc_comments=dsc_comments,\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backends\\backend_ps.py\", line 927, in _print_figure\r\n    self.figure.draw(renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\artist.py\", line 74, in draw_wrapper\r\n    result = draw(artist, renderer, *args, **kwargs)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\artist.py\", line 51, in draw_wrapper\r\n    return draw(artist, renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\figure.py\", line 3069, in draw\r\n    mimage._draw_list_compositing_images(\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\image.py\", line 131, in _draw_list_compositing_images\r\n    a.draw(renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\artist.py\", line 51, in draw_wrapper\r\n    return draw(artist, renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\axes\\_base.py\", line 3106, in draw\r\n    mimage._draw_list_compositing_images(\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\image.py\", line 131, in _draw_list_compositing_images\r\n    a.draw(renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\artist.py\", line 51, in draw_wrapper\r\n    return draw(artist, renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\text.py\", line 1995, in draw\r\n    Text.draw(self, renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\artist.py\", line 51, in draw_wrapper\r\n    return draw(artist, renderer)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\text.py\", line 736, in draw\r\n    textrenderer.draw_text(gc, x, y, clean_line,\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backends\\backend_ps.py\", line 248, in wrapper\r\n    return meth(self, *args, **kwargs)\r\n  File \"C:\\temp\\matplotlib_save_ps\\venv\\lib\\site-packages\\matplotlib\\backends\\backend_ps.py\", line 673, in draw_text\r\n    for ps_name, xs_names in stream:\r\nTypeError: cannot unpack non-iterable NoneType object\r\n\n\n### Expected outcome\n\nThe figure can be saved as `figure.eps` without error.\n\n### Additional information\n\n- seems to happen if a text label or title contains a linebreak with an empty line\r\n- works without error for other backends such as PNG, PDF, SVG, Qt\r\n- works with matplotlib<=3.5.3\r\n- adding `if curr_stream:` before line 669 of `backend_ps.py` seems to fix the bug \n\n### Operating system\n\nWindows\n\n### Matplotlib Version\n\n3.6.0\n\n### Matplotlib Backend\n\n_No response_\n\n### Python version\n\n3.9.13\n\n### Jupyter version\n\n_No response_\n\n### Installation\n\npip\n",
+        "version": "3.6",
+        "FAIL_TO_PASS": [
+            "lib/matplotlib/tests/test_backend_ps.py::test_empty_line"
+        ],
+        "PASS_TO_PASS": [
+            "lib/matplotlib/tests/test_backend_ps.py::test_bbox",
+            "lib/matplotlib/tests/test_backend_ps.py::test_d_glyph",
+            "lib/matplotlib/tests/test_backend_ps.py::test_failing_latex",
+            "lib/matplotlib/tests/test_backend_ps.py::test_fonttype[3]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_fonttype[42]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_linedash",
+            "lib/matplotlib/tests/test_backend_ps.py::test_no_duplicate_definition",
+            "lib/matplotlib/tests/test_backend_ps.py::test_patheffects",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[eps",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[eps-landscape]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[eps-portrait]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[ps",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[ps-landscape]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_savefig_to_stringio[ps-portrait]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_text_clip[eps]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_transparency[eps]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_type3_font[eps]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_type42_font_without_prep[eps]",
+            "lib/matplotlib/tests/test_backend_ps.py::test_useafm[eps]"
+        ],
+        "environment_setup_commit": "73909bcb408886a22e2b84581d6b9e6d9907c813",
+        "patch": "diff --git a/lib/matplotlib/backends/backend_ps.py b/lib/matplotlib/backends/backend_ps.py\n--- a/lib/matplotlib/backends/backend_ps.py\n+++ b/lib/matplotlib/backends/backend_ps.py\n@@ -665,8 +665,9 @@ def draw_text(self, gc, x, y, s, prop, angle, ismath=False, mtext=None):\n                 curr_stream[1].append(\n                     (item.x, item.ft_object.get_glyph_name(item.glyph_idx))\n                 )\n-            # append the last entry\n-            stream.append(curr_stream)\n+            # append the last entry if exists\n+            if curr_stream:\n+                stream.append(curr_stream)\n \n         self.set_color(*gc.get_rgb())\n \n",
+        "pr_link": "https://github.com/matplotlib/matplotlib/pull/23964"
+    }
+}

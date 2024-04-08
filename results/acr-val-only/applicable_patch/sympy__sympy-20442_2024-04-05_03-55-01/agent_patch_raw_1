@@ -1,0 +1,33 @@
+# modification 1
+```python
+<file>sympy/physics/units/util.py</file>
+<original>if depmat is None:
+    return expr</original>
+<patched># Check if the target_units is a subset of the expression's units
+# This helps in handling cases where conversion does not directly apply but the units are related
+if depmat is None:
+    if all(unit in expr.free_symbols for unit in target_units.free_symbols):
+        return expr
+    else:
+        raise ValueError(f"Cannot convert {expr} to {target_units}. Incompatible units.")</patched>
+```
+
+# modification 2
+```python
+<file>sympy/physics/units/util.py</file>
+<original>expr_scale_factor = get_total_scale_factor(expr)
+return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))</original>
+<patched># Improved handling of the final conversion to ensure correct application of units
+expr_scale_factor = get_total_scale_factor(expr)
+try:
+    converted_expr = expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))
+    # Validate the converted expression to ensure it does not introduce unexpected units
+    if not converted_expr.has(Quantity):
+        return converted_expr
+    else:
+        raise ValueError("Conversion resulted in an expression with unexpected units.")
+except ZeroDivisionError:
+    raise ValueError("Conversion failed due to division by zero in unit scaling factors.")</patched>
+```
+
+These modifications aim to address the issue by adding checks for cases where the conversion matrix (`depmat`) is `None`, which indicates that a direct conversion is not possible. The first modification introduces a more descriptive error message when the conversion cannot be performed due to incompatible units, rather than silently returning the original expression or an incorrect result. The second modification adds error handling for potential `ZeroDivisionError` during the conversion process and validates the final converted expression to ensure that it does not contain unexpected units. This should help in preventing incorrect conversions like the one reported in the issue.

@@ -1,0 +1,39 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..8ac694e4e 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -78,10 +78,16 @@ def unique_labels(*ys):
+         raise ValueError("No argument has been passed.")
+     # Check that we don't mix label format
+ 
+-    ys_types = set(type_of_target(x) for x in ys)
++    ys_types = set()
++    for x in ys:
++        # Convert pandas series with nullable types to their numpy counterparts
++        if hasattr(x, "dtype") and pd.api.types.is_extension_array_dtype(x.dtype):
++            x = x.to_numpy(dtype="float" if "Float" in str(x.dtype) else "int", na_value=np.nan if "Float" in str(x.dtype) else -1)
++        ys_types.add(type_of_target(x))
++    
+     if ys_types == {"binary", "multiclass"}:
+         ys_types = {"multiclass"}
+-
++    
+     if len(ys_types) > 1:
+         raise ValueError("Mix type of y not allowed, got types %s" % ys_types)
+ 
+@@ -107,8 +113,13 @@ def unique_labels(*ys):
+         raise ValueError("Unknown label type: %s" % repr(ys))
+ 
+     if is_array_api:
+-        # array_api does not allow for mixed dtypes
+-        unique_ys = xp.concat([_unique_labels(y) for y in ys])
++        # Handle nullable pandas dtypes by converting them to their numpy counterparts
++        ys_converted = []
++        for y in ys:
++            if hasattr(y, "dtype") and pd.api.types.is_extension_array_dtype(y.dtype):
++                y = y.to_numpy(dtype="float" if "Float" in str(y.dtype) else "int", na_value=np.nan if "Float" in str(y.dtype) else -1)
++            ys_converted.append(y)
++        unique_ys = xp.concat([_unique_labels(y) for y in ys_converted])
+         return xp.unique_values(unique_ys)
+ 
+     ys_labels = set(chain.from_iterable((i for i in _unique_labels(y)) for y in ys))

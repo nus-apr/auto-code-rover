@@ -1,0 +1,54 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..c7870cccb2 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -326,13 +326,21 @@ class FileSystemStorage(Storage):
+     def size(self, name):
+         return os.path.getsize(self.path(name))
+ 
++    from django.conf import settings
++    from urllib.parse import urljoin
++    from django.utils.encoding import filepath_to_uri
++    
+     def url(self, name):
+-        if self.base_url is None:
+-            raise ValueError("This file is not accessible via a URL.")
+-        url = filepath_to_uri(name)
+-        if url is not None:
+-            url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++            if self.base_url is None:
++                raise ValueError("This file is not accessible via a URL.")
++            url = filepath_to_uri(name)
++            if url is not None:
++                url = url.lstrip('/')
++            full_url = urljoin(self.base_url, url)
++            script_name = settings.FORCE_SCRIPT_NAME
++            if script_name:
++                full_url = script_name.rstrip('/') + '/' + full_url.lstrip('/')
++            return full_url
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..5008ac63cb 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -159,9 +159,15 @@ def do_static(parser, token):
+     return StaticNode.handle_token(parser, token)
+ 
+ 
++from django.conf import settings
++
+ def static(path):
+     """
+     Given a relative path to a static asset, return the absolute path to the
+-    asset.
++    asset, considering SCRIPT_NAME if provided.
+     """
+-    return StaticNode.handle_simple(path)
++    url = StaticNode.handle_simple(path)
++    script_name = settings.FORCE_SCRIPT_NAME
++    if script_name:
++        url = script_name.rstrip('/') + '/' + url.lstrip('/')
++    return url

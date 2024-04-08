@@ -1,0 +1,42 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..e767df95c 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -113,8 +113,12 @@ def unique_labels(*ys):
+ 
+     ys_labels = set(chain.from_iterable((i for i in _unique_labels(y)) for y in ys))
+     # Check that we don't mix string type with number type
++    import pandas as pd
++    
++    # Adjust the check to consider pandas nullable types
+     if len(set(isinstance(label, str) for label in ys_labels)) > 1:
+-        raise ValueError("Mix of label input types (string and number)")
++        if not all(isinstance(label, (str, int, np.integer)) or pd.isna(label) for label in ys_labels):
++            raise ValueError("Mix of label input types (string and number)")
+ 
+     return xp.asarray(sorted(ys_labels))
+ 
+@@ -340,9 +344,20 @@ def type_of_target(y, input_name=""):
+             return "binary"  # []
+         # 2-D empty array: [[]]
+         return "unknown"
+-    if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+-        # [obj_1] and not ["label_1"]
+-        return "unknown"
++    import pandas as pd
++    
++    # Enhanced handling for nullable pandas dtypes
++    if not issparse(y):
++        if pd.api.types.is_integer_dtype(y) or pd.api.types.is_float_dtype(y) or pd.api.types.is_bool_dtype(y):
++            # Handle pandas nullable types by inferring their logical type
++            inferred_dtype = pd.api.types.infer_dtype(y, skipna=True)
++            if inferred_dtype == "integer" or inferred_dtype == "floating":
++                return "continuous"
++            elif inferred_dtype == "boolean":
++                return "binary"
++        elif y.dtype == object and not isinstance(y.flat[0], str):
++            # [obj_1] and not ["label_1"]
++            return "unknown"
+ 
+     # Check if multioutput
+     if y.ndim == 2 and y.shape[1] > 1:

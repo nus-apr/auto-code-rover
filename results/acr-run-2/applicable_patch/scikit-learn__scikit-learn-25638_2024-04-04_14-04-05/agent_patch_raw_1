@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>ys_types = set(type_of_target(x) for x in ys)
+if ys_types == {"binary", "multiclass"}:
+    ys_types = {"multiclass"}
+
+if len(ys_types) > 1:
+    raise ValueError("Mix type of y not allowed, got types %s" % ys_types)</original>
+<patched>ys_types = set()
+for x in ys:
+    # Convert pandas series with nullable types to their numpy counterparts
+    if hasattr(x, 'dtype') and pd.api.types.is_extension_array_dtype(x.dtype):
+        x = x.to_numpy(dtype=x.dtype.numpy_dtype)
+    ys_types.add(type_of_target(x))
+
+if ys_types == {"binary", "multiclass"}:
+    ys_types = {"multiclass"}
+
+if len(ys_types) > 1:
+    raise ValueError("Mix type of y not allowed, got types %s" % ys_types)</patched>
+```
+
+**Explanation**: This modification ensures that if any of the input arrays (`ys`) are pandas Series with nullable dtypes ("Int64", "Float64", "boolean"), they are first converted to their numpy counterparts with the appropriate dtype before determining the type of target. This approach prevents the conversion of these types to `object` dtype, which was causing the issue. The `pd.api.types.is_extension_array_dtype` function checks if the dtype is a pandas extension type (which includes the nullable types), and `x.to_numpy(dtype=x.dtype.numpy_dtype)` converts the Series to a numpy array with the corresponding numpy dtype. This fix should allow `unique_labels` to handle nullable pandas dtypes correctly.

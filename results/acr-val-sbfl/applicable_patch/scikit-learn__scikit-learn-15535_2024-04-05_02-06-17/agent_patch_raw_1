@@ -1,0 +1,48 @@
+# modification 1
+```python
+<file>sklearn/utils/validation.py</file>
+<original>if dtype_numeric:
+        if dtype_orig is not None and dtype_orig.kind == "O":
+            # if input is object, convert to float.
+            dtype = np.float64
+        else:
+            dtype = None</original>
+<patched>if dtype_numeric:
+        if dtype_orig is not None and dtype_orig.kind == "O":
+            # Check if conversion to float is possible
+            try:
+                np.asarray(array, dtype=np.float64)
+            except ValueError:
+                # Conversion to float is not possible, keep dtype as object
+                dtype = object
+            else:
+                # Conversion to float is possible
+                dtype = np.float64
+        else:
+            dtype = None</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</original>
+<patched>if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        # Ensure labels are not of object type to avoid conversion issues in check_array
+        if labels_true.dtype.kind == 'O' or labels_pred.dtype.kind == 'O':
+            labels_true = labels_true.astype('U')
+            labels_pred = labels_pred.astype('U')
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</patched>
+```
+
+These modifications aim to address the issue by ensuring that object type arrays (e.g., arrays of strings) are handled more gracefully during the input validation process in `check_array`, and by ensuring that labels passed to `mutual_info_score` are converted to a uniform type that avoids the conversion issue. The first modification attempts to convert the input array to float64 only if it's possible, otherwise, it keeps the dtype as object. The second modification ensures that labels of object type are converted to a string type ('U') before being passed to `contingency_matrix`, thus avoiding the problematic conversion in `check_array`.

@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>    def __init__(self, queryset, output_field=None, **extra):
+        # Allow the usage of both QuerySet and sql.Query objects.
+        self.query = getattr(queryset, 'query', queryset)
+        self.extra = extra
+        super().__init__(output_field)</original>
+<patched>    def __init__(self, queryset, output_field=None, **extra):
+        # Allow the usage of both QuerySet and sql.Query objects.
+        self.query = getattr(queryset, 'query', queryset)
+        self.extra = extra
+        self.query.subquery = True
+        super().__init__(output_field)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/expressions.py</file>
+<original>        template_params['subquery'] = subquery_sql[1:-1]</original>
+<patched>        # Check if subquery_sql starts and ends with parentheses before trimming
+        if subquery_sql.startswith('(') and subquery_sql.endswith(')'):
+            template_params['subquery'] = subquery_sql[1:-1]
+        else:
+            template_params['subquery'] = subquery_sql</patched>
+```
+
+These modifications address the issue by ensuring that the `subquery` attribute is correctly set to `True` in the `Subquery` constructor, which should help in correctly handling the SQL generation. The second modification adds a check before trimming the first and last characters of the `subquery_sql` string, ensuring that it only trims when the string is actually enclosed in parentheses, thus preventing the generation of invalid SQL.

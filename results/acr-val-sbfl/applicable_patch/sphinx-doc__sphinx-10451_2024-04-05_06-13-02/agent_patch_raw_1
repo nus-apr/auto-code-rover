@@ -1,0 +1,31 @@
+Given the context and the issue described, the duplication of `*args` and `**kwargs` in the documentation when `autodoc_typehints` is set to `"description"` seems to stem from how type hints are recorded and merged. The issue likely arises from the handling of these special parameters in the documentation generation process, particularly in how they are added to the documentation nodes.
+
+A precise patch cannot be provided without a deeper understanding of the entire Sphinx codebase and without running tests to ensure the patch does not introduce new issues. However, I can suggest a conceptual approach to address the problem based on the provided code snippets and the nature of the issue.
+
+The goal would be to ensure that when `*args` and `**kwargs` are processed, they are not duplicated in the output. This could involve checking if these parameters have already been added to the documentation nodes and, if so, skipping their re-addition.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>args = stringify_signature(sig, **kwargs)</original>
+<patched># Before stringifying the signature, check if *args and **kwargs are already documented
+# This is a conceptual patch. Actual implementation may require adjustments.
+documented_params = set()
+for param in sig.parameters.values():
+    if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+        documented_params.add(param.name)
+
+args = stringify_signature(sig, exclude_params=documented_params, **kwargs)</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/typehints.py</file>
+<original>annotation[param.name] = typing.stringify(param.annotation, mode)</original>
+<patched># Check if the parameter is *args or **kwargs and if it's already documented
+# This is a conceptual patch. Actual implementation may require adjustments.
+if param.name not in documented_params:
+    annotation[param.name] = typing.stringify(param.annotation, mode)</patched>
+```
+
+These modifications are conceptual and aim to illustrate a possible approach to solving the issue by preventing the duplication of `*args` and `**kwargs` in the documentation. The actual implementation would require a deeper dive into the Sphinx codebase to ensure compatibility with existing functionalities and to handle edge cases appropriately. Additionally, extensive testing would be necessary to validate the effectiveness of the patch and to ensure it does not introduce regressions or new issues.

@@ -1,0 +1,96 @@
+# modification 1
+```python
+<file>lib/matplotlib/legend.py</file>
+<original>def set_draggable(self, state, use_blit=False, update='loc'):
+        """
+        Enable or disable mouse dragging support of the legend.
+
+        Parameters
+        ----------
+        state : bool
+            Whether mouse dragging is enabled.
+        use_blit : bool, optional
+            Use blitting for faster image composition. For details see
+            :ref:`func-animation`.
+        update : {'loc', 'bbox'}, optional
+            The legend parameter to be changed when dragged:
+
+            - 'loc': update the *loc* parameter of the legend
+            - 'bbox': update the *bbox_to_anchor* parameter of the legend
+
+        Returns
+        -------
+        `.DraggableLegend` or *None*
+            If *state* is ``True`` this returns the `.DraggableLegend` helper
+            instance. Otherwise this returns *None*.
+        """
+        if state:
+            if self._draggable is None:
+                self._draggable = DraggableLegend(self,
+                                                  use_blit,
+                                                  update=update)
+        else:
+            if self._draggable is not None:
+                self._draggable.disconnect()
+            self._draggable = None
+        return self._draggable</original>
+<patched>def set_draggable(self, state, use_blit=False, update='loc'):
+        """
+        Enable or disable mouse dragging support of the legend.
+
+        Parameters
+        ----------
+        state : bool
+            Whether mouse dragging is enabled.
+        use_blit : bool, optional
+            Use blitting for faster image composition. For details see
+            :ref:`func-animation`.
+        update : {'loc', 'bbox'}, optional
+            The legend parameter to be changed when dragged:
+
+            - 'loc': update the *loc* parameter of the legend
+            - 'bbox': update the *bbox_to_anchor* parameter of the legend
+
+        Returns
+        -------
+        `.DraggableLegend` or *None*
+            If *state* is ``True`` this returns the `.DraggableLegend` helper
+            instance. Otherwise this returns *None*.
+
+        Note
+        ----
+        The draggable state is not preserved during pickling due to backend limitations.
+        """
+        if state:
+            if self._draggable is None:
+                self._draggable = DraggableLegend(self,
+                                                  use_blit,
+                                                  update=update)
+        else:
+            if self._draggable is not None:
+                self._draggable.disconnect()
+            self._draggable = None
+        # Ensure the draggable state does not interfere with pickling
+        self._draggable_state = state
+        self._draggable_use_blit = use_blit
+        self._draggable_update = update
+        return self._draggable</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/legend.py</file>
+<original>import pickle</original>
+<patched>import pickle
+import copyreg
+
+def pickle_legend(legend):
+    # Create a copy of the legend without the draggable state
+    legend_copy = copy.copy(legend)
+    legend_copy.set_draggable(False)
+    return legend.__class__, (legend.axes, ), legend_copy.__getstate__()
+
+copyreg.pickle(Legend, pickle_legend)</patched>
+```
+
+These modifications aim to address the issue of pickling figures with draggable legends in Matplotlib. The first modification adds a note to the `set_draggable` method documentation about the limitation regarding pickling and stores the draggable state in a way that does not interfere with the pickling process. The second modification introduces a custom pickling strategy for legends by registering a pickling function with `copyreg` that temporarily disables the draggable state during pickling. This approach ensures that the figure can be pickled without encountering the error related to non-picklable objects.

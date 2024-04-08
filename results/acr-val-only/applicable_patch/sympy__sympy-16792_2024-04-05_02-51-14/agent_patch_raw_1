@@ -1,0 +1,59 @@
+# modification 1
+```python
+<file>sympy/utilities/autowrap.py</file>
+<original>def _prototype_arg(self, arg):
+    mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
+    np_types = {'double': 'np.double_t',
+                'int': 'np.int_t'}
+    t = arg.get_datatype('c')
+    if arg.dimensions:
+        self._need_numpy = True
+        ndim = len(arg.dimensions)
+        mtype = np_types[t]
+        return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+    else:
+        return "%s %s" % (t, self._string_var(arg.name))</original>
+<patched>def _prototype_arg(self, arg):
+    mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
+    np_types = {'double': 'np.double_t',
+                'int': 'np.int_t'}
+    t = arg.get_datatype('c')
+    if arg.dimensions or isinstance(arg, MatrixSymbol):
+        self._need_numpy = True
+        ndim = len(arg.dimensions) if arg.dimensions else 2  # Assuming 2D for MatrixSymbol without explicit dimensions
+        mtype = np_types[t]
+        return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+    else:
+        return "%s %s" % (t, self._string_var(arg.name))</patched>
+```
+
+# modification 2
+```python
+<file>sympy/utilities/codegen.py</file>
+<original>if symbol in array_symbols:
+    dims = []
+    array = array_symbols[symbol]
+    for dim in array.shape:
+        dims.append((S.Zero, dim - 1))
+    metadata = {'dimensions': dims}
+else:
+    metadata = {}
+
+arg_list.append(InputArgument(symbol, **metadata))</original>
+<patched>if symbol in array_symbols:
+    dims = []
+    array = array_symbols[symbol]
+    for dim in array.shape:
+        dims.append((S.Zero, dim - 1))
+    metadata = {'dimensions': dims}
+elif isinstance(symbol, MatrixSymbol):
+    # Assuming 2D for MatrixSymbol without explicit dimensions
+    dims = [(S.Zero, symbol.shape[0] - 1), (S.Zero, symbol.shape[1] - 1)]
+    metadata = {'dimensions': dims}
+else:
+    metadata = {}
+
+arg_list.append(InputArgument(symbol, **metadata))</patched>
+```
+
+These modifications aim to ensure that when a `MatrixSymbol` is used as an argument, it is correctly handled as an array in the generated Cython code, even if its dimensions are not explicitly used in the expression. The first modification adjusts the `_prototype_arg` method in `CythonCodeWrapper` to treat `MatrixSymbol` instances as arrays. The second modification in `CodeGen`'s `routine` method ensures that `MatrixSymbol` arguments are correctly identified as requiring array handling in the argument list.

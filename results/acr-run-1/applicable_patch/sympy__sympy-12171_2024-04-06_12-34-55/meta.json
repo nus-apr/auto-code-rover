@@ -1,0 +1,36 @@
+{
+    "task_id": "sympy__sympy-12171",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.0",
+        "env_name": "setup_sympy__sympy__1.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/printing/tests/test_mathematica.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-12171",
+        "base_commit": "ca6ef27272be31c9dc3753ede9232c39df9a75d8",
+        "hints_text": "I would like to work on this issue\nSo, should I add the lines in printing/mathematica.py ?\nI've tested the above code by adding these methods to a class derived from MCodePrinter and I was able to export an ODE system straight to NDSolve in Mathematica.\r\n\r\nSo I guess simply adding them to MCodePrinter in in printing/mathematica.py would fix the issue",
+        "created_at": "2017-02-13T18:20:56Z",
+        "test_patch": "diff --git a/sympy/printing/tests/test_mathematica.py b/sympy/printing/tests/test_mathematica.py\n--- a/sympy/printing/tests/test_mathematica.py\n+++ b/sympy/printing/tests/test_mathematica.py\n@@ -1,5 +1,5 @@\n from sympy.core import (S, pi, oo, symbols, Function,\n-                        Rational, Integer, Tuple)\n+                        Rational, Integer, Tuple, Derivative)\n from sympy.integrals import Integral\n from sympy.concrete import Sum\n from sympy.functions import exp, sin, cos\n@@ -74,6 +74,14 @@ def test_Integral():\n         \"{y, -Infinity, Infinity}]]\"\n \n \n+def test_Derivative():\n+    assert mcode(Derivative(sin(x), x)) == \"Hold[D[Sin[x], x]]\"\n+    assert mcode(Derivative(x, x)) == \"Hold[D[x, x]]\"\n+    assert mcode(Derivative(sin(x)*y**4, x, 2)) == \"Hold[D[y^4*Sin[x], x, x]]\"\n+    assert mcode(Derivative(sin(x)*y**4, x, y, x)) == \"Hold[D[y^4*Sin[x], x, y, x]]\"\n+    assert mcode(Derivative(sin(x)*y**4, x, y, 3, x)) == \"Hold[D[y^4*Sin[x], x, y, y, y, x]]\"\n+\n+\n def test_Sum():\n     assert mcode(Sum(sin(x), (x, 0, 10))) == \"Hold[Sum[Sin[x], {x, 0, 10}]]\"\n     assert mcode(Sum(exp(-x**2 - y**2),\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "matematica code printer does not handle floats and derivatives correctly\nIn its current state the mathematica code printer does not handle Derivative(func(vars), deriver) \r\ne.g. Derivative(f(t), t) yields Derivative(f(t), t) instead of D[f[t],t]\r\n\r\nAlso floats with exponents are not handled correctly e.g. 1.0e-4 is not converted to 1.0*^-4\r\n\r\nThis has an easy fix by adding the following lines to MCodePrinter:\r\n\r\n\r\ndef _print_Derivative(self, expr):\r\n        return \"D[%s]\" % (self.stringify(expr.args, \", \"))\r\n\r\ndef _print_Float(self, expr):\r\n        res =str(expr)\r\n        return res.replace('e','*^') \r\n\r\n\r\n\n",
+        "version": "1.0",
+        "FAIL_TO_PASS": [
+            "test_Derivative"
+        ],
+        "PASS_TO_PASS": [
+            "test_Function",
+            "test_Integer",
+            "test_Integral",
+            "test_Mul",
+            "test_Pow",
+            "test_Rational",
+            "test_constants",
+            "test_containers"
+        ],
+        "environment_setup_commit": "50b81f9f6be151014501ffac44e5dc6b2416938f",
+        "patch": "diff --git a/sympy/printing/mathematica.py b/sympy/printing/mathematica.py\n--- a/sympy/printing/mathematica.py\n+++ b/sympy/printing/mathematica.py\n@@ -109,6 +109,9 @@ def _print_Integral(self, expr):\n     def _print_Sum(self, expr):\n         return \"Hold[Sum[\" + ', '.join(self.doprint(a) for a in expr.args) + \"]]\"\n \n+    def _print_Derivative(self, expr):\n+        return \"Hold[D[\" + ', '.join(self.doprint(a) for a in expr.args) + \"]]\"\n+\n \n def mathematica_code(expr, **settings):\n     r\"\"\"Converts an expr to a string of the Wolfram Mathematica code\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/12171"
+    }
+}

@@ -1,0 +1,49 @@
+# modification 1
+```python
+<file>requests/models.py</file>
+<original>            try:
+                # Special case for urllib3.
+                try:
+                    for chunk in self.raw.stream(chunk_size, decode_content=True):
+                        yield chunk
+                except IncompleteRead as e:
+                    raise ChunkedEncodingError(e)
+                except DecodeError as e:
+                    raise ContentDecodingError(e)
+            except AttributeError:
+                # Standard file-like object.
+                while True:
+                    chunk = self.raw.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk</original>
+<patched>            try:
+                # Special case for urllib3.
+                try:
+                    for chunk in self.raw.stream(chunk_size, decode_content=True):
+                        yield chunk
+                except IncompleteRead as e:
+                    raise ChunkedEncodingError(e)
+                except DecodeError as e:
+                    raise ContentDecodingError(e)
+                except socket.error as e:  # Import socket at the top of the file
+                    raise ConnectionError(e)
+            except AttributeError:
+                # Standard file-like object.
+                try:
+                    while True:
+                        chunk = self.raw.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+                except socket.error as e:  # Import socket at the top of the file
+                    raise ConnectionError(e)</patched>
+```
+
+**Note**: For the patch to work, ensure that the `socket` module is imported at the top of the `requests/models.py` file. If it's not already there, add the following line at the beginning of the file:
+
+```python
+import socket
+```
+
+This modification wraps the `socket.error` exception into a `requests.exceptions.ConnectionError` within the `iter_content` method of the `Response` class. This ensures that all low-level socket errors encountered during the streaming of response content are consistently handled as high-level `requests` exceptions, providing a more uniform exception handling experience for users of the library.

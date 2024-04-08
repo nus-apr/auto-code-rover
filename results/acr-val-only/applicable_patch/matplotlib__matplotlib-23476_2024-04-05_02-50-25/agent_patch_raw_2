@@ -1,0 +1,94 @@
+Given the feedback and the complexity of the issue, let's consider an alternative approach to address the DPI doubling issue during the unpickling process on M1 Macs, focusing on ensuring DPI consistency and correct handling of the `device_pixel_ratio`.
+
+### Modification 1: Refinement in `resize` Method for DPI Adjustment
+
+This modification aims to refine the handling of DPI scaling in the `resize` method, ensuring that the DPI is correctly applied without unintended doubling, especially after unpickling.
+
+```python
+<file>lib/matplotlib/backends/backend_macosx.py</file>
+<original>
+def resize(self, width, height):
+    # Size from macOS is logical pixels, dpi is physical.
+    scale = self.figure.dpi / self.device_pixel_ratio
+    width /= scale
+    height /= scale
+    self.figure.set_size_inches(width, height, forward=False)
+    ResizeEvent("resize_event", self)._process()
+    self.draw_idle()
+</original>
+<patched>
+def resize(self, width, height):
+    # Adjusted approach to ensure DPI is applied correctly without doubling.
+    # This considers the initial DPI setting during figure creation.
+    initial_dpi = self.figure.get_dpi()
+    logical_scale = initial_dpi / 72  # Assuming 72 as the base DPI for logical scaling.
+    physical_scale = self.device_pixel_ratio
+    total_scale = logical_scale * physical_scale
+    adjusted_width = width / total_scale
+    adjusted_height = height / total_scale
+    self.figure.set_size_inches(adjusted_width, adjusted_height, forward=False)
+    ResizeEvent("resize_event", self)._process()
+    self.draw_idle()
+</patched>
+```
+
+### Modification 2: Ensuring DPI Consistency in `__setstate__` Method
+
+This modification ensures that the DPI value is correctly restored during the unpickling process, avoiding any recalculations that might lead to DPI doubling.
+
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>
+def __setstate__(self, state):
+    version = state.pop('__mpl_version__')
+    restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+    if version != mpl.__version__:
+        _api.warn_external(
+            f"This figure was saved with matplotlib version {version} and "
+            f"is unlikely to function correctly.")
+
+    self.__dict__ = state
+
+    # re-initialise some of the unstored state information
+    FigureCanvasBase(self)  # Set self.canvas.
+
+    if restore_to_pylab:
+        # lazy import to avoid circularity
+        import matplotlib.pyplot as plt
+        import matplotlib._pylab_helpers as pylab_helpers
+        allnums = plt.get_fignums()
+        num = max(allnums) + 1 if allnums else 1
+        mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+        pylab_helpers.Gcf._set_new_active_manager(mgr)
+        plt.draw_if_interactive()
+
+    self.stale = True
+</original>
+<patched>
+def __setstate__(self, state):
+    version = state.pop('__mpl_version__', mpl.__version__)
+    restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+    # Directly restore DPI from state without recalculating or adjusting.
+    self.dpi = state.get('dpi', self.dpi)
+
+    self.__dict__.update(state)
+
+    # Re-initialise canvas with the restored DPI value explicitly.
+    FigureCanvasBase(self, dpi=self.dpi)
+
+    if restore_to_pylab:
+        import matplotlib.pyplot as plt
+        import matplotlib._pylab_helpers as pylab_helpers
+        allnums = plt.get_fignums()
+        num = max(allnums) + 1 if allnums else 1
+        mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+        pylab_helpers.Gcf._set_new_active_manager(mgr)
+        plt.draw_if_interactive()
+
+    self.stale = True
+</patched>
+```
+
+These modifications aim to address the DPI doubling issue by refining the DPI scaling logic in the `resize` method and ensuring DPI consistency during the unpickling process in the `__setstate__` method. It's crucial to test these changes thoroughly in the specific environment where the issue was observed to validate their effectiveness and ensure no unintended side effects.

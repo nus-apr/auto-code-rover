@@ -1,0 +1,70 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        if self.old_fields:
+            # Backward operation with unnamed index is a no-op.
+            return
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        self.database_forwards(app_label, schema_editor, from_state, to_state)
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+</original>
+<patched>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        if self.old_fields:
+            # Backward operation with unnamed index is a no-op.
+            return
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        try:
+            self.database_forwards(app_label, schema_editor, from_state, to_state)
+        except ProgrammingError as e:
+            if "already exists" not in str(e):
+                raise
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>        to_model_state = to_state.models[app_label, self.model_name_lower]
+        new_index = to_model_state.get_index_by_name(self.new_name)
+        schema_editor.rename_index(model, old_index, new_index)
+</original>
+<patched>        to_model_state = to_state.models[app_label, self.model_name_lower]
+        try:
+            new_index = to_model_state.get_index_by_name(self.new_name)
+            schema_editor.rename_index(model, old_index, new_index)
+        except ValueError as e:
+            if "does not exist" not in str(e):
+                raise
+</patched>
+```
+
+**Explanation**:
+- **Modification 1**: This patch adds error handling to the `database_backwards` method in the `RenameIndex` class to catch the `ProgrammingError` when the index being renamed already exists. This is a safeguard to prevent the migration from crashing when reapplying the RenameIndex operation in a backward migration scenario. It specifically checks for the "already exists" error message to ensure that only the relevant error is caught and ignored. Other errors will still be raised, preserving the integrity of the migration process.
+  
+- **Modification 2**: In the `database_forwards` method, this patch adds error handling around the index renaming operation. It catches a `ValueError` that might occur if the new index name does not exist when attempting to rename an index. This is particularly useful in scenarios where the index might have been manually removed or not created due to previous migration errors. The error message "does not exist" is checked to ensure that only the relevant error is caught and ignored, allowing the migration to proceed without crashing.
+
+These modifications aim to make the index renaming process more robust, especially in scenarios involving unnamed indexes and potential inconsistencies in the database state.

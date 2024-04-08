@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>sympy/utilities/lambdify.py</file>
+<original>if hasattr(expr, "atoms"):
+    #Try if you can extract symbols from the expression.
+    #Move on if expr.atoms in not implemented.
+    syms = expr.atoms(Symbol)
+    for term in syms:
+        namespace.update({str(term): term})</original>
+<patched>if hasattr(expr, "atoms"):
+    #Try if you can extract symbols from the expression.
+    #Move on if expr.atoms in not implemented.
+    from sympy.core.symbol import symbols
+    syms = expr.atoms(Symbol)
+    for term in syms:
+        # Handle MatrixSymbol with special characters by dummification
+        if "{" in str(term) or "}" in str(term):
+            dummy_sym = symbols("dummy_for_%s" % term.name)
+            namespace.update({str(term): dummy_sym})
+        else:
+            namespace.update({str(term): term})</patched>
+```
+
+This modification addresses the issue by adding a check for special characters (`{`, `}`) in the symbol names within the `lambdify` function. If such characters are found, it creates a dummy symbol with a sanitized name (prefixing with `dummy_for_`) and updates the namespace with this dummy symbol instead of the original. This approach ensures that symbols with names that are not valid Python identifiers, including those with special characters, are handled correctly by `lambdify`, even when they are `MatrixSymbol` objects.

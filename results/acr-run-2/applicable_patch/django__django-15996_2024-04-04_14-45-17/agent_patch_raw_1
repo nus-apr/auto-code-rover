@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        return (
+            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+            {"import %s" % module},
+        )
+</original>
+<patched>    def serialize(self):
+        from enum import Enum
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+
+        # Check if the value is a combination of Enum flags
+        if isinstance(self.value, Enum) and isinstance(self.value.value, int):
+            # Attempt to decompose the combined value into individual flags
+            individual_flags = []
+            for item in enum_class:
+                if self.value.value & item.value == item.value:
+                    individual_flags.append(item.name)
+
+            # If individual flags were found, serialize as a combination
+            if individual_flags:
+                serialized_flags = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, flag) for flag in individual_flags])
+                return (
+                    serialized_flags,
+                    {"import %s" % module},
+                )
+
+        # Fallback to original serialization method for single Enum values
+        return (
+            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+            {"import %s" % module},
+        )
+</patched>
+```
+
+This patch introduces logic to handle the serialization of combined Enum flags within the `EnumSerializer.serialize` method. It first checks if the value is an integer combination of Enum flags. If so, it decomposes the combined value into individual flags, serializes each flag, and then combines these serialized representations using the bitwise OR operator `|`. This approach ensures that combined Enum flags are serialized in a way that accurately represents their value. If the value does not represent a combination of flags, the method falls back to the original serialization logic.

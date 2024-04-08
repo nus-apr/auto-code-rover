@@ -1,0 +1,35 @@
+diff --git a/xarray/core/concat.py b/xarray/core/concat.py
+index ecae2566..58f48442 100644
+--- a/xarray/core/concat.py
++++ b/xarray/core/concat.py
+@@ -269,6 +269,7 @@ def _dataset_concat(
+     positions,
+     fill_value=dtypes.NA,
+     join="outer",
++    handle_missing_vars="raise",  # New parameter with default value "raise"
+ ):
+     """
+     Concatenate a sequence of datasets along a new or existing dimension
+@@ -313,11 +314,21 @@ def _dataset_concat(
+ 
+         for ds in datasets:
+             absent_merge_vars = variables_to_merge - set(ds.variables)
+-            if absent_merge_vars:
++            if handle_missing_vars == "raise" and absent_merge_vars:
+                 raise ValueError(
+                     "variables %r are present in some datasets but not others. "
+                     % absent_merge_vars
+                 )
++            elif handle_missing_vars == "ignore":
++                # If chosen to ignore, simply skip the missing variables without raising an error
++                pass
++            elif handle_missing_vars == "fill":
++                # If chosen to fill, initialize missing variables with NaNs
++                for ds in datasets:
++                    for var in absent_merge_vars:
++                        if var not in ds:
++                            ds[var] = xr.full_like(ds[list(ds.data_vars)[0]], fill_value=fill_value, dtype=float)
++                            ds[var].attrs['auto_filled'] = True
+ 
+             for var in variables_to_merge:
+                 to_merge[var].append(ds.variables[var])

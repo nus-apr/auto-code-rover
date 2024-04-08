@@ -1,0 +1,20 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index a7c16c4bd8..76d3479668 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1111,7 +1111,14 @@ class QuerySet:
+             "Cannot reorder a query once a slice has been taken."
+         obj = self._chain()
+         obj.query.clear_ordering(force_empty=False)
+-        obj.query.add_ordering(*field_names)
++        # Conceptual patch: Ensure inherited ordering is correctly applied
++        # This would involve checking if the model is a child model and if so,
++        # ensuring the parent's ordering is correctly applied if not explicitly overridden.
++        if self.model._meta.inherits and not field_names:
++            parent_ordering = self.model._meta.parent._meta.ordering
++            obj.query.add_ordering(*parent_ordering)
++        else:
++            obj.query.add_ordering(*field_names)
+         return obj
+ 
+     def distinct(self, *field_names):

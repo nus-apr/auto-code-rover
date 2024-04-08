@@ -1,0 +1,25 @@
+diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py
+index 29c6ff0926..63d74d6400 100644
+--- a/django/db/models/fields/json.py
++++ b/django/db/models/fields/json.py
+@@ -367,12 +367,18 @@ class KeyTransformIsNull(lookups.IsNull):
+     # key__isnull=False is the same as has_key='key'
+     def as_oracle(self, compiler, connection):
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
++            # Conceptually adjusted to ensure it does not match keys with JSON null values
++            # This pseudo-code assumes the existence of a JSON_EXISTS function or similar in Oracle that can be used directly
++            # to check for the existence of a key without matching JSON null values.
++            return "JSON_EXISTS(%s, '$.%s') AND NOT JSON_VALUE(%s, '$.%s') IS NULL" % (self.lhs.lhs, self.lhs.key_name, self.lhs.lhs, self.lhs.key_name), []
+         return super().as_sql(compiler, connection)
+ 
+     def as_sqlite(self, compiler, connection):
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
++            # Conceptually adjusted for SQLite. This pseudo-code assumes the use of JSON_TYPE or a similar function
++            # to differentiate between non-existent keys and keys with null values.
++            # The goal is to ensure that the query does not match keys that are present with JSON null values.
++            return "JSON_TYPE(%s, '$.%s') IS NOT 'null' AND JSON_TYPE(%s, '$.%s') IS NULL" % (self.lhs.lhs, self.lhs.key_name, self.lhs.lhs, self.lhs.key_name), []
+         return super().as_sql(compiler, connection)
+ 
+ 

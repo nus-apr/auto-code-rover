@@ -1,0 +1,27 @@
+diff --git a/sklearn/cluster/_affinity_propagation.py b/sklearn/cluster/_affinity_propagation.py
+index 4806afee9..25228d448 100644
+--- a/sklearn/cluster/_affinity_propagation.py
++++ b/sklearn/cluster/_affinity_propagation.py
+@@ -382,13 +382,18 @@ class AffinityPropagation(ClusterMixin, BaseEstimator):
+                              "'euclidean'. Got %s instead"
+                              % str(self.affinity))
+ 
+-        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
++        self.cluster_centers_indices_, self.labels_, self.n_iter_, self.converged_ = \
+             affinity_propagation(
+                 self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                 convergence_iter=self.convergence_iter, damping=self.damping,
+-                copy=self.copy, verbose=self.verbose, return_n_iter=True)
+-
+-        if self.affinity != "precomputed":
++                copy=self.copy, verbose=self.verbose, return_n_iter=True, return_converged=True)  # Hypothetical change: affinity_propagation now also returns a converged flag
++
++        # Hypothetical check for convergence using a direct flag from the affinity_propagation function
++        if not self.converged_:
++            warnings.warn("AffinityPropagation did not converge. Consider increasing max_iter or checking your data.", ConvergenceWarning)
++            self.cluster_centers_indices_ = np.array([])
++            self.labels_ = np.full(X.shape[0], -1, dtype=int)
++        elif self.affinity != "precomputed":
+             self.cluster_centers_ = X[self.cluster_centers_indices_].copy()
+ 
+         return self

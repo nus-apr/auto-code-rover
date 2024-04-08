@@ -1,0 +1,35 @@
+{
+    "task_id": "django__django-15202",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.1",
+        "env_name": "setup_django__django__4.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 forms_tests.field_tests.test_urlfield"
+    },
+    "task_info": {
+        "instance_id": "django__django-15202",
+        "base_commit": "4fd3044ca0135da903a70dfb66992293f529ecf1",
+        "hints_text": "",
+        "created_at": "2021-12-15T15:04:13Z",
+        "test_patch": "diff --git a/tests/forms_tests/field_tests/test_urlfield.py b/tests/forms_tests/field_tests/test_urlfield.py\n--- a/tests/forms_tests/field_tests/test_urlfield.py\n+++ b/tests/forms_tests/field_tests/test_urlfield.py\n@@ -100,6 +100,10 @@ def test_urlfield_clean_invalid(self):\n             # even on domains that don't fail the domain label length check in\n             # the regex.\n             'http://%s' % (\"X\" * 200,),\n+            # urlsplit() raises ValueError.\n+            '////]@N.AN',\n+            # Empty hostname.\n+            '#@A.bO',\n         ]\n         msg = \"'Enter a valid URL.'\"\n         for value in tests:\n",
+        "repo": "django/django",
+        "problem_statement": "URLField throws ValueError instead of ValidationError on clean\nDescription\n\t\nforms.URLField( ).clean('////]@N.AN')\nresults in:\n\tValueError: Invalid IPv6 URL\n\tTraceback (most recent call last):\n\t File \"basic_fuzzer.py\", line 22, in TestOneInput\n\t File \"fuzzers.py\", line 350, in test_forms_URLField\n\t File \"django/forms/fields.py\", line 151, in clean\n\t File \"django/forms/fields.py\", line 136, in run_validators\n\t File \"django/core/validators.py\", line 130, in __call__\n\t File \"urllib/parse.py\", line 440, in urlsplit\n",
+        "version": "4.1",
+        "FAIL_TO_PASS": [
+            "test_urlfield_clean_invalid (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_clean_not_required (forms_tests.field_tests.test_urlfield.URLFieldTest)"
+        ],
+        "PASS_TO_PASS": [
+            "test_urlfield_clean (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_clean_required (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_strip_on_none_value (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_unable_to_set_strip_kwarg (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_widget (forms_tests.field_tests.test_urlfield.URLFieldTest)",
+            "test_urlfield_widget_max_min_length (forms_tests.field_tests.test_urlfield.URLFieldTest)"
+        ],
+        "environment_setup_commit": "647480166bfe7532e8c471fef0146e3a17e6c0c9",
+        "patch": "diff --git a/django/core/validators.py b/django/core/validators.py\n--- a/django/core/validators.py\n+++ b/django/core/validators.py\n@@ -108,15 +108,16 @@ def __call__(self, value):\n             raise ValidationError(self.message, code=self.code, params={'value': value})\n \n         # Then check full URL\n+        try:\n+            splitted_url = urlsplit(value)\n+        except ValueError:\n+            raise ValidationError(self.message, code=self.code, params={'value': value})\n         try:\n             super().__call__(value)\n         except ValidationError as e:\n             # Trivial case failed. Try for possible IDN domain\n             if value:\n-                try:\n-                    scheme, netloc, path, query, fragment = urlsplit(value)\n-                except ValueError:  # for example, \"Invalid IPv6 URL\"\n-                    raise ValidationError(self.message, code=self.code, params={'value': value})\n+                scheme, netloc, path, query, fragment = splitted_url\n                 try:\n                     netloc = punycode(netloc)  # IDN -> ACE\n                 except UnicodeError:  # invalid domain part\n@@ -127,7 +128,7 @@ def __call__(self, value):\n                 raise\n         else:\n             # Now verify IPv6 in the netloc part\n-            host_match = re.search(r'^\\[(.+)\\](?::\\d{1,5})?$', urlsplit(value).netloc)\n+            host_match = re.search(r'^\\[(.+)\\](?::\\d{1,5})?$', splitted_url.netloc)\n             if host_match:\n                 potential_ip = host_match[1]\n                 try:\n@@ -139,7 +140,7 @@ def __call__(self, value):\n         # section 3.1. It's defined to be 255 bytes or less, but this includes\n         # one byte for the length of the name and one byte for the trailing dot\n         # that's used to indicate absolute names in DNS.\n-        if len(urlsplit(value).hostname) > 253:\n+        if splitted_url.hostname is None or len(splitted_url.hostname) > 253:\n             raise ValidationError(self.message, code=self.code, params={'value': value})\n \n \n",
+        "pr_link": "https://github.com/django/django/pull/15202"
+    }
+}

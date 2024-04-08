@@ -1,0 +1,33 @@
+Given the complexity of the issue and the lack of a clear bug from the provided context, creating a precise patch without further investigation and testing is challenging. However, I can propose a conceptual patch that might address the inconsistency in behavior for `sympify`/`simplify` with `ceiling` when `evaluate=False` is used. This patch aims to ensure that expressions involving `ceiling` are handled consistently by the `simplify` function, regardless of the `evaluate` parameter's state during their creation.
+
+# modification 1
+```python
+<file>sympy/simplify/simplify.py</file>
+<original>expr = sympify(expr)</original>
+<patched>expr = sympify(expr, evaluate=kwargs.get('evaluate', True))</patched>
+```
+
+# modification 2
+```python
+<file>sympy/functions/elementary/integers.py</file>
+<original>return ipart + cls(spart, evaluate=False)</original>
+<patched># Ensure that the evaluate parameter is explicitly considered
+evaluate_param = kwargs.get('evaluate', True)
+return ipart + cls(spart, evaluate=evaluate_param)</patched>
+```
+
+# modification 3
+```python
+<file>sympy/core/basic.py</file>
+<original>return simplify(self, **kwargs)</original>
+<patched># Pass along the evaluate parameter explicitly if provided
+evaluate_param = kwargs.get('evaluate', True)
+return simplify(self, evaluate=evaluate_param, **kwargs)</patched>
+```
+
+**Explanation**:
+- **Modification 1**: This change ensures that the `evaluate` parameter's value is passed to `sympify` within the `simplify` function. This might help maintain consistency in how expressions are created, especially when `evaluate=False` is specified.
+- **Modification 2**: In the `eval` method of `ceiling` (or similar functions), this modification ensures that the `evaluate` parameter is considered when recursively calling itself or creating new expressions. This could help in maintaining the intended evaluation behavior throughout the simplification process.
+- **Modification 3**: This ensures that when `simplify` is called on a `Basic` object, any `evaluate` parameter provided by the user is explicitly passed to the `simplify` function. This could help in maintaining consistency in evaluation behavior when simplifying expressions involving `Basic` objects.
+
+**Note**: These modifications are conceptual and aim to illustrate how one might begin to address the reported issue. Actual implementation may require adjustments based on thorough testing and validation against the SymPy codebase to ensure that these changes do not introduce unintended side effects.

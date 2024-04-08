@@ -1,0 +1,59 @@
+{
+    "task_id": "sympy__sympy-24213",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.12",
+        "env_name": "setup_sympy__sympy__1.12",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/physics/units/tests/test_quantities.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-24213",
+        "base_commit": "e8c22f6eac7314be8d92590bfff92ced79ee03e2",
+        "hints_text": "",
+        "created_at": "2022-11-03T14:00:09Z",
+        "test_patch": "diff --git a/sympy/physics/units/tests/test_quantities.py b/sympy/physics/units/tests/test_quantities.py\n--- a/sympy/physics/units/tests/test_quantities.py\n+++ b/sympy/physics/units/tests/test_quantities.py\n@@ -561,6 +561,22 @@ def test_issue_24062():\n     exp_expr = 1 + exp(expr)\n     assert SI._collect_factor_and_dimension(exp_expr) == (1 + E, Dimension(1))\n \n+def test_issue_24211():\n+    from sympy.physics.units import time, velocity, acceleration, second, meter\n+    V1 = Quantity('V1')\n+    SI.set_quantity_dimension(V1, velocity)\n+    SI.set_quantity_scale_factor(V1, 1 * meter / second)\n+    A1 = Quantity('A1')\n+    SI.set_quantity_dimension(A1, acceleration)\n+    SI.set_quantity_scale_factor(A1, 1 * meter / second**2)\n+    T1 = Quantity('T1')\n+    SI.set_quantity_dimension(T1, time)\n+    SI.set_quantity_scale_factor(T1, 1 * second)\n+\n+    expr = A1*T1 + V1\n+    # should not throw ValueError here\n+    SI._collect_factor_and_dimension(expr)\n+\n \n def test_prefixed_property():\n     assert not meter.is_prefixed\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "collect_factor_and_dimension does not detect equivalent dimensions in addition\nCode to reproduce:\r\n```python\r\nfrom sympy.physics import units\r\nfrom sympy.physics.units.systems.si import SI\r\n\r\nv1 = units.Quantity('v1')\r\nSI.set_quantity_dimension(v1, units.velocity)\r\nSI.set_quantity_scale_factor(v1, 2 * units.meter / units.second)\r\n\r\na1 = units.Quantity('a1')\r\nSI.set_quantity_dimension(a1, units.acceleration)\r\nSI.set_quantity_scale_factor(a1, -9.8 * units.meter / units.second**2)\r\n\r\nt1 = units.Quantity('t1')\r\nSI.set_quantity_dimension(t1, units.time)\r\nSI.set_quantity_scale_factor(t1, 5 * units.second)\r\n\r\nexpr1 = a1*t1 + v1\r\nSI._collect_factor_and_dimension(expr1)\r\n```\r\nResults in:\r\n```\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"C:\\Python\\Python310\\lib\\site-packages\\sympy\\physics\\units\\unitsystem.py\", line 179, in _collect_factor_and_dimension\r\n    raise ValueError(\r\nValueError: Dimension of \"v1\" is Dimension(velocity), but it should be Dimension(acceleration*time)\r\n```\n",
+        "version": "1.12",
+        "FAIL_TO_PASS": [
+            "test_issue_24211"
+        ],
+        "PASS_TO_PASS": [
+            "test_Quantity_definition",
+            "test_Quantity_derivative",
+            "test_Quantity_eq",
+            "test_abbrev",
+            "test_add_sub",
+            "test_binary_information",
+            "test_check_unit_consistency",
+            "test_conversion_with_2_nonstandard_dimensions",
+            "test_convert_to",
+            "test_deprecated_quantity_methods",
+            "test_dimensional_expr_of_derivative",
+            "test_eq",
+            "test_eval_subs",
+            "test_factor_and_dimension",
+            "test_find_unit",
+            "test_get_dimensional_expr_with_function",
+            "test_issue_14547",
+            "test_issue_14932",
+            "test_issue_20288",
+            "test_issue_22164",
+            "test_issue_22819",
+            "test_issue_24062",
+            "test_issue_5565",
+            "test_issue_quart",
+            "test_mul_div",
+            "test_prefixed_property",
+            "test_print",
+            "test_quantity_abs",
+            "test_quantity_postprocessing",
+            "test_str_repr",
+            "test_units"
+        ],
+        "environment_setup_commit": "c6cb7c5602fa48034ab1bd43c2347a7e8488f12e",
+        "patch": "diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py\n--- a/sympy/physics/units/unitsystem.py\n+++ b/sympy/physics/units/unitsystem.py\n@@ -175,7 +175,7 @@ def _collect_factor_and_dimension(self, expr):\n             for addend in expr.args[1:]:\n                 addend_factor, addend_dim = \\\n                     self._collect_factor_and_dimension(addend)\n-                if dim != addend_dim:\n+                if not self.get_dimension_system().equivalent_dims(dim, addend_dim):\n                     raise ValueError(\n                         'Dimension of \"{}\" is {}, '\n                         'but it should be {}'.format(\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/24213"
+    }
+}

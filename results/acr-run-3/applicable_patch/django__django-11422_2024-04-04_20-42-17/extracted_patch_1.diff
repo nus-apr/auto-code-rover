@@ -1,0 +1,32 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 7ca0d68fae..559d02dd2f 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -339,9 +339,12 @@ class StatReloader(BaseReloader):
+             time.sleep(self.SLEEP_TIME)
+             yield
+ 
++    import os
+     def snapshot_files(self):
++        # Ensure manage.py is explicitly included in the watched files
++        manage_py_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'manage.py')
+         # watched_files may produce duplicate paths if globs overlap.
+-        seen_files = set()
++        seen_files = set([manage_py_path])  # Pre-populate seen_files with manage.py path
+         for file in self.watched_files():
+             if file in seen_files:
+                 continue
+@@ -352,6 +355,13 @@ class StatReloader(BaseReloader):
+                 continue
+             seen_files.add(file)
+             yield file, mtime
++        # Explicitly check and yield manage.py if not already done
++        if manage_py_path not in seen_files:
++            try:
++                mtime = os.stat(manage_py_path).st_mtime
++                yield manage_py_path, mtime
++            except OSError:
++                pass
+ 
+     @classmethod
+     def check_availability(cls):

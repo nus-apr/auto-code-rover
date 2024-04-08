@@ -1,0 +1,24 @@
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index 1acc00be3a..50c8eaf09a 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -553,7 +553,18 @@ def shorter(*choices):
+         floats = True
+         expr = nsimplify(expr, rational=True)
+ 
+-    expr = bottom_up(expr, lambda w: w.normal())
++    from sympy.core.power import Pow
++    from sympy.core.mul import Mul
++    from sympy.core.symbol import Symbol
++    from sympy.core.numbers import Integer
++    
++    def custom_normalizer(w):
++        if isinstance(w, Pow) and isinstance(w.base, Mul):
++            if any(isinstance(t, Symbol) and t.is_negative for t in w.base.args):
++                return Pow(Mul(*[t for t in w.base.args if not (isinstance(t, Symbol) and t.is_negative)]), w.exp, evaluate=False) * Pow(Integer(-1), w.exp, evaluate=False)
++        return w.normal()
++    
++    expr = bottom_up(expr, custom_normalizer)
+     expr = Mul(*powsimp(expr).as_content_primitive())
+     _e = cancel(expr)
+     expr1 = shorter(_e, _mexpand(_e).cancel())  # issue 6829

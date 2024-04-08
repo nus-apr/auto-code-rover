@@ -1,0 +1,59 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>if bulk_return and on_conflict is None:
+    inserted_rows.extend(
+        self._insert(
+            item,
+            fields=fields,
+            using=self.db,
+            returning_fields=self.model._meta.db_returning_fields,
+        )
+    )
+else:
+    self._insert(
+        item,
+        fields=fields,
+        using=self.db,
+        on_conflict=on_conflict,
+        update_fields=update_fields,
+        unique_fields=unique_fields,
+    )</original>
+<patched>if bulk_return:
+    if on_conflict is None or (on_conflict and update_fields):
+        # If there's no conflict or if there's an update conflict with specified update fields,
+        # attempt to return inserted rows.
+        inserted_rows.extend(
+            self._insert(
+                item,
+                fields=fields,
+                using=self.db,
+                on_conflict=on_conflict,
+                update_fields=update_fields,
+                unique_fields=unique_fields,
+                returning_fields=(self.model._meta.db_returning_fields if on_conflict and update_fields else None),
+            )
+        )
+    else:
+        self._insert(
+            item,
+            fields=fields,
+            using=self.db,
+            on_conflict=on_conflict,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+else:
+    # If the database does not support returning rows from bulk insert,
+    # proceed without attempting to return inserted rows.
+    self._insert(
+        item,
+        fields=fields,
+        using=self.db,
+        on_conflict=on_conflict,
+        update_fields=update_fields,
+        unique_fields=unique_fields,
+    )</patched>
+```
+
+This modification adjusts the `_batched_insert` method to allow returning IDs (or primary keys) when `update_conflicts=True` and `update_fields` are specified, by extending the condition to check for `on_conflict` and `update_fields`. It ensures that when there's an update conflict with specified fields for updating, the database operation attempts to return inserted rows, including the IDs, by using the `returning_fields` parameter in the `_insert` method call. This change aims to address the issue while maintaining compatibility with existing functionalities and database capabilities.

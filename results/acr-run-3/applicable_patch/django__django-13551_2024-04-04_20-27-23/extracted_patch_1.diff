@@ -1,0 +1,25 @@
+diff --git a/django/contrib/auth/tokens.py b/django/contrib/auth/tokens.py
+index 93e2d71af2..61931f26d7 100644
+--- a/django/contrib/auth/tokens.py
++++ b/django/contrib/auth/tokens.py
+@@ -85,6 +85,8 @@ class PasswordResetTokenGenerator:
+            same password is chosen, due to password salting).
+         2. The last_login field will usually be updated very shortly after
+            a password reset.
++        3. Including the user's email ensures the token is invalidated if the
++           email is changed.
+         Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+         invalidates the token.
+ 
+@@ -94,7 +96,10 @@ class PasswordResetTokenGenerator:
+         # Truncate microseconds so that tokens are consistent even if the
+         # database doesn't support microseconds.
+         login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+-        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)
++        # Use get_email_field_name to support custom user models that may not have an email field.
++        email_field_name = user.get_email_field_name()
++        email = getattr(user, email_field_name, '')
++        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp) + email
+ 
+     def _num_seconds(self, dt):
+         return int((dt - datetime(2001, 1, 1)).total_seconds())

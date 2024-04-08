@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>astropy/nddata/mixins/ndarithmetic.py</file>
+<original>        # If only one mask is present we need not bother about any type checks
+        if (
+            self.mask is None and operand is not None and operand.mask is None
+        ) or handle_mask is None:
+            return None
+        elif self.mask is None and operand is not None:
+            # Make a copy so there is no reference in the result.
+            return deepcopy(operand.mask)
+        elif operand is None:
+            return deepcopy(self.mask)
+        else:
+            # Now lets calculate the resulting mask (operation enforces copy)
+            return handle_mask(self.mask, operand.mask, **kwds)</original>
+<patched>        import numpy as np
+        # If only one mask is present we need not bother about any type checks
+        if (
+            self.mask is None and operand is not None and operand.mask is None
+        ) or handle_mask is None:
+            return None
+        elif self.mask is None and operand is not None:
+            # Make a copy so there is no reference in the result.
+            return deepcopy(operand.mask)
+        elif operand is None:
+            return deepcopy(self.mask)
+        else:
+            # Handle case where one mask is None and the other is not before applying handle_mask
+            if self.mask is None:
+                self_mask_filled = np.zeros_like(operand.mask, dtype=bool)
+            else:
+                self_mask_filled = self.mask
+            if operand.mask is None:
+                operand_mask_filled = np.zeros_like(self.mask, dtype=bool)
+            else:
+                operand_mask_filled = operand.mask
+            # Now lets calculate the resulting mask (operation enforces copy)
+            return handle_mask(self_mask_filled, operand_mask_filled, **kwds)</patched>
+```

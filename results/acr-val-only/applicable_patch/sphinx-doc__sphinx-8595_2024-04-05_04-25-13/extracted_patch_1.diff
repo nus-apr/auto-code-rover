@@ -1,0 +1,52 @@
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index d85d79617..ee18f374e 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1074,16 +1074,20 @@ class ModuleDocumenter(Documenter):
+     def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+         members = self.get_module_members()
+         if want_all:
+-            if not self.__all__:
+-                # for implicit module members, check __module__ to avoid
+-                # documenting imported objects
+-                return True, list(members.values())
+-            else:
+-                for member in members.values():
+-                    if member.__name__ not in self.__all__:
+-                        member.skipped = True
+-
+-                return False, list(members.values())
++                    if self.__all__ is not None:
++                        if not self.__all__:
++                            # If __all__ is explicitly empty, skip all members
++                            return False, []
++                        else:
++                            for member in members.values():
++                                if member.__name__ not in self.__all__:
++                                    member.skipped = True
++        
++                            return False, list(members.values())
++                    else:
++                        # for implicit module members, check __module__ to avoid
++                        # documenting imported objects
++                        return True, list(members.values())
+         else:
+             memberlist = self.options.members or []
+             ret = []
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index 767ef319c..9feaad898 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -151,8 +151,11 @@ def getall(obj: Any) -> Optional[Sequence[str]]:
+     __all__ = safe_getattr(obj, '__all__', None)
+     if __all__ is None:
+         return None
++    elif isinstance(__all__, (list, tuple)) and all(isinstance(e, str) for e in __all__):
++        return __all__
+     else:
+-        if (isinstance(__all__, (list, tuple)) and all(isinstance(e, str) for e in __all__)):
++        # Ensure that an empty __all__ is treated as a valid case
++        if isinstance(__all__, (list, tuple)) and len(__all__) == 0:
+             return __all__
+         else:
+             raise ValueError(__all__)

@@ -1,0 +1,63 @@
+# modification 1
+```python
+<file>sympy/printing/mathml.py</file>
+<original>    def _print_Basic(self, e):
+        mrow = self.dom.createElement('mrow')
+        mi = self.dom.createElement('mi')
+        mi.appendChild(self.dom.createTextNode(self.mathml_tag(e)))
+        mrow.appendChild(mi)
+        brac = self.dom.createElement('mfenced')
+        for arg in e.args:
+            brac.appendChild(self._print(arg))
+        mrow.appendChild(brac)
+        return mrow</original>
+<patched>    def _print_Basic(self, e):
+        if hasattr(e, 'is_Indexed') and e.is_Indexed:
+            mrow = self.dom.createElement('mrow')
+            base = self._print(e.base)
+            mrow.appendChild(base)
+            for idx in e.indices:
+                msub = self.dom.createElement('msub')
+                msub.appendChild(base.cloneNode(True))
+                msub.appendChild(self._print(idx))
+                mrow.appendChild(msub)
+            return mrow
+        else:
+            mrow = self.dom.createElement('mrow')
+            mi = self.dom.createElement('mi')
+            mi.appendChild(self.dom.createTextNode(self.mathml_tag(e)))
+            mrow.appendChild(mi)
+            brac = self.dom.createElement('mfenced')
+            for arg in e.args:
+                brac.appendChild(self._print(arg))
+            mrow.appendChild(brac)
+            return mrow</patched>
+```
+
+# modification 2
+```python
+<file>sympy/printing/mathml.py</file>
+<original>    def _print_Basic(self, e):
+        x = self.dom.createElement(self.mathml_tag(e))
+        for arg in e.args:
+            x.appendChild(self._print(arg))
+        return x</original>
+<patched>    def _print_Basic(self, e):
+        if hasattr(e, 'is_Indexed') and e.is_Indexed:
+            x = self.dom.createElement('mrow')
+            base = self._print(e.base)
+            x.appendChild(base)
+            for idx in e.indices:
+                msub = self.dom.createElement('msub')
+                msub.appendChild(base.cloneNode(True))
+                msub.appendChild(self._print(idx))
+                x.appendChild(msub)
+            return x
+        else:
+            x = self.dom.createElement(self.mathml_tag(e))
+            for arg in e.args:
+                x.appendChild(self._print(arg))
+            return x</patched>
+```
+
+These modifications introduce a check for `is_Indexed` attribute in the `_print_Basic` methods of both `MathMLPresentationPrinter` and `MathMLContentPrinter` classes. If the expression is an `Indexed` object, it handles the base and indices separately to construct the MathML representation correctly, avoiding the iteration over `e.args` which caused the original issue.

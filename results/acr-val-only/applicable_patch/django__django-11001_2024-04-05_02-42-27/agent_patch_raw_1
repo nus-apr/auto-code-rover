@@ -1,0 +1,15 @@
+To address the issue of incorrect removal of `order_by` clauses created as multiline `RawSQL`, we need to modify the way the `SQLCompiler.get_order_by` method processes the SQL to identify duplicates. The problem arises because the method only considers the last line of the SQL, leading to incorrect identification of duplicates when different `RawSQL` expressions have identical last lines.
+
+The proposed patch will modify the `get_order_by` method to ensure that the entire SQL expression is considered when checking for duplicates, rather than just the last line. This involves adjusting the way `without_ordering` is computed by replacing newline characters with spaces to maintain the SQL as a single line, thereby avoiding the issue with multiline expressions.
+
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>without_ordering = self.ordering_parts.search(sql).group(1)</original>
+<patched>sql_oneline = ' '.join(sql.splitlines())
+without_ordering = self.ordering_parts.search(sql_oneline).group(1)</patched>
+```
+
+This modification ensures that the SQL string is treated as a single line by replacing newline characters with spaces before applying the `ordering_parts` regular expression. This approach maintains the integrity of the SQL expression while allowing for accurate duplicate detection across multiline `RawSQL` expressions.
+
+Please note, this patch assumes that the rest of the system can handle the SQL being in a single line and that no additional context (e.g., specific handling of newline characters in SQL queries) is lost by this transformation. Additional testing is recommended to ensure that this change does not introduce any side effects in query execution or performance.

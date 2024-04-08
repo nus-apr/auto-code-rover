@@ -1,0 +1,47 @@
+{
+    "task_id": "django__django-16408",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__5.0",
+        "env_name": "setup_django__django__5.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 known_related_objects.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-16408",
+        "base_commit": "ef85b6bf0bc5a8b194f0724cf5bbedbcee402b96",
+        "hints_text": "Seems this bug can be fixed by: M django/db/models/sql/compiler.py @@ -1270,6 +1270,9 @@ class SQLCompiler: if from_obj: final_field.remote_field.set_cached_value(from_obj, obj) + def no_local_setter(obj, from_obj): + pass + def remote_setter(name, obj, from_obj): setattr(from_obj, name, obj) @@ -1291,7 +1294,7 @@ class SQLCompiler: \"model\": model, \"field\": final_field, \"reverse\": True, - \"local_setter\": partial(local_setter, final_field), + \"local_setter\": partial(local_setter, final_field) if len(joins) <= 2 else no_local_setter, \"remote_setter\": partial(remote_setter, name), \"from_parent\": from_parent, }\n\"cyclic\" is not the case. Try the test below: def test_wrong_select_related2(self): with self.assertNumQueries(3): p = list( Tournament.objects.filter(id=self.t2.id).annotate( style=FilteredRelation('pool__another_style'), ).select_related('style') ) self.assertEqual(self.ps3, p[0].style) self.assertEqual(self.p1, p[0].style.pool) self.assertEqual(self.p3, p[0].style.another_pool) result: ====================================================================== FAIL: test_wrong_select_related2 (known_related_objects.tests.ExistingRelatedInstancesTests.test_wrong_select_related2) ---------------------------------------------------------------------- Traceback (most recent call last): File \"/repos/django/tests/known_related_objects/tests.py\", line 186, in test_wrong_select_related2 self.assertEqual(self.p3, p[0].style.another_pool) AssertionError: <Pool: Pool object (3)> != <Tournament: Tournament object (2)> ---------------------------------------------------------------------- The query fetch t2 and ps3, then call remote_setter('style', ps3, t2) and local_setter(t2, ps3). The joins is ['known_related_objects_tournament', 'known_related_objects_pool', 'style']. The type of the first argument of the local_setter should be joins[-2], but query do not fetch that object, so no available local_setter when len(joins) > 2.\n\u200bhttps://github.com/django/django/pull/16408",
+        "created_at": "2022-12-29T02:08:29Z",
+        "test_patch": "diff --git a/tests/known_related_objects/tests.py b/tests/known_related_objects/tests.py\n--- a/tests/known_related_objects/tests.py\n+++ b/tests/known_related_objects/tests.py\n@@ -164,3 +164,23 @@ def test_reverse_fk_select_related_multiple(self):\n             )\n             self.assertIs(ps[0], ps[0].pool_1.poolstyle)\n             self.assertIs(ps[0], ps[0].pool_2.another_style)\n+\n+    def test_multilevel_reverse_fk_cyclic_select_related(self):\n+        with self.assertNumQueries(3):\n+            p = list(\n+                PoolStyle.objects.annotate(\n+                    tournament_pool=FilteredRelation(\"pool__tournament__pool\"),\n+                ).select_related(\"tournament_pool\", \"tournament_pool__tournament\")\n+            )\n+            self.assertEqual(p[0].tournament_pool.tournament, p[0].pool.tournament)\n+\n+    def test_multilevel_reverse_fk_select_related(self):\n+        with self.assertNumQueries(2):\n+            p = list(\n+                Tournament.objects.filter(id=self.t2.id)\n+                .annotate(\n+                    style=FilteredRelation(\"pool__another_style\"),\n+                )\n+                .select_related(\"style\")\n+            )\n+            self.assertEqual(p[0].style.another_pool, self.p3)\n",
+        "repo": "django/django",
+        "problem_statement": "Multi-level FilteredRelation with select_related() may set wrong related object.\nDescription\n\t\ntest case:\n# add to known_related_objects.tests.ExistingRelatedInstancesTests\n\tdef test_wrong_select_related(self):\n\t\twith self.assertNumQueries(3):\n\t\t\tp = list(PoolStyle.objects.annotate(\n\t\t\t\ttournament_pool=FilteredRelation('pool__tournament__pool'),\n\t\t\t\t).select_related('tournament_pool'))\n\t\t\tself.assertEqual(p[0].pool.tournament, p[0].tournament_pool.tournament)\nresult:\n======================================================================\nFAIL: test_wrong_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_wrong_select_related)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n File \"D:\\Work\\django\\tests\\known_related_objects\\tests.py\", line 171, in test_wrong_select_related\n\tself.assertEqual(p[0].pool.tournament, p[0].tournament_pool.tournament)\nAssertionError: <Tournament: Tournament object (1)> != <PoolStyle: PoolStyle object (1)>\n----------------------------------------------------------------------\n",
+        "version": "5.0",
+        "FAIL_TO_PASS": [
+            "test_multilevel_reverse_fk_cyclic_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_multilevel_reverse_fk_cyclic_select_related)",
+            "test_multilevel_reverse_fk_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_multilevel_reverse_fk_select_related)"
+        ],
+        "PASS_TO_PASS": [
+            "test_foreign_key (known_related_objects.tests.ExistingRelatedInstancesTests.test_foreign_key)",
+            "test_foreign_key_multiple_prefetch (known_related_objects.tests.ExistingRelatedInstancesTests.test_foreign_key_multiple_prefetch)",
+            "test_foreign_key_prefetch_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_foreign_key_prefetch_related)",
+            "test_one_to_one (known_related_objects.tests.ExistingRelatedInstancesTests.test_one_to_one)",
+            "test_one_to_one_multi_prefetch_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_one_to_one_multi_prefetch_related)",
+            "test_one_to_one_multi_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_one_to_one_multi_select_related)",
+            "test_one_to_one_prefetch_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_one_to_one_prefetch_related)",
+            "test_one_to_one_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_one_to_one_select_related)",
+            "test_queryset_and (known_related_objects.tests.ExistingRelatedInstancesTests.test_queryset_and)",
+            "test_queryset_or (known_related_objects.tests.ExistingRelatedInstancesTests.test_queryset_or)",
+            "test_queryset_or_different_cached_items (known_related_objects.tests.ExistingRelatedInstancesTests.test_queryset_or_different_cached_items)",
+            "test_queryset_or_only_one_with_precache (known_related_objects.tests.ExistingRelatedInstancesTests.test_queryset_or_only_one_with_precache)",
+            "test_reverse_fk_select_related_multiple (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_fk_select_related_multiple)",
+            "test_reverse_one_to_one (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_one_to_one)",
+            "test_reverse_one_to_one_multi_prefetch_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_one_to_one_multi_prefetch_related)",
+            "test_reverse_one_to_one_multi_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_one_to_one_multi_select_related)",
+            "test_reverse_one_to_one_prefetch_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_one_to_one_prefetch_related)",
+            "test_reverse_one_to_one_select_related (known_related_objects.tests.ExistingRelatedInstancesTests.test_reverse_one_to_one_select_related)"
+        ],
+        "environment_setup_commit": "4a72da71001f154ea60906a2f74898d32b7322a7",
+        "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -1274,6 +1274,9 @@ def local_setter(final_field, obj, from_obj):\n                 if from_obj:\n                     final_field.remote_field.set_cached_value(from_obj, obj)\n \n+            def local_setter_noop(obj, from_obj):\n+                pass\n+\n             def remote_setter(name, obj, from_obj):\n                 setattr(from_obj, name, obj)\n \n@@ -1295,7 +1298,11 @@ def remote_setter(name, obj, from_obj):\n                         \"model\": model,\n                         \"field\": final_field,\n                         \"reverse\": True,\n-                        \"local_setter\": partial(local_setter, final_field),\n+                        \"local_setter\": (\n+                            partial(local_setter, final_field)\n+                            if len(joins) <= 2\n+                            else local_setter_noop\n+                        ),\n                         \"remote_setter\": partial(remote_setter, name),\n                         \"from_parent\": from_parent,\n                     }\n",
+        "pr_link": "https://github.com/django/django/pull/16408"
+    }
+}

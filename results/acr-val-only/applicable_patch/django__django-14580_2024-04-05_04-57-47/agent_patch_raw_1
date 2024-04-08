@@ -1,0 +1,56 @@
+# modification 1
+```python
+<file>django/db/migrations/writer.py</file>
+<original>        # django.db.migrations is always used, but models import may not be.
+        # If models import exists, merge it with migrations import.
+        if "from django.db import models" in imports:
+            imports.discard("from django.db import models")
+            imports.add("from django.db import migrations, models")
+        else:
+            imports.add("from django.db import migrations")</original>
+<patched>        # django.db.migrations is always used, but models import may not be.
+        # Ensure models import is added if any model or field class is referenced.
+        models_import_needed = "from django.db import models" in imports or any(
+            isinstance(value, (models.Model, models.Field)) for value in self.migration.operations
+        )
+        if models_import_needed:
+            imports.discard("from django.db import models")
+            imports.add("from django.db import migrations, models")
+        else:
+            imports.add("from django.db import migrations")</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    if isinstance(value, models.Field):
+        return ModelFieldSerializer(value)
+    if isinstance(value, models.manager.BaseManager):
+        return ModelManagerSerializer(value)
+    if isinstance(value, Operation):
+        return OperationSerializer(value)
+    if isinstance(value, type):
+        return TypeSerializer(value)
+    # Anything that knows how to deconstruct itself.
+    if hasattr(value, 'deconstruct'):
+        return DeconstructableSerializer(value)</original>
+<patched>    if isinstance(value, models.Field):
+        # Ensure the migration writer knows to import models when a field is serialized
+        MigrationWriter.needs_models_import = True
+        return ModelFieldSerializer(value)
+    if isinstance(value, models.manager.BaseManager):
+        # Ensure the migration writer knows to import models when a manager is serialized
+        MigrationWriter.needs_models_import = True
+        return ModelManagerSerializer(value)
+    if isinstance(value, Operation):
+        return OperationSerializer(value)
+    if isinstance(value, type) and issubclass(value, models.Model):
+        # Ensure the migration writer knows to import models when a model class is serialized
+        MigrationWriter.needs_models_import = True
+        return TypeSerializer(value)
+    # Anything that knows how to deconstruct itself.
+    if hasattr(value, 'deconstruct'):
+        return DeconstructableSerializer(value)</patched>
+```
+
+**Note**: The proposed patches aim to address the issue by ensuring that the `from django.db import models` import statement is correctly added to migration files whenever models or fields are referenced. The first modification directly checks for model or field references in the `as_string` method of `MigrationWriter` and adjusts the import logic accordingly. The second modification marks when the `models` import is needed during serialization of fields, managers, or model classes, leveraging a hypothetical flag (`MigrationWriter.needs_models_import`). This approach assumes the ability to modify or access attributes of `MigrationWriter` from within the `serializer_factory` function, which may require additional architectural changes or the introduction of a mechanism to communicate such requirements between components.

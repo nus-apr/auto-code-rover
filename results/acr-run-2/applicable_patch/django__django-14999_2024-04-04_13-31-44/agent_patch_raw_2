@@ -1,0 +1,45 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )</original>
+<patched>            # Check if db_table is explicitly set and if it matches the new model's db_table, skip the operation
+            if not (old_model._meta.db_table == new_model._meta.db_table and old_model._meta.db_table):
+                schema_editor.alter_db_table(
+                    new_model,
+                    old_model._meta.db_table,
+                    new_model._meta.db_table,
+                )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/backends/sqlite3/schema.py</file>
+<original>        # Create a new table with the updated schema.
+        self.create_model(new_model)
+
+        # Copy data from the old table into the new table
+        self.execute("INSERT INTO %s (%s) SELECT %s FROM %s" % (
+            self.quote_name(new_model._meta.db_table),
+            ', '.join(self.quote_name(x) for x in mapping),
+            ', '.join(mapping.values()),
+            self.quote_name(model._meta.db_table),
+        ))</original>
+<patched>        # Check if db_table is explicitly set and if it matches the new model's db_table, skip the operation
+        if model._meta.db_table != 'new__%s' % strip_quotes(model._meta.db_table):
+            # Create a new table with the updated schema.
+            self.create_model(new_model)
+
+            # Copy data from the old table into the new table
+            self.execute("INSERT INTO %s (%s) SELECT %s FROM %s" % (
+                self.quote_name(new_model._meta.db_table),
+                ', '.join(self.quote_name(x) for x in mapping),
+                ', '.join(mapping.values()),
+                self.quote_name(model._meta.db_table),
+            ))</patched>
+```
+
+These modifications are designed to add a conditional check before performing operations that would otherwise be unnecessary when the `db_table` attribute is explicitly set and matches the target table name. This approach aims to make the `RenameModel` operation a no-operation under these specific conditions, addressing the issue without altering the expected behavior in other scenarios.

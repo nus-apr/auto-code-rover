@@ -1,0 +1,31 @@
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>    def __and__(self, other):
+        if getattr(self, 'conditional', False) and getattr(other, 'conditional', False):
+            return Q(self) & Q(other)
+        raise NotImplementedError(
+            "Use .bitand() and .bitor() for bitwise logical operations."
+        )</original>
+<patched>    def __and__(self, other):
+        if getattr(self, 'conditional', False) and getattr(other, 'conditional', False):
+            return Q(self) & Q(other)
+        elif isinstance(other, Exists):
+            return Q(self) & Q(other)
+        raise NotImplementedError(
+            "Use .bitand() and .bitor() for bitwise logical operations."
+        )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query_utils.py</file>
+<original>        if not isinstance(other, Q):
+            raise TypeError(other)</original>
+<patched>        if not isinstance(other, (Q, Exists)):
+            raise TypeError(other)</patched>
+```
+
+**Explanation**:
+- **Modification 1**: In the `__and__` method of the `Combinable` class, we add an additional condition to check if the `other` object is an instance of `Exists`. If so, we allow it to be combined with a `Q` object. This ensures that `Exists` objects can be used in conjunction with `Q` objects using the `&` operator, addressing the commutativity issue.
+- **Modification 2**: In the `_combine` method of the `Q` class, we update the type check to allow `Exists` objects in addition to `Q` objects. This modification ensures that when an `Exists` object is combined with a `Q` object, it does not raise a `TypeError`, thus allowing for the expected behavior of the `&` operator.

@@ -1,0 +1,32 @@
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index f1609aa908..5af100f915 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -551,8 +551,13 @@ def shorter(*choices):
+         expr = expr2
+     else:
+         expr = shorter(expr2, expr1, expr)
+-    if not isinstance(expr, Basic):  # XXX: temporary hack
++    # Improved handling for expressions with floating-point exponents
++    if not isinstance(expr, Basic):  # Retaining the original check
+         return expr
++    # Attempt to simplify expressions with floating-point exponents more effectively
++    if any(arg.is_Pow and arg.exp.is_real and arg.exp.is_Float for arg in preorder_traversal(expr)):
++        expr = expr.simplify(rational=True)
++        expr = nsimplify(expr, rational=True)
+ 
+     expr = factor_terms(expr, sign=False)
+ 
+@@ -607,8 +612,11 @@ def shorter(*choices):
+         if d != 0:
+             expr = signsimp(-n/(-d))
+ 
+-    if measure(expr) > ratio*measure(original_expr):
++    # Adding an additional check for floating-point exponents to ensure they are simplified properly
++    if measure(expr) > ratio*measure(original_expr) or any(arg.is_Pow and arg.exp.is_real and arg.exp.is_Float for arg in preorder_traversal(expr)):
+         expr = original_expr
++        # Applying nsimplify to handle floating-point exponents more gracefully
++        expr = nsimplify(expr, rational=True)
+ 
+     return expr
+ 

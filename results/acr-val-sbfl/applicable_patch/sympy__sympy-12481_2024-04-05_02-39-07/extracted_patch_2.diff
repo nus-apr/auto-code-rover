@@ -1,0 +1,48 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..1e485cbd44 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,11 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Adjusted the handling of duplicate elements for cycle inputs
++        # Instead of raising an error, non-disjoint cycles will be processed
++        if is_cycle:
++            # Process non-disjoint cycles without raising an error for duplicates
++            pass  # The actual processing of non-disjoint cycles will be handled below
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +908,19 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
+-            for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++            # Modified to correctly handle non-disjoint cycles
++            # Initialize with the identity permutation of appropriate size
++            max_element = max(flatten(args))
++            identity_perm = list(range(max_element + 1))
++            for cycle in args:
++                for i in range(len(cycle)):
++                    # Swap elements according to the cycle
++                    if i < len(cycle) - 1:
++                        identity_perm[cycle[i]], identity_perm[cycle[i+1]] = identity_perm[cycle[i+1]], identity_perm[cycle[i]]
++                    else:
++                        # For the last element, swap with the first element of the cycle
++                        identity_perm[cycle[i]], identity_perm[cycle[0]] = identity_perm[cycle[0]], identity_perm[cycle[i]]
++            aform = identity_perm
+         else:
+             aform = list(args)
+         if size and size > len(aform):

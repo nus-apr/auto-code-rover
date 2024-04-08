@@ -1,0 +1,46 @@
+{
+    "task_id": "django__django-13768",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__3.2",
+        "env_name": "setup_django__django__3.2",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 dispatch.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-13768",
+        "base_commit": "965d2d95c630939b53eb60d9c169f5dfc77ee0c6",
+        "hints_text": "I would like to work on this issue. PS. i am new to this django. so any advice would be appreciated",
+        "created_at": "2020-12-12T07:34:48Z",
+        "test_patch": "diff --git a/tests/dispatch/tests.py b/tests/dispatch/tests.py\n--- a/tests/dispatch/tests.py\n+++ b/tests/dispatch/tests.py\n@@ -165,13 +165,28 @@ def test_send_robust_fail(self):\n         def fails(val, **kwargs):\n             raise ValueError('this')\n         a_signal.connect(fails)\n-        result = a_signal.send_robust(sender=self, val=\"test\")\n-        err = result[0][1]\n-        self.assertIsInstance(err, ValueError)\n-        self.assertEqual(err.args, ('this',))\n-        self.assertTrue(hasattr(err, '__traceback__'))\n-        self.assertIsInstance(err.__traceback__, TracebackType)\n-        a_signal.disconnect(fails)\n+        try:\n+            with self.assertLogs('django.dispatch', 'ERROR') as cm:\n+                result = a_signal.send_robust(sender=self, val='test')\n+            err = result[0][1]\n+            self.assertIsInstance(err, ValueError)\n+            self.assertEqual(err.args, ('this',))\n+            self.assertIs(hasattr(err, '__traceback__'), True)\n+            self.assertIsInstance(err.__traceback__, TracebackType)\n+\n+            log_record = cm.records[0]\n+            self.assertEqual(\n+                log_record.getMessage(),\n+                'Error calling '\n+                'DispatcherTests.test_send_robust_fail.<locals>.fails in '\n+                'Signal.send_robust() (this)',\n+            )\n+            self.assertIsNotNone(log_record.exc_info)\n+            _, exc_value, _ = log_record.exc_info\n+            self.assertIsInstance(exc_value, ValueError)\n+            self.assertEqual(str(exc_value), 'this')\n+        finally:\n+            a_signal.disconnect(fails)\n         self.assertTestIsClean(a_signal)\n \n     def test_disconnection(self):\n",
+        "repo": "django/django",
+        "problem_statement": "Log exceptions handled in Signal.send_robust()\nDescription\n\t\nAs pointed out by \u200bHaki Benita on Twitter, by default Signal.send_robust() doesn't have any log messages for exceptions raised in receivers. Since Django logs exceptions in other similar situations, such as missing template variables, I think it would be worth adding a logger.exception() call in the except clause of send_robust() . Users would then see such exceptions in their error handling tools, e.g. Sentry, and be able to figure out what action to take from there. Ultimately any *expected* exception should be caught with a try in the receiver function.\n",
+        "version": "3.2",
+        "FAIL_TO_PASS": [
+            "test_send_robust_fail (dispatch.tests.DispatcherTests)"
+        ],
+        "PASS_TO_PASS": [
+            "test_cached_garbaged_collected (dispatch.tests.DispatcherTests)",
+            "test_cannot_connect_no_kwargs (dispatch.tests.DispatcherTests)",
+            "test_cannot_connect_non_callable (dispatch.tests.DispatcherTests)",
+            "test_disconnection (dispatch.tests.DispatcherTests)",
+            "test_garbage_collected (dispatch.tests.DispatcherTests)",
+            "test_has_listeners (dispatch.tests.DispatcherTests)",
+            "test_multiple_registration (dispatch.tests.DispatcherTests)",
+            "test_receiver_signal_list (dispatch.tests.ReceiverTestCase)",
+            "test_receiver_single_signal (dispatch.tests.ReceiverTestCase)",
+            "test_send (dispatch.tests.DispatcherTests)",
+            "test_send_connected_no_sender (dispatch.tests.DispatcherTests)",
+            "test_send_different_no_sender (dispatch.tests.DispatcherTests)",
+            "test_send_no_receivers (dispatch.tests.DispatcherTests)",
+            "test_send_robust_ignored_sender (dispatch.tests.DispatcherTests)",
+            "test_send_robust_no_receivers (dispatch.tests.DispatcherTests)",
+            "test_send_robust_success (dispatch.tests.DispatcherTests)",
+            "test_uid_registration (dispatch.tests.DispatcherTests)",
+            "test_values_returned_by_disconnection (dispatch.tests.DispatcherTests)"
+        ],
+        "environment_setup_commit": "65dfb06a1ab56c238cc80f5e1c31f61210c4577d",
+        "patch": "diff --git a/django/dispatch/dispatcher.py b/django/dispatch/dispatcher.py\n--- a/django/dispatch/dispatcher.py\n+++ b/django/dispatch/dispatcher.py\n@@ -1,3 +1,4 @@\n+import logging\n import threading\n import warnings\n import weakref\n@@ -5,6 +6,8 @@\n from django.utils.deprecation import RemovedInDjango40Warning\n from django.utils.inspect import func_accepts_kwargs\n \n+logger = logging.getLogger('django.dispatch')\n+\n \n def _make_id(target):\n     if hasattr(target, '__func__'):\n@@ -208,6 +211,12 @@ def send_robust(self, sender, **named):\n             try:\n                 response = receiver(signal=self, sender=sender, **named)\n             except Exception as err:\n+                logger.error(\n+                    'Error calling %s in Signal.send_robust() (%s)',\n+                    receiver.__qualname__,\n+                    err,\n+                    exc_info=err,\n+                )\n                 responses.append((receiver, err))\n             else:\n                 responses.append((receiver, response))\n",
+        "pr_link": "https://github.com/django/django/pull/13768"
+    }
+}

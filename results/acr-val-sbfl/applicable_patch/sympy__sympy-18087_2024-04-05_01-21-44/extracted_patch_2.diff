@@ -1,0 +1,24 @@
+diff --git a/sympy/simplify/trigsimp.py b/sympy/simplify/trigsimp.py
+index 7ca05f0304..9780b5185d 100644
+--- a/sympy/simplify/trigsimp.py
++++ b/sympy/simplify/trigsimp.py
+@@ -504,8 +504,17 @@ def traverse(e):
+                                polynomial=True, hints=[2, tan]))),
+         'old': lambda x: trigsimp_old(x, **opts),
+                    }[method]
+-
+-    return trigsimpfunc(expr)
++    
++    # Adjust simplification for complex expressions
++    if any(arg.is_complex for arg in expr.atoms(Symbol)):
++        def complex_simplification(ex):
++            # Replace sqrt(sin(x)**2) with Abs(sin(x)) for complex numbers
++            ex = ex.replace(lambda exp: isinstance(exp, Pow) and exp.base.func == sin and exp.exp == 2,
++                            lambda exp: Abs(exp.base))
++            return trigsimpfunc(ex)
++        return complex_simplification(expr)
++    else:
++        return trigsimpfunc(expr)
+ 
+ 
+ def exptrigsimp(expr):

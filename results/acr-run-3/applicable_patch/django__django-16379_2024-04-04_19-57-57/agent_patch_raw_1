@@ -1,0 +1,59 @@
+# modification 1
+```python
+<file>django/core/cache/backends/filebased.py</file>
+<original>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        if os.path.exists(fname):
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        return False
+</original>
+<patched>    def has_key(self, key, version=None):
+        fname = self._key_to_file(key, version)
+        try:
+            with open(fname, "rb") as f:
+                return not self._is_expired(f)
+        except FileNotFoundError:
+            return False
+</patched>
+```
+
+# modification 2
+```python
+<file>django/core/cache/backends/filebased.py</file>
+<original>    def _is_expired(self, f):
+        """
+        Take an open cache file `f` and delete it if it's expired.
+        """
+        try:
+            exp = pickle.load(f)
+        except EOFError:
+            exp = 0  # An empty file is considered expired.
+        if exp is not None and exp < time.time():
+            f.close()  # On Windows a file has to be closed before deleting
+            self._delete(f.name)
+            return True
+        return False
+</original>
+<patched>    def _is_expired(self, f):
+        """
+        Take an open cache file `f` and delete it if it's expired.
+        """
+        try:
+            exp = pickle.load(f)
+        except EOFError:
+            exp = 0  # An empty file is considered expired.
+        if exp is not None and exp < time.time():
+            f.close()  # On Windows a file has to be closed before deleting
+            try:
+                self._delete(f.name)
+            except FileNotFoundError:
+                pass  # File was already deleted, ignore
+            return True
+        return False
+</patched>
+```
+
+These modifications address the race condition by handling the `FileNotFoundError` exception gracefully. In the `has_key` method, the exception is caught and handled, ensuring that the method returns `False` if the file does not exist at the time of opening. This change removes the need for a separate existence check before opening the file, thus closing the race condition window.
+
+In the `_is_expired` method, a similar approach is taken to handle the case where the file is deleted by another process or thread right before the `_delete` call. This ensures that the cache backend does not crash due to an unhandled `FileNotFoundError`.

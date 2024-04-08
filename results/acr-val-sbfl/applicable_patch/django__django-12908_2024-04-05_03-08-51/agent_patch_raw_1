@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>    def distinct(self, *field_names):
+        """
+        Return a new QuerySet instance that will select only distinct results.
+        """
+        assert not self.query.is_sliced, \
+            "Cannot create distinct fields once a slice has been taken."
+        obj = self._chain()
+        obj.query.add_distinct_fields(*field_names)
+        return obj
+</original>
+<patched>    def distinct(self, *field_names):
+        """
+        Return a new QuerySet instance that will select only distinct results.
+        If called after a union operation, ensure compatibility by checking for combined queries.
+        """
+        assert not self.query.is_sliced, \
+            "Cannot create distinct fields once a slice has been taken."
+        obj = self._chain()
+        # Check if the queryset is a result of a combination operation like union
+        if hasattr(obj.query, 'combined_queries'):
+            if field_names:
+                raise NotImplementedError("Calling distinct() with field names on a queryset after union() is not supported.")
+            else:
+                # Apply distinct on combined querysets without field names
+                obj.query.combined_queries = [q.distinct() for q in obj.query.combined_queries]
+        else:
+            obj.query.add_distinct_fields(*field_names)
+        return obj
+</patched>
+```
+
+This patch addresses the issue by adding a check in the `distinct` method to see if the queryset is a result of a combination operation like `union`. If `distinct` is called with field names on such a queryset, it raises a `NotImplementedError`, as supporting distinct field names on combined querysets would require a more complex implementation. If no field names are provided, it applies the `distinct` operation to each of the combined queries. This approach ensures that the `distinct` method behaves more predictably after a `union` operation, while also making it clear that using `distinct` with field names on combined querysets is not supported.

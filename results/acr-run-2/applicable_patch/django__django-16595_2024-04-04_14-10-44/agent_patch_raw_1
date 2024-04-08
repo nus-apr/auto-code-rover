@@ -1,0 +1,59 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/fields.py</file>
+<original>    def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        return super().reduce(operation, app_label)
+</original>
+<patched>    def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        elif isinstance(operation, AlterField) and self.is_same_field_operation(operation):
+            # Combine attributes of self.field and operation.field
+            combined_field = self.field.clone()
+            combined_field_attrs = vars(operation.field)
+            for attr, value in combined_field_attrs.items():
+                setattr(combined_field, attr, value)
+            return [
+                AlterField(
+                    model_name=self.model_name,
+                    name=self.name,
+                    field=combined_field,
+                )
+            ]
+        return super().reduce(operation, app_label)
+</patched>
+```
+
+This patch introduces handling for multiple `AlterField` operations on the same field within the `reduce` method of the `AlterField` class. It checks if the operation is an `AlterField` and affects the same field. If so, it combines the attributes of the current field and the operation's field into a new `AlterField` operation, effectively reducing multiple alterations into a single operation. This should address the inefficiency in migration optimization when dealing with multiple `AlterField` operations on the same field.

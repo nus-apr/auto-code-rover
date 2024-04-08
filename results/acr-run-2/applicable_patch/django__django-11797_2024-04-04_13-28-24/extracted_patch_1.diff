@@ -1,0 +1,30 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index e287a6f55a..d3268a7f62 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -90,7 +90,10 @@ class SQLCompiler:
+         # The query.group_by is either None (no GROUP BY at all), True
+         # (group by select fields), or a list of expressions to be added
+         # to the group by.
++        # Check if the query is a subquery and preserve its group_by if present
+         if self.query.group_by is None:
++            if self.query.is_subquery and self.query.subquery_group_by:
++                return self.query.subquery_group_by
+             return []
+         expressions = []
+         if self.query.group_by is not True:
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 8e55bd092d..c0277e6e81 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1933,7 +1933,9 @@ class Query(BaseExpression):
+                 else:
+                     group_by_cols = annotation.get_group_by_cols(alias=alias)
+                 group_by.extend(group_by_cols)
+-        self.group_by = tuple(group_by)
++        # Extend the group_by tuple with additional logic to handle subqueries
++        # This is a placeholder for logic that ensures subquery group_by clauses are correctly handled
++        self.group_by = self.adjust_group_by_for_subqueries(group_by)
+ 
+     def add_select_related(self, fields):
+         """

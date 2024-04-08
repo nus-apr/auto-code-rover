@@ -1,0 +1,56 @@
+# modification 1
+```python
+<file>requests/models.py</file>
+<original>    def content(self):
+        """Content of the response, in bytes."""
+
+        if self._content is False:
+            # Read the contents.
+            try:
+                if self._content_consumed:
+                    raise RuntimeError(
+                        'The content for this response was already consumed')
+
+                if self.status_code == 0:
+                    self._content = None
+                else:
+                    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+
+            except AttributeError:
+                self._content = None
+
+        self._content_consumed = True
+        # don't need to release the connection; that's been handled by urllib3
+        # since we exhausted the data.
+        return self._content
+</original>
+<patched>    def content(self):
+        """Content of the response, in bytes."""
+        import socket
+        from requests.exceptions import ConnectionError
+
+        if self._content is False:
+            # Read the contents.
+            try:
+                if self._content_consumed:
+                    raise RuntimeError(
+                        'The content for this response was already consumed')
+
+                if self.status_code == 0:
+                    self._content = None
+                else:
+                    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+
+            except AttributeError:
+                self._content = None
+            except socket.error as e:
+                raise ConnectionError(e, request="A request object could be passed here if available")
+
+        self._content_consumed = True
+        # don't need to release the connection; that's been handled by urllib3
+        # since we exhausted the data.
+        return self._content
+</patched>
+```
+
+This modification adds an additional `except` block to catch `socket.error` exceptions during the content reading process in the `content` method of the `Response` class. When such an exception is caught, it is wrapped in a `ConnectionError`, providing a consistent interface for handling connection-related errors within the `requests` library. Note that the message `"A request object could be passed here if available"` is a placeholder; depending on the context in which the `content` method is called, it might be beneficial to pass the actual request object to the `ConnectionError` for more detailed debugging information.

@@ -1,0 +1,26 @@
+diff --git a/django/contrib/messages/storage/cookie.py b/django/contrib/messages/storage/cookie.py
+index 1d390c71dd..416de52ed2 100644
+--- a/django/contrib/messages/storage/cookie.py
++++ b/django/contrib/messages/storage/cookie.py
+@@ -19,8 +19,8 @@ class MessageEncoder(json.JSONEncoder):
+             # Using 0/1 here instead of False/True to produce more compact json
+             is_safedata = 1 if isinstance(obj.message, SafeData) else 0
+             message = [self.message_key, is_safedata, obj.level, obj.message]
+-            if obj.extra_tags:
+-                message.append(obj.extra_tags)
++            # Ensure extra_tags is included even if it's an empty string
++            message.append(obj.extra_tags if obj.extra_tags is not None else "")
+             return message
+         return super().default(obj)
+ 
+@@ -35,6 +35,10 @@ class MessageDecoder(json.JSONDecoder):
+             if obj[0] == MessageEncoder.message_key:
+                 if obj[1]:
+                     obj[3] = mark_safe(obj[3])
++                # Adjust to handle extra_tags correctly when reconstructing Message
++                # If the length of obj is less than expected due to missing extra_tags, append an empty string for extra_tags
++                if len(obj) < 6:
++                    obj.append("")
+                 return Message(*obj[2:])
+             return [self.process_messages(item) for item in obj]
+         if isinstance(obj, dict):

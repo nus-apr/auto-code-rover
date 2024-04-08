@@ -1,0 +1,44 @@
+# modification 1
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        if layout is None:
+            if mpl.rcParams['figure.autolayout']:
+                layout = 'tight'
+            elif mpl.rcParams['figure.constrained_layout.use']:
+                layout = 'constrained'
+            else:
+                self._layout_engine = None
+                return</original>
+<patched>        if layout is None:
+            if mpl.rcParams['figure.autolayout']:
+                layout = 'tight'
+            elif mpl.rcParams['figure.constrained_layout.use']:
+                layout = 'constrained'
+            else:
+                # Ensure the layout engine is explicitly set to None when neither autolayout nor constrained_layout is used.
+                self._layout_engine = None
+                self.stale = True
+                return</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        if constrained is None:
+            constrained = mpl.rcParams['figure.constrained_layout.use']
+        _constrained = bool(constrained)
+        _parameters = constrained if isinstance(constrained, dict) else {}
+        if _constrained:
+            self.set_layout_engine(ConstrainedLayoutEngine(**_parameters))
+        self.stale = True</original>
+<patched>        if constrained is None:
+            constrained = mpl.rcParams['figure.constrained_layout.use']
+        _constrained = bool(constrained)
+        _parameters = constrained if isinstance(constrained, dict) else {}
+        if _constrained or constrained is False:
+            # Explicitly handle the case where constrained_layout is set to False, ensuring the layout engine is cleared.
+            self.set_layout_engine('none' if not _constrained else ConstrainedLayoutEngine(**_parameters))
+        self.stale = True</patched>
+```
+
+These modifications aim to address the issue by ensuring that when `constrained_layout` is explicitly set to `False`, the layout engine is properly cleared, preventing the warning from being issued unnecessarily. The first modification ensures that the layout engine is explicitly set to `None` when neither autolayout nor constrained_layout is used, with an added comment for clarity. The second modification explicitly handles the case where `constrained_layout` is set to `False`, ensuring the layout engine is cleared by setting it to 'none'.

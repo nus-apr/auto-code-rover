@@ -1,0 +1,38 @@
+diff --git a/sympy/polys/polyoptions.py b/sympy/polys/polyoptions.py
+index 6e504a3057..2f8028603c 100644
+--- a/sympy/polys/polyoptions.py
++++ b/sympy/polys/polyoptions.py
+@@ -54,7 +54,7 @@ def preprocess(cls, value):
+         if value in [True, False]:
+             return bool(value)
+         else:
+-            raise OptionError("'%s' must have a boolean value assigned, got %s" % (cls.option, value))
++            raise OptionError("'%s' must have a boolean value assigned, got %s. Ensure the value is either True or False." % (cls.option, value))
+ 
+ 
+ class OptionType(type):
+@@ -480,7 +480,23 @@ def preprocess(cls, domain):
+                 gens = list(map(sympify, r.groups()[1].split(',')))
+                 return sympy.polys.domains.QQ.algebraic_field(*gens)
+ 
+-        raise OptionError('expected a valid domain specification, got %s' % domain)
++        if '[' in domain and ']' in domain:
++            try:
++                domain_elements = domain.strip('[]').split(',')
++                base_domain = domain_elements[0].strip()
++                if base_domain not in ['RR', 'QQ', 'ZZ']:
++                    raise ValueError("Base domain must be one of 'RR', 'QQ', 'ZZ'")
++                gens = [sympify(gen.strip()) for gen in domain_elements[1:]]
++                if base_domain == 'RR':
++                    return sympy.polys.domains.RealField().poly_ring(*gens)
++                elif base_domain == 'QQ':
++                    return sympy.polys.domains.RationalField().poly_ring(*gens)
++                elif base_domain == 'ZZ':
++                    return sympy.polys.domains.Integers().poly_ring(*gens)
++            except Exception as e:
++                raise OptionError('Invalid domain specification: {}. Error: {}'.format(domain, e))
++        else:
++            raise OptionError('expected a valid domain specification, got %s' % domain)
+ 
+     @classmethod
+     def postprocess(cls, options):

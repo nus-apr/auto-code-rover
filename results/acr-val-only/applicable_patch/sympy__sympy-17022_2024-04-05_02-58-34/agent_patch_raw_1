@@ -1,0 +1,56 @@
+# modification 1
+```python
+<file>sympy/printing/pycode.py</file>
+<original>def _print_MatrixBase(self, expr):
+    func = self.known_functions.get(expr.__class__.__name__, None)
+    if func is None:
+        func = self._module_format('numpy.array')
+    return "%s(%s)" % (func, self._print(expr.tolist()))</original>
+<patched>def _print_MatrixBase(self, expr):
+    from sympy.matrices import Identity
+    if isinstance(expr, Identity):
+        return self._module_format('numpy.eye') + '(%d)' % expr.shape[0]
+    func = self.known_functions.get(expr.__class__.__name__, None)
+    if func is None:
+        func = self._module_format('numpy.array')
+    return "%s(%s)" % (func, self._print(expr.tolist()))</patched>
+```
+
+# modification 2
+```python
+<file>sympy/utilities/lambdify.py</file>
+<original>if printer is None:
+    if _module_present('mpmath', namespaces):
+        from sympy.printing.pycode import MpmathPrinter as Printer
+    elif _module_present('scipy', namespaces):
+        from sympy.printing.pycode import SciPyPrinter as Printer
+    elif _module_present('numpy', namespaces):
+        from sympy.printing.pycode import NumPyPrinter as Printer
+    elif _module_present('numexpr', namespaces):
+        from sympy.printing.lambdarepr import NumExprPrinter as Printer
+    elif _module_present('tensorflow', namespaces):
+        from sympy.printing.tensorflow import TensorflowPrinter as Printer
+    elif _module_present('sympy', namespaces):
+        from sympy.printing.pycode import SymPyPrinter as Printer
+    else:
+        from sympy.printing.pycode import PythonCodePrinter as Printer</original>
+<patched>if printer is None:
+    if _module_present('mpmath', namespaces):
+        from sympy.printing.pycode import MpmathPrinter as Printer
+    elif _module_present('scipy', namespaces):
+        from sympy.printing.pycode import SciPyPrinter as Printer
+    elif _module_present('numpy', namespaces):
+        from sympy.printing.pycode import NumPyPrinter as Printer
+        # Ensure the printer correctly interprets the Identity matrix
+        Printer._print_Identity = lambda self, expr: self._module_format('numpy.eye') + '(%d)' % expr.shape[0]
+    elif _module_present('numexpr', namespaces):
+        from sympy.printing.lambdarepr import NumExprPrinter as Printer
+    elif _module_present('tensorflow', namespaces):
+        from sympy.printing.tensorflow import TensorflowPrinter as Printer
+    elif _module_present('sympy', namespaces):
+        from sympy.printing.pycode import SymPyPrinter as Printer
+    else:
+        from sympy.printing.pycode import PythonCodePrinter as Printer</patched>
+```
+
+This patch addresses the issue by ensuring that the `NumPyPrinter` correctly interprets the `Identity` matrix when converting symbolic expressions to NumPy code. The first modification directly adds a check for the `Identity` matrix in the `_print_MatrixBase` method of the `NumPyPrinter` class, returning the appropriate NumPy function for creating an identity matrix. The second modification ensures that if no custom printer is specified when calling `lambdify`, and the NumPy module is being used, the printer is augmented to correctly handle the `Identity` matrix. This approach maintains the flexibility of `lambdify` while ensuring correct behavior for this specific case.

@@ -1,0 +1,19 @@
+Given the feedback, let's refine the approach to ensure that the patch correctly addresses the issue without causing test failures. The goal is to prevent developers from defining a `related_name` on symmetrical `ManyToManyFields` by raising an error early in the field's initialization process if both `symmetrical=True` and a `related_name` are provided. This approach minimizes the impact on existing logic within the `contribute_to_class` method and ensures that the validation occurs as soon as the field is defined, which is a more appropriate stage for such a validation.
+
+# modification 1
+```python
+<file>django/db/models/fields/related.py</file>
+<original>    def __init__(self, to, related_name=None, related_query_name=None,
+                 limit_choices_to=None, symmetrical=None, through=None,
+                 through_fields=None, db_constraint=True, db_table=None,
+                 swappable=True, **kwargs):</original>
+<patched>    def __init__(self, to, related_name=None, related_query_name=None,
+                 limit_choices_to=None, symmetrical=None, through=None,
+                 through_fields=None, db_constraint=True, db_table=None,
+                 swappable=True, **kwargs):
+        if symmetrical and related_name is not None:
+            raise ValueError("Defining a 'related_name' is not allowed for symmetrical ManyToManyField.")
+</patched>
+```
+
+This modification directly addresses the issue by adding a validation step in the `__init__` method of the `ManyToManyField` class. By doing this, we ensure that an error is raised at the field definition stage if a developer attempts to define a `related_name` for a symmetrical `ManyToManyField`, which aligns with the goal of preventing confusion and enforcing the correct usage of the `symmetrical` argument. This approach should not impact other functionalities and is targeted specifically at the issue described, thus minimizing the risk of causing test failures unrelated to the issue at hand.

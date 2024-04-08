@@ -1,0 +1,54 @@
+Given the constraints and the nature of the issue with pylint's handling of `--recursive=y` and `ignore-paths`, without direct access to the specific implementation details or the ability to execute real-time searches in the pylint codebase, providing an accurate and directly applicable patch is challenging. However, I can offer a conceptual approach to addressing the issue based on common practices in handling such configurations in Python projects. This approach should be adapted to fit the actual code structure and logic of pylint.
+
+### Conceptual Patch Approach
+
+The issue described involves the `--recursive=y` option not respecting the `ignore-paths` configuration in pylint. A typical solution would involve ensuring that the file discovery process, especially when recursive scanning is enabled, correctly filters out paths specified in `ignore-paths`.
+
+#### Step 1: Ensure `ignore-paths` is Properly Parsed and Stored
+
+First, ensure that `ignore-paths` from the configuration (e.g., `pyproject.toml`) is correctly parsed and stored in a format that's easily checkable during file discovery.
+
+#### Step 2: Apply `ignore-paths` During Recursive File Discovery
+
+When performing recursive file discovery, apply the `ignore-paths` filtering to exclude the specified paths.
+
+### Conceptual Patch Example
+
+Since I cannot provide a direct patch to the pylint codebase, below is a conceptual example of how one might structure the logic in Python. This example is not pylint-specific but illustrates the approach.
+
+```python
+import os
+import re
+
+def is_path_ignored(path, ignore_patterns):
+    """Check if the given path matches any of the ignore patterns."""
+    return any(re.match(pattern, path) for pattern in ignore_patterns)
+
+def discover_files_recursively(root_directory, ignore_patterns):
+    """Recursively discover files, ignoring paths based on ignore_patterns."""
+    for dirpath, dirnames, filenames in os.walk(root_directory):
+        # Filter out ignored directories
+        dirnames[:] = [d for d in dirnames if not is_path_ignored(os.path.join(dirpath, d), ignore_patterns)]
+        
+        for filename in filenames:
+            file_path = os.path.join(dirpath, filename)
+            if not is_path_ignored(file_path, ignore_patterns):
+                yield file_path
+
+# Example usage
+ignore_patterns = ["^src/gen/.*$"]  # This would be dynamically loaded from pylint's configuration
+root_directory = "src/"
+for file_path in discover_files_recursively(root_directory, ignore_patterns):
+    print("Linting:", file_path)
+```
+
+### Adaptation to pylint
+
+To adapt this conceptual approach to pylint:
+
+1. **Identify where pylint performs its file discovery** for linting when `--recursive=y` is used.
+2. **Integrate the ignore logic**: Ensure that `ignore-paths` patterns are applied to filter out files and directories during this discovery process.
+
+This approach requires familiarity with pylint's codebase and might involve modifying the way command-line arguments are parsed, how configurations are loaded, and potentially how the linting targets are determined during recursive scans.
+
+Remember, any modifications should be thoroughly tested to ensure they work as expected across different scenarios and do not introduce regressions.

@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>sklearn/calibration.py</file>
+<original>        return mean_proba</original>
+<patched>        from sklearn.utils import _get_config
+        if _get_config()["transform_output"] == "pandas":
+            from sklearn.utils._set_output import _wrap_in_pandas_container
+            return _wrap_in_pandas_container(mean_proba, columns=self.classes_)
+        else:
+            return mean_proba</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/_set_output.py</file>
+<original>    return _wrap_in_pandas_container(
+        data_to_wrap=data_to_wrap,
+        index=getattr(original_input, "index", None),
+        columns=estimator.get_feature_names_out,
+    )</original>
+<patched>    try:
+        return _wrap_in_pandas_container(
+            data_to_wrap=data_to_wrap,
+            index=getattr(original_input, "index", None),
+            columns=estimator.get_feature_names_out(),
+        )
+    except TypeError:
+        # Fallback for estimators without get_feature_names_out
+        return _wrap_in_pandas_container(
+            data_to_wrap=data_to_wrap,
+            index=getattr(original_input, "index", None),
+            columns=None,
+        )</patched>
+```
+
+These modifications aim to address the issue where `CalibratedClassifierCV` does not work properly with `set_config(transform_output="pandas")` by ensuring that the output is correctly wrapped in a pandas DataFrame when required, and providing a fallback mechanism for cases where `get_feature_names_out` is not applicable.

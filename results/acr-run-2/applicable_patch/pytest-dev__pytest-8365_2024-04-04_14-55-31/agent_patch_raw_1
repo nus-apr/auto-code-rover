@@ -1,0 +1,67 @@
+# modification 1
+```python
+<file>src/_pytest/tmpdir.py</file>
+<original>def get_user() -> Optional[str]:
+    """Return the current user name, or None if getuser() does not work
+    in the current environment (see #1010)."""
+    import getpass
+
+    try:
+        return getpass.getuser()
+    except (ImportError, KeyError):
+        return None
+</original>
+<patched>import re
+def get_user() -> Optional[str]:
+    """Return the current user name, or None if getuser() does not work
+    in the current environment (see #1010). Sanitize the username to remove illegal characters."""
+    import getpass
+
+    try:
+        user_name = getpass.getuser()
+        # Sanitize the username by removing characters not allowed in directory names
+        sanitized_user_name = re.sub(r'[\\/*?:"<>|]', "", user_name)
+        return sanitized_user_name
+    except (ImportError, KeyError):
+        return None
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/tmpdir.py</file>
+<original>if self._given_basetemp is not None:
+            basetemp = self._given_basetemp
+            ensure_reset_dir(basetemp)
+            basetemp = basetemp.resolve()
+        else:
+            from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+            temproot = Path(from_env or tempfile.gettempdir()).resolve()
+            user = get_user() or "unknown"
+            # use a sub-directory in the temproot to speed-up
+            # make_numbered_dir() call
+            rootdir = temproot.joinpath(f"pytest-of-{user}")
+            rootdir.mkdir(exist_ok=True)
+            basetemp = make_numbered_dir_with_cleanup(
+                prefix="pytest-", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT
+            )</original>
+<patched>if self._given_basetemp is not None:
+            basetemp = self._given_basetemp
+            ensure_reset_dir(basetemp)
+            basetemp = basetemp.resolve()
+        else:
+            from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+            temproot = Path(from_env or tempfile.gettempdir()).resolve()
+            user = get_user() or "unknown"
+            # Sanitize the user name to ensure it's safe for directory names
+            sanitized_user = re.sub(r'[\\/*?:"<>|]', "", user)
+            # use a sub-directory in the temproot to speed-up
+            # make_numbered_dir() call
+            rootdir = temproot.joinpath(f"pytest-of-{sanitized_user}")
+            rootdir.mkdir(exist_ok=True)
+            basetemp = make_numbered_dir_with_cleanup(
+                prefix="pytest-", root=rootdir, keep=3, lock_timeout=LOCK_TIMEOUT
+            )</patched>
+```
+
+These modifications introduce a sanitization step for the username retrieved by `get_user()` to ensure that it does not contain characters illegal in directory names. This is achieved by using a regular expression to remove such characters. The sanitized username is then used throughout the temporary directory creation process.

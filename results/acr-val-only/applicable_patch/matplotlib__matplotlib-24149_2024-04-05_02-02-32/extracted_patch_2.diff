@@ -1,0 +1,34 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index fdac0f3560..cc70086a34 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -2163,9 +2163,10 @@ class Axes(_AxesBase):
+         # x should be an array...
+         assert type(xconv) is np.ndarray
+ 
+-        if xconv.size == 0:
+-            # xconv has already been converted, but maybe empty...
+-            return convert(dx)
++        if xconv.size == 0 or np.isnan(xconv).all():
++            # xconv has already been converted, but may be empty or all NaNs.
++            # In such cases, treat dx as zero to avoid plotting errors.
++            return 0
+ 
+         try:
+             # attempt to add the width to x0; this works for
+@@ -2380,9 +2381,13 @@ class Axes(_AxesBase):
+             if yerr is not None:
+                 yerr = self._convert_dx(yerr, y0, y, self.convert_yunits)
+ 
++        # Filter out bars where x or height is NaN before broadcasting
++        # This approach skips plotting such bars entirely
++        valid_indices = ~np.isnan(x) & ~np.isnan(height)
+         x, height, width, y, linewidth, hatch = np.broadcast_arrays(
+-            # Make args iterable too.
+-            np.atleast_1d(x), height, width, y, linewidth, hatch)
++            # Make args iterable too. Only include valid (non-NaN) bars
++            np.atleast_1d(x)[valid_indices], height[valid_indices], width[valid_indices], 
++            y[valid_indices], linewidth[valid_indices], hatch[valid_indices])
+ 
+         # Now that units have been converted, set the tick locations.
+         if orientation == 'vertical':

@@ -1,0 +1,33 @@
+diff --git a/django/db/backends/sqlite3/schema.py b/django/db/backends/sqlite3/schema.py
+index f0c81c123b..3021347678 100644
+--- a/django/db/backends/sqlite3/schema.py
++++ b/django/db/backends/sqlite3/schema.py
+@@ -125,7 +125,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+                     new_column_name = new_field.get_attname_column()[1]
+                     search = references_template % old_column_name
+                     replacement = references_template % new_column_name
+-                    cursor.execute('UPDATE sqlite_master SET sql = replace(sql, %s, %s)', (search, replacement))
++                    # Before executing the replacement, ensure no prohibited operators are used in expressions
++                    # This is a speculative fix and should be validated for the specific case
++                    safe_search = search.replace('.', '__dot__')
++                    safe_replacement = replacement.replace('.', '__dot__')
++                    cursor.execute('UPDATE sqlite_master SET sql = replace(sql, %s, %s)', (safe_search, safe_replacement))
+                     cursor.execute('PRAGMA schema_version = %d' % (schema_version + 1))
+                     cursor.execute('PRAGMA writable_schema = 0')
+                     # The integrity check will raise an exception and rollback
+@@ -281,11 +285,13 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+         # Create a new table with the updated schema.
+         self.create_model(new_model)
+ 
+-        # Copy data from the old table into the new table
++        # Copy data from the old table into the new table, ensuring no prohibited operators are used
++        # This is a speculative fix and might need adjustment based on the specific error context
++        safe_mapping_values = [value.replace('.', '__dot__') for value in mapping.values()]
+         self.execute("INSERT INTO %s (%s) SELECT %s FROM %s" % (
+             self.quote_name(new_model._meta.db_table),
+             ', '.join(self.quote_name(x) for x in mapping),
+-            ', '.join(mapping.values()),
++            ', '.join(safe_mapping_values),
+             self.quote_name(model._meta.db_table),
+         ))
+ 

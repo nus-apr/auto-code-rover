@@ -1,0 +1,36 @@
+diff --git a/pylint/config/argument.py b/pylint/config/argument.py
+index 3c2951517..675e4892e 100644
+--- a/pylint/config/argument.py
++++ b/pylint/config/argument.py
+@@ -111,11 +111,10 @@ def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+     """Transforms a comma separated list of regular expressions paths."""
+     patterns: list[Pattern[str]] = []
+     for pattern in _csv_transformer(value):
++        # Adjust pattern compilation to ensure compatibility across different OS paths
+         patterns.append(
+             re.compile(
+-                str(pathlib.PureWindowsPath(pattern)).replace("\\", "\\\\")
+-                + "|"
+-                + pathlib.PureWindowsPath(pattern).as_posix()
++                str(pathlib.PurePath(pattern).as_posix()).replace("\\", "\\\\")
+             )
+         )
+     return patterns
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index e2bbf061e..90144dc28 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -597,11 +597,12 @@ class PyLinter(
+                         # Skip subtree of already discovered package.
+                         continue
+ 
++                    # Ensure the ignore_paths are properly applied for recursive search
+                     if _is_ignored_file(
+                         root,
+                         self.config.ignore,
+                         self.config.ignore_patterns,
+-                        self.config.ignore_paths,
++                        [str(pathlib.Path(p).resolve()) for p in self.config.ignore_paths],
+                     ):
+                         skip_subtrees.append(root)
+                         continue

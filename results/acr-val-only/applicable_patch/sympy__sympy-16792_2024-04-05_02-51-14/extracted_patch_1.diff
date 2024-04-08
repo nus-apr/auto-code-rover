@@ -1,0 +1,35 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..360f1c9dd3 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -441,9 +441,9 @@ def _prototype_arg(self, arg):
+         np_types = {'double': 'np.double_t',
+                     'int': 'np.int_t'}
+         t = arg.get_datatype('c')
+-        if arg.dimensions:
++        if arg.dimensions or isinstance(arg, MatrixSymbol):
+             self._need_numpy = True
+-            ndim = len(arg.dimensions)
++            ndim = len(arg.dimensions) if arg.dimensions else 2  # Assuming 2D for MatrixSymbol without explicit dimensions
+             mtype = np_types[t]
+             return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+         else:
+diff --git a/sympy/utilities/codegen.py b/sympy/utilities/codegen.py
+index f0befb2bd7..3c67fd23ec 100644
+--- a/sympy/utilities/codegen.py
++++ b/sympy/utilities/codegen.py
+@@ -708,9 +708,13 @@ def routine(self, name, expr, argument_sequence=None, global_vars=None):
+                 for dim in array.shape:
+                     dims.append((S.Zero, dim - 1))
+                 metadata = {'dimensions': dims}
++            elif isinstance(symbol, MatrixSymbol):
++                # Assuming 2D for MatrixSymbol without explicit dimensions
++                dims = [(S.Zero, symbol.shape[0] - 1), (S.Zero, symbol.shape[1] - 1)]
++                metadata = {'dimensions': dims}
+             else:
+                 metadata = {}
+-
++            
+             arg_list.append(InputArgument(symbol, **metadata))
+ 
+         output_args.sort(key=lambda x: str(x.name))

@@ -1,0 +1,40 @@
+Given the context of the issue with the Sphinx autodoc extension, specifically the duplication of `*args` and `**kwargs` in the generated documentation when `autodoc_typehints = "description"` is set, I'll provide a hypothetical patch. This patch aims to address the duplication issue based on the standard behavior of Python docstrings and Sphinx documentation generation. Since I don't have access to the actual source code of the Sphinx project or the specific implementation details of the autodoc extension, the following patch is speculative and based on common patterns in handling such issues in documentation generation tools.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/typehints.py</file>
+<original>
+def format_args_and_kwargs(args: List[str], kwargs: Dict[str, str]) -> str:
+    formatted_args = ", ".join(args)
+    formatted_kwargs = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+    return f"({formatted_args}, {formatted_kwargs})"
+</original>
+<patched>
+def format_args_and_kwargs(args: List[str], kwargs: Dict[str, str]) -> str:
+    # Filter out duplicated *args and **kwargs
+    args = [arg for arg in args if not arg.startswith(("*", "**"))]
+    kwargs = {k: v for k, v in kwargs.items() if not k.startswith(("*", "**"))}
+    formatted_args = ", ".join(args)
+    formatted_kwargs = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+    return f"({formatted_args}, {formatted_kwargs})"
+</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>
+def process_docstring(app, what, name, obj, options, lines):
+    # Example processing that might lead to duplication
+    lines.extend(obj.__doc__.splitlines())
+</original>
+<patched>
+def process_docstring(app, what, name, obj, options, lines):
+    # Remove potential duplication of *args and **kwargs documentation
+    if any(line.strip().startswith(("*args", "**kwargs")) for line in lines):
+        lines = [line for line in lines if not line.strip().startswith(("*args", "**kwargs"))]
+    lines.extend(obj.__doc__.splitlines())
+</patched>
+```
+
+Please note, these patches are speculative and aim to illustrate the type of changes that might resolve the issue described. Actual implementation details may vary, and a thorough understanding of the Sphinx autodoc extension's codebase is necessary to craft an effective and precise solution.

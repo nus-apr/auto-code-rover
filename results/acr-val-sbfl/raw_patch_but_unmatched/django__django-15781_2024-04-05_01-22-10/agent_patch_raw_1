@@ -1,0 +1,48 @@
+Given the context and the nature of the issue with the help text formatting in Django's management commands, a potential solution involves customizing the help formatter used by the `argparse` library. Since the `BaseCommand` class uses `argparse` for parsing command-line arguments and generating help text, we can extend the functionality to support better formatting of multiline help text.
+
+This solution involves modifying the `create_parser` method in the `BaseCommand` class to use a custom help formatter. This custom formatter will ensure that multiline help texts are properly preserved and displayed.
+
+# modification 1
+```python
+<file>django/core/management/base.py</file>
+<original>def create_parser(self, prog_name, subcommand, **kwargs):
+        parser = CommandParser(
+            self, prog_name, subcommand,
+            description=self.help or None,
+            formatter_class=argparse.HelpFormatter,  # Default formatter
+            missing_args_message=gettext('Enter %(name)s for help.') % {'name': subcommand},
+            called_from_command_line=getattr(self, '_called_from_command_line', None),
+            **kwargs)
+        return parser</original>
+<patched>import argparse
+
+class CustomHelpFormatter(argparse.HelpFormatter):
+    """Custom help formatter to preserve multiline help texts."""
+    def _split_lines(self, text, width):
+        # This is the RawTextHelpFormatter._split_lines method from argparse
+        # It preserves the input's lines as they are, which is useful for multiline strings.
+        if text.startswith('R|'):
+            return text[2:].splitlines()
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+def create_parser(self, prog_name, subcommand, **kwargs):
+        parser = CommandParser(
+            self, prog_name, subcommand,
+            description=self.help or None,
+            formatter_class=CustomHelpFormatter,  # Use custom formatter
+            missing_args_message=gettext('Enter %(name)s for help.') % {'name': subcommand},
+            called_from_command_line=getattr(self, '_called_from_command_line', None),
+            **kwargs)
+        return parser</patched>
+```
+
+This modification introduces a `CustomHelpFormatter` class that extends `argparse.HelpFormatter`. The `_split_lines` method is overridden to check if the help text starts with a specific prefix (`R|`). If it does, the method splits the text into lines as they are, preserving the original formatting. This allows command developers to prefix their multiline help texts with `R|` to ensure that the formatting is preserved when displayed.
+
+To use this new functionality, developers would need to modify their command's help text to start with `R|` for multiline parts that they want to preserve formatting for. For example:
+
+```python
+class Command(BaseCommand):
+    help = 'R|Import a contract from tzkt.\nExample usage:\n./manage.py tzkt_import \'Tezos Mainnet\' KT1HTDtMBRCKoNHjfWEEvXneGQpCfPAt6BRe'
+```
+
+This approach provides a flexible way to preserve multiline help text formatting without altering the default behavior of other commands that do not require this feature.

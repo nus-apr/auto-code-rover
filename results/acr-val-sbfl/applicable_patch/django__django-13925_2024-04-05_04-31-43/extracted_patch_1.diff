@@ -1,0 +1,18 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 4038859cfa..5fc3dafc04 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -77,7 +77,12 @@ class ModelBase(type):
+         # Also ensure initialization is only performed for subclasses of Model
+         # (excluding Model class itself).
+         parents = [b for b in bases if isinstance(b, ModelBase)]
+-        if not parents:
++        # Check if any parent has a manually defined primary key and inherit it
++        parent_pks = [b for b in parents if hasattr(b, '_meta') and b._meta.pk is not None]
++        if not parents or parent_pks:
++            # If there are parent primary keys, inherit the first one found
++            if parent_pks:
++                attrs['id'] = parent_pks[0]._meta.pk
+             return super_new(cls, name, bases, attrs)
+ 
+         # Create the class.

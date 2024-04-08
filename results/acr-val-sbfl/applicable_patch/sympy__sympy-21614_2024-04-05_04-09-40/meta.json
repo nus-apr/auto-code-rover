@@ -1,0 +1,34 @@
+{
+    "task_id": "sympy__sympy-21614",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.9",
+        "env_name": "setup_sympy__sympy__1.9",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/core/tests/test_kind.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-21614",
+        "base_commit": "b4777fdcef467b7132c055f8ac2c9a5059e6a145",
+        "hints_text": "As I dig deeper into this issue, the problem is much larger than `Derivative`. As a matter of facts, all functions should be able to deal with `kind`. At the moment:\r\n\r\n```\r\nfrom sympy import MatrixSymbol\r\nA = MatrixSymbol('A', 2, 2)\r\nsin(A).kind\r\n# UndefinedKind\r\n```\nThe kind attribute is new and is not fully implemented or used across the codebase.\r\n\r\nFor `sin` and other functions I don't think that we should allow the ordinary `sin` function to be used for the Matrix sin. There should be a separate `MatrixSin` function for that.\r\n\r\nFor Derivative the handler for kind just needs to be added.",
+        "created_at": "2021-06-14T07:56:59Z",
+        "test_patch": "diff --git a/sympy/core/tests/test_kind.py b/sympy/core/tests/test_kind.py\n--- a/sympy/core/tests/test_kind.py\n+++ b/sympy/core/tests/test_kind.py\n@@ -5,6 +5,7 @@\n from sympy.core.singleton import S\n from sympy.core.symbol import Symbol\n from sympy.integrals.integrals import Integral\n+from sympy.core.function import Derivative\n from sympy.matrices import (Matrix, SparseMatrix, ImmutableMatrix,\n     ImmutableSparseMatrix, MatrixSymbol, MatrixKind, MatMul)\n \n@@ -39,6 +40,11 @@ def test_Integral_kind():\n     assert Integral(comm_x, comm_x).kind is NumberKind\n     assert Integral(A, comm_x).kind is MatrixKind(NumberKind)\n \n+def test_Derivative_kind():\n+    A = MatrixSymbol('A', 2,2)\n+    assert Derivative(comm_x, comm_x).kind is NumberKind\n+    assert Derivative(A, comm_x).kind is MatrixKind(NumberKind)\n+\n def test_Matrix_kind():\n     classes = (Matrix, SparseMatrix, ImmutableMatrix, ImmutableSparseMatrix)\n     for cls in classes:\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Wrong Derivative kind attribute\nI'm playing around with the `kind` attribute.\r\n\r\nThe following is correct:\r\n\r\n```\r\nfrom sympy import Integral, Derivative\r\nfrom sympy import MatrixSymbol\r\nfrom sympy.abc import x\r\nA = MatrixSymbol('A', 2, 2)\r\ni = Integral(A, x)\r\ni.kind\r\n# MatrixKind(NumberKind)\r\n```\r\n\r\nThis one is wrong:\r\n```\r\nd = Derivative(A, x)\r\nd.kind\r\n# UndefinedKind\r\n```\n",
+        "version": "1.9",
+        "FAIL_TO_PASS": [
+            "test_Derivative_kind"
+        ],
+        "PASS_TO_PASS": [
+            "test_Add_kind",
+            "test_Integral_kind",
+            "test_Matrix_kind",
+            "test_NumberKind",
+            "test_Symbol_kind",
+            "test_mul_kind"
+        ],
+        "environment_setup_commit": "f9a6f50ec0c74d935c50a6e9c9b2cb0469570d91",
+        "patch": "diff --git a/sympy/core/function.py b/sympy/core/function.py\n--- a/sympy/core/function.py\n+++ b/sympy/core/function.py\n@@ -1707,6 +1707,10 @@ def free_symbols(self):\n             ret.update(count.free_symbols)\n         return ret\n \n+    @property\n+    def kind(self):\n+        return self.args[0].kind\n+\n     def _eval_subs(self, old, new):\n         # The substitution (old, new) cannot be done inside\n         # Derivative(expr, vars) for a variety of reasons\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/21614"
+    }
+}

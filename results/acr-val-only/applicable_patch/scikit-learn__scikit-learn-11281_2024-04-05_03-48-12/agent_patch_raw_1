@@ -1,0 +1,103 @@
+# modification 1
+```python
+<file>sklearn/mixture/base.py</file>
+<original>    def _initialize_parameters(self, X, random_state):
+        """Initialize the model parameters.
+
+        Parameters
+        ----------
+        X : array-like, shape  (n_samples, n_features)
+
+        random_state : RandomState
+            A random number generator instance.
+        """
+        n_samples, _ = X.shape
+
+        if self.init_params == 'kmeans':
+            resp = np.zeros((n_samples, self.n_components))
+            label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
+                                   random_state=random_state).fit(X).labels_
+            resp[np.arange(n_samples), label] = 1
+        elif self.init_params == 'random':
+            resp = random_state.rand(n_samples, self.n_components)
+            resp /= resp.sum(axis=1)[:, np.newaxis]
+        else:
+            raise ValueError("Unimplemented initialization method '%s'"
+                             % self.init_params)
+
+        self._initialize(X, resp)
+</original>
+<patched>    def _initialize_parameters(self, X, random_state):
+        """Initialize the model parameters.
+
+        Parameters
+        ----------
+        X : array-like, shape  (n_samples, n_features)
+
+        random_state : RandomState
+            A random number generator instance.
+        """
+        n_samples, _ = X.shape
+
+        if self.init_params == 'kmeans':
+            resp = np.zeros((n_samples, self.n_components))
+            label = cluster.KMeans(n_clusters=self.n_components, n_init=1,
+                                   random_state=random_state).fit(X).labels_
+            resp[np.arange(n_samples), label] = 1
+            self.labels_ = label  # Store labels_ from KMeans initialization
+        elif self.init_params == 'random':
+            resp = random_state.rand(n_samples, self.n_components)
+            resp /= resp.sum(axis=1)[:, np.newaxis]
+        else:
+            raise ValueError("Unimplemented initialization method '%s'"
+                             % self.init_params)
+
+        self._initialize(X, resp)
+</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/mixture/gmm.py</file>
+<original>    def fit_predict(self, X, y=None):
+        """Fit and then predict labels for data.
+
+        Warning: Due to the final maximization step in the EM algorithm,
+        with low iterations the prediction may not be 100%  accurate.
+
+        .. versionadded:: 0.17
+           *fit_predict* method in Gaussian Mixture Model.
+
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+
+        Returns
+        -------
+        C : array, shape = (n_samples,) component memberships
+        """
+        return self._fit(X, y).argmax(axis=1)
+</original>
+<patched>    def fit_predict(self, X, y=None):
+        """Fit and then predict labels for data.
+
+        Warning: Due to the final maximization step in the EM algorithm,
+        with low iterations the prediction may not be 100%  accurate.
+
+        .. versionadded:: 0.17
+           *fit_predict* method in Gaussian Mixture Model.
+
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+
+        Returns
+        -------
+        C : array, shape = (n_samples,) component memberships
+        """
+        self.fit(X, y)  # Fit the model with X
+        return self.predict(X)  # Use the predict method to assign labels
+</patched>
+```
+
+These modifications aim to enhance the consistency of mixture models with clusterers by ensuring that mixture models store `labels_` when applicable and by refining the `fit_predict` method to use the existing `fit` and `predict` methods, which may provide a clearer separation of concerns and potentially improve maintainability and understanding of the code.

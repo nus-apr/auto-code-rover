@@ -1,0 +1,21 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 63ca817355..776c169727 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -1182,11 +1182,15 @@ class SQLCompiler:
+ 
+         for index, select_col in enumerate(self.query.select):
+             lhs_sql, lhs_params = self.compile(select_col)
+-            rhs = '%s.%s' % (qn(alias), qn2(columns[index]))
++            # Ensure column references are unique to avoid ambiguity
++            rhs = '%s.%s AS unique_col_%s' % (qn(alias), qn2(columns[index]), index)
+             self.query.where.add(
+                 RawSQL('%s = %s' % (lhs_sql, rhs), lhs_params), 'AND')
+ 
+         sql, params = self.as_sql()
++        # Modify the GROUP BY clause to reference the unique aliases
++        if 'GROUP BY' in sql:
++            sql = sql.replace('GROUP BY', 'GROUP BY unique_col_')
+         return 'EXISTS (%s)' % sql, params
+ 
+     def explain_query(self):

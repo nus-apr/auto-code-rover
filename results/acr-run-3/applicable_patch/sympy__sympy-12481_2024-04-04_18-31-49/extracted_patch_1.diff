@@ -1,0 +1,42 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..995bdfc017 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,8 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Removed the check for duplicate elements in cycles to allow non-disjoint cycles
++        # The handling of non-disjoint cycles will be managed by applying them in left-to-right order
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +905,16 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
+-            for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++                    # Handling non-disjoint cycles by applying them in left-to-right order
++                    # and converting the resulting permutation into array form.
++                    from sympy.combinatorics import Permutation as Perm
++                    aform = list(range(max(flatten(args))+1))  # Initialize with the identity permutation
++                    for cycle in args:
++                        for i in range(len(cycle)-1, 0, -1):
++                            aform[cycle[i-1]], aform[cycle[i]] = aform[cycle[i]], aform[cycle[i-1]]
++                    # Extend the permutation to the specified size, if necessary
++                    if size is not None and size > len(aform):
++                        aform.extend(list(range(len(aform), size)))
+         else:
+             aform = list(args)
+         if size and size > len(aform):

@@ -1,0 +1,38 @@
+diff --git a/sympy/tensor/array/dense_ndim_array.py b/sympy/tensor/array/dense_ndim_array.py
+index 6019daf787..76a0340061 100644
+--- a/sympy/tensor/array/dense_ndim_array.py
++++ b/sympy/tensor/array/dense_ndim_array.py
+@@ -170,10 +170,10 @@ def _new(cls, iterable, shape, **kwargs):
+         shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+         flat_list = flatten(flat_list)
+         self = object.__new__(cls)
+-        self._shape = shape
++        self._shape = shape if shape != () else (0,)  # Ensure shape is not empty tuple for empty arrays
+         self._array = list(flat_list)
+-        self._rank = len(shape)
+-        self._loop_size = functools.reduce(lambda x,y: x*y, shape) if shape else len(flat_list)
++        self._rank = len(self._shape)  # Use updated self._shape
++        self._loop_size = functools.reduce(lambda x,y: x*y, self._shape, 1)  # Ensure correct calculation for empty arrays
+         return self
+ 
+     def __setitem__(self, index, value):
+diff --git a/sympy/tensor/array/ndim_array.py b/sympy/tensor/array/ndim_array.py
+index 6490a655a4..79545d0a75 100644
+--- a/sympy/tensor/array/ndim_array.py
++++ b/sympy/tensor/array/ndim_array.py
+@@ -193,9 +193,14 @@ def _scan_iterable_shape(cls, iterable):
+         def f(pointer):
+             if not isinstance(pointer, Iterable):
+                 return [pointer], ()
++            if not pointer:  # Check if the pointer is empty
++                return [], ()
+ 
+             result = []
+-            elems, shapes = zip(*[f(i) for i in pointer])
++            try:
++                elems, shapes = zip(*[f(i) for i in pointer])
++            except ValueError:  # Catch the ValueError if zip(*) fails due to empty input
++                return [], ()
+             if len(set(shapes)) != 1:
+                 raise ValueError("could not determine shape unambiguously")
+             for i in elems:

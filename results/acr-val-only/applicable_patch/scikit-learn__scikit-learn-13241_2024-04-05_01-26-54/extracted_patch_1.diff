@@ -1,0 +1,29 @@
+diff --git a/sklearn/decomposition/kernel_pca.py b/sklearn/decomposition/kernel_pca.py
+index bb91d0cbb..30648befb 100644
+--- a/sklearn/decomposition/kernel_pca.py
++++ b/sklearn/decomposition/kernel_pca.py
+@@ -213,7 +213,13 @@ class KernelPCA(BaseEstimator, TransformerMixin, _UnstableOn32BitMixin):
+         # sort eigenvectors in descending order
+         indices = self.lambdas_.argsort()[::-1]
+         self.lambdas_ = self.lambdas_[indices]
++        # Ensure consistent sign orientation of the eigenvectors across different runs
++        # by making the largest absolute value in each eigenvector positive.
+         self.alphas_ = self.alphas_[:, indices]
++        for i in range(self.alphas_.shape[1]):
++            max_abs_index = np.argmax(np.abs(self.alphas_[:, i]))
++            if self.alphas_[max_abs_index, i] < 0:
++                self.alphas_[:, i] = -self.alphas_[:, i]
+ 
+         # remove eigenvectors with a zero eigenvalue
+         if self.remove_zero_eig or self.n_components is None:
+@@ -275,7 +281,9 @@ class KernelPCA(BaseEstimator, TransformerMixin, _UnstableOn32BitMixin):
+         """
+         self.fit(X, **params)
+ 
+-        X_transformed = self.alphas_ * np.sqrt(self.lambdas_)
++        # Apply the square root of eigenvalues only to non-negative eigenvalues to avoid NaNs
++        # This is a safety check and does not directly relate to the sign issue but is good practice.
++        X_transformed = self.alphas_ * np.sqrt(np.maximum(self.lambdas_, 0))
+ 
+         if self.fit_inverse_transform:
+             self._fit_inverse_transform(X_transformed, X)

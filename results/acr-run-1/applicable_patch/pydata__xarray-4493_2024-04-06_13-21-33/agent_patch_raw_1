@@ -1,0 +1,71 @@
+To address the issue of chunked dask DataArray objects being eagerly evaluated when updated in a Dataset, we need to ensure that the update process preserves the chunking information and does not trigger computation. The modifications below aim to enhance the handling of chunked arrays during the update process.
+
+# modification 1
+```python
+<file>xarray/core/merge.py</file>
+<original>if not isinstance(other, Dataset):
+    other = dict(other)
+    for key, value in other.items():
+        if isinstance(value, DataArray):
+            # drop conflicting coordinates
+            coord_names = [
+                c
+                for c in value.coords
+                if c not in value.dims and c in dataset.coords
+            ]
+            if coord_names:
+                other[key] = value.drop_vars(coord_names)</original>
+<patched>if not isinstance(other, Dataset):
+    other = dict(other)
+    for key, value in other.items():
+        if isinstance(value, DataArray):
+            # drop conflicting coordinates
+            coord_names = [
+                c
+                for c in value.coords
+                if c not in value.dims and c in dataset.coords
+            ]
+            if coord_names:
+                # Ensure the preservation of chunking information during update
+                other[key] = value.drop_vars(coord_names).chunk(value.chunks)</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/dataset.py</file>
+<original>if inplace:
+    if variables is not None:
+        self._variables = variables
+    if coord_names is not None:
+        self._coord_names = coord_names
+    if dims is not None:
+        self._dims = dims
+    if attrs is not _default:
+        self._attrs = attrs
+    if indexes is not _default:
+        self._indexes = indexes
+    if encoding is not _default:
+        self._encoding = encoding
+    obj = self</original>
+<patched>if inplace:
+    if variables is not None:
+        # Ensure variables are updated with preservation of chunking if applicable
+        for var_name, var in variables.items():
+            if hasattr(var, 'chunks') and var.chunks is not None:
+                self._variables[var_name] = var.chunk(var.chunks)
+            else:
+                self._variables[var_name] = var
+    if coord_names is not None:
+        self._coord_names = coord_names
+    if dims is not None:
+        self._dims = dims
+    if attrs is not _default:
+        self._attrs = attrs
+    if indexes is not _default:
+        self._indexes = indexes
+    if encoding is not _default:
+        self._encoding = encoding
+    obj = self</patched>
+```
+
+These modifications aim to ensure that during the update process, the chunking information of dask arrays is preserved and not lost. The first modification ensures that when dropping conflicting coordinates, the chunking information of the `DataArray` is preserved. The second modification ensures that when variables are updated in place, if they are chunked, their chunking information is preserved.

@@ -1,0 +1,129 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 9ce46e3f73..1180192e7d 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -592,35 +592,42 @@ class Field(RegisterLookupMixin):
+             raise exceptions.ValidationError(errors)
+ 
+     def validate(self, value, model_instance):
+-        """
+-        Validate value and raise ValidationError if necessary. Subclasses
+-        should override this to provide validation logic.
+-        """
+-        if not self.editable:
+-            # Skip validation for non-editable fields.
+-            return
+-
+-        if self.choices is not None and value not in self.empty_values:
+-            for option_key, option_value in self.choices:
+-                if isinstance(option_value, (list, tuple)):
+-                    # This is an optgroup, so look inside the group for
+-                    # options.
+-                    for optgroup_key, optgroup_value in option_value:
+-                        if value == optgroup_key:
+-                            return
+-                elif value == option_key:
+-                    return
+-            raise exceptions.ValidationError(
+-                self.error_messages['invalid_choice'],
+-                code='invalid_choice',
+-                params={'value': value},
+-            )
+-
+-        if value is None and not self.null:
+-            raise exceptions.ValidationError(self.error_messages['null'], code='null')
+-
+-        if not self.blank and value in self.empty_values:
+-            raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
++            """
++            Validate value and raise ValidationError if necessary. Subclasses
++            should override this to provide validation logic.
++            """
++            if not self.editable:
++                # Skip validation for non-editable fields.
++                return
++    
++            if self.choices is not None and value not in self.empty_values:
++                for option_key, option_value in self.choices:
++                    if isinstance(option_value, (list, tuple)):
++                        # This is an optgroup, so look inside the group for
++                        # options.
++                        for optgroup_key, optgroup_value in option_value:
++                            if value == optgroup_key:
++                                return
++                    elif value == option_key:
++                        return
++                raise exceptions.ValidationError(
++                    self.error_messages['invalid_choice'],
++                    code='invalid_choice',
++                    params={'value': value},
++                )
++    
++            # Check if max_length is sufficient for the provided value
++            if self.max_length is not None and len(value) > self.max_length:
++                raise exceptions.ValidationError(
++                    f"Value '{value}' exceeds the max_length of {self.max_length}.",
++                    code='max_length',
++                )
++    
++            if value is None and not self.null:
++                raise exceptions.ValidationError(self.error_messages['null'], code='null')
++    
++            if not self.blank and value in self.empty_values:
++                raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
+ 
+     def clean(self, value, model_instance):
+         """
+@@ -958,25 +965,35 @@ class CharField(Field):
+         ]
+ 
+     def _check_max_length_attribute(self, **kwargs):
+-        if self.max_length is None:
+-            return [
+-                checks.Error(
+-                    "CharFields must define a 'max_length' attribute.",
+-                    obj=self,
+-                    id='fields.E120',
++            errors = []
++            if self.max_length is None:
++                errors.append(
++                    checks.Error(
++                        "CharFields must define a 'max_length' attribute.",
++                        obj=self,
++                        id='fields.E120',
++                    )
+                 )
+-            ]
+-        elif (not isinstance(self.max_length, int) or isinstance(self.max_length, bool) or
+-                self.max_length <= 0):
+-            return [
+-                checks.Error(
+-                    "'max_length' must be a positive integer.",
+-                    obj=self,
+-                    id='fields.E121',
++            elif (not isinstance(self.max_length, int) or isinstance(self.max_length, bool) or
++                    self.max_length <= 0):
++                errors.append(
++                    checks.Error(
++                        "'max_length' must be a positive integer.",
++                        obj=self,
++                        id='fields.E121',
++                    )
+                 )
+-            ]
+-        else:
+-            return []
++            if self.choices:
++                max_length_choice = max(len(choice[0]) for choice in self.choices if isinstance(choice, (list, tuple)))
++                if self.max_length is not None and max_length_choice > self.max_length:
++                    errors.append(
++                        checks.Error(
++                            "'max_length' is less than the length of the longest choice.",
++                            obj=self,
++                            id='fields.E122',
++                        )
++                    )
++            return errors
+ 
+     def cast_db_type(self, connection):
+         if self.max_length is None:

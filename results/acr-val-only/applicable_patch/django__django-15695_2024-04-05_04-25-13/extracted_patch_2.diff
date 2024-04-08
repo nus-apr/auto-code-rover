@@ -1,0 +1,40 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index d17232e4ec..1d2d8d4366 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -431,7 +431,14 @@ class RenameModel(ModelOperation):
+         )
+         self.new_name, self.old_name = self.old_name, self.new_name
+ 
+-        self.database_forwards(app_label, schema_editor, from_state, to_state)
++        # Ensure that the index names are correctly managed to prevent conflicts when re-applying operations.
++        # This adjustment is necessary to handle cases where an operation is rolled back and then reapplied.
++        if self.old_name in [idx.name for idx in schema_editor.connection.introspection.get_indexes(model).values()]:
++            # If the old index name still exists in the database, it indicates that the operation
++            # was previously rolled back. In such a case, skip the forwards operation to prevent errors.
++            print(f"Index {self.old_name} still exists. Skipping forwards operation to prevent duplication.")
++        else:
++            self.database_forwards(app_label, schema_editor, from_state, to_state)
+ 
+         self.new_name_lower, self.old_name_lower = (
+             self.old_name_lower,
+@@ -963,7 +970,18 @@ class RenameIndex(IndexOperation):
+ 
+         to_model_state = to_state.models[app_label, self.model_name_lower]
+         new_index = to_model_state.get_index_by_name(self.new_name)
+-        schema_editor.rename_index(model, old_index, new_index)
++        # Attempt to rename the index only if the new index name does not already exist.
++        try:
++            schema_editor.rename_index(model, old_index, new_index)
++        except ProgrammingError as e:
++            if "relation \"{}\" already exists".format(new_index.name) in str(e):
++                # If the index rename fails because the new index name already exists,
++                # it's possible we're re-applying an operation that was previously undone.
++                # In such cases, log the occurrence and skip the operation to avoid crashing.
++                print(f"Skipping index rename as {new_index.name} already exists.")
++            else:
++                # If the error is due to another issue, re-raise the exception.
++                raise
+ 
+     def database_backwards(self, app_label, schema_editor, from_state, to_state):
+         if self.old_fields:

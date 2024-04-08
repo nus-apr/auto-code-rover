@@ -1,0 +1,30 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index be0deb90b0..b2c60f1141 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -2622,5 +2622,8 @@ def get_related_populators(klass_info, select, db):
+     related_klass_infos = klass_info.get("related_klass_infos", [])
+     for rel_klass_info in related_klass_infos:
+         rel_cls = RelatedPopulator(rel_klass_info, select, db)
++        # Ensure handling of proxy models by referencing the concrete model's metadata
++        if hasattr(rel_klass_info['model']._meta, 'proxy') and rel_klass_info['model']._meta.proxy:
++            rel_klass_info['model'] = rel_klass_info['model']._meta.concrete_model
+         iterators.append(rel_cls)
+     return iterators
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 33cc636b22..1a704679a3 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -748,7 +748,11 @@ class Query(BaseExpression):
+                     cur_model = source.related_model
+                 else:
+                     cur_model = source.remote_field.model
+-                opts = cur_model._meta
++                # Adjust to handle proxy models correctly by referencing the concrete model's metadata
++                if cur_model._meta.proxy:
++                    opts = cur_model._meta.concrete_model._meta
++                else:
++                    opts = cur_model._meta
+                 # Even if we're "just passing through" this model, we must add
+                 # both the current model's pk and the related reference field
+                 # (if it's not a reverse relation) to the things we select.

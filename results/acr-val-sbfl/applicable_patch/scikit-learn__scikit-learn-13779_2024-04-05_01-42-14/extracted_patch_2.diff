@@ -1,0 +1,26 @@
+diff --git a/sklearn/ensemble/voting.py b/sklearn/ensemble/voting.py
+index 7afa7180c..60d77a95e 100644
+--- a/sklearn/ensemble/voting.py
++++ b/sklearn/ensemble/voting.py
+@@ -270,7 +270,20 @@ class VotingClassifier(_BaseVoting, ClassifierMixin):
+         self.classes_ = self.le_.classes_
+         transformed_y = self.le_.transform(y)
+ 
+-        return super().fit(X, transformed_y, sample_weight)
++        # Filter out None estimators before calling super().fit
++        filtered_estimators = [(name, est) for name, est in self.estimators if est is not None]
++        if not filtered_estimators:
++            raise ValueError("All estimators are None. VotingClassifier requires at least one non-None estimator.")
++        
++        # Temporarily replace self.estimators with filtered_estimators for fitting
++        original_estimators = self.estimators
++        self.estimators = filtered_estimators
++        try:
++            fitted = super().fit(X, transformed_y, sample_weight)
++        finally:
++            # Restore original estimators after fitting
++            self.estimators = original_estimators
++        return fitted
+ 
+     def predict(self, X):
+         """ Predict class labels for X.

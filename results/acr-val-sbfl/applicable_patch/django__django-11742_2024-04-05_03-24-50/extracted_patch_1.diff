@@ -1,0 +1,42 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 9ce46e3f73..30476526ff 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -257,6 +257,7 @@ class Field(RegisterLookupMixin):
+                 )
+             ]
+ 
++        max_choice_length = 0
+         # Expect [group_name, [value, display]]
+         for choices_group in self.choices:
+             try:
+@@ -270,16 +271,29 @@ class Field(RegisterLookupMixin):
+                     for value, human_name in group_choices
+                 ):
+                     break
++                # Calculate max choice length
++                max_choice_length = max(max_choice_length, *(len(value) for value, human_name in group_choices))
+             except (TypeError, ValueError):
+                 # No groups, choices in the form [value, display]
+                 value, human_name = group_name, group_choices
+                 if not is_value(value) or not is_value(human_name):
+                     break
++                # Calculate max choice length for non-grouped choices
++                max_choice_length = max(max_choice_length, len(value))
+ 
+             # Special case: choices=['ab']
+             if isinstance(choices_group, str):
+                 break
+         else:
++            if self.max_length is not None and max_choice_length > self.max_length:
++                return [
++                    checks.Error(
++                        f"The 'max_length' is too small to fit the longest choice. "
++                        f"Max choice length is {max_choice_length}, but 'max_length' is {self.max_length}.",
++                        obj=self,
++                        id='fields.E006',
++                    )
++                ]
+             return []
+ 
+         return [

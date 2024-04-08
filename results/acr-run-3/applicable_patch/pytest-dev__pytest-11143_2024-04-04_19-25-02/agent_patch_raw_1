@@ -1,0 +1,48 @@
+# modification 1
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>    def is_rewrite_disabled(docstring: str) -> bool:
+        return "PYTEST_DONT_REWRITE" in docstring
+</original>
+<patched>    def is_rewrite_disabled(docstring: Optional[Union[str, int]]) -> bool:
+        if isinstance(docstring, str):
+            return "PYTEST_DONT_REWRITE" in docstring
+        return False
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>        if doc is not None and self.is_rewrite_disabled(doc):
+            return
+        pos = 0
+        item = None
+        for item in mod.body:
+            if (
+                expect_docstring
+                and isinstance(item, ast.Expr)
+                and isinstance(item.value, ast.Constant)
+            ):
+                doc = item.value.value
+                if self.is_rewrite_disabled(doc):
+                    return
+                expect_docstring = False</original>
+<patched>        if doc is not None and self.is_rewrite_disabled(doc):
+            return
+        pos = 0
+        item = None
+        for item in mod.body:
+            if (
+                expect_docstring
+                and isinstance(item, ast.Expr)
+                and isinstance(item.value, ast.Constant)
+                and isinstance(item.value.value, str)
+            ):
+                doc = item.value.value
+                if self.is_rewrite_disabled(doc):
+                    return
+                expect_docstring = False</patched>
+```
+
+These modifications ensure that the `is_rewrite_disabled` method can handle cases where the docstring is not a string (e.g., an integer, as described in the issue). The check for `isinstance(item.value.value, str)` in the patched version of the `run` method ensures that only string values are considered as potential docstrings for the purpose of disabling rewrite. This should resolve the TypeError encountered when a file's first expression is a number.

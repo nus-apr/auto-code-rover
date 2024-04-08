@@ -1,0 +1,50 @@
+# modification 1
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            return copy.deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            return copy.deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</original>
+<patched>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # Convert non-pickleable types in kwargs to pickleable types.
+        def convert_to_pickleable(kwargs):
+            for key, value in kwargs.items():
+                if isinstance(value, dict_keys):
+                    kwargs[key] = list(value)
+            return kwargs
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            self.kwargs = convert_to_pickleable(self.kwargs)
+            return copy.deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            other.kwargs = convert_to_pickleable(other.kwargs)
+            return copy.deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        self.kwargs = convert_to_pickleable(self.kwargs)
+        other.kwargs = convert_to_pickleable(other.kwargs)
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</patched>
+```
+**Note**: This patch assumes that the `Q` object has a `kwargs` attribute that stores the query parameters. The function `convert_to_pickleable` is introduced to convert non-pickleable types like `dict_keys` to a pickleable type (e.g., list) before the `Q` objects are combined. This approach ensures that serialization does not fail when such types are included. However, since the original code snippet does not show the complete implementation of the `Q` class, including how its attributes are defined and managed, you might need to adjust the patch to fit the actual structure of the `Q` class in Django.

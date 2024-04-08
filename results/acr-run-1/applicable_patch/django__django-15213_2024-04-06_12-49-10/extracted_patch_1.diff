@@ -1,0 +1,28 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 8642e1f151..9112a5e71b 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -979,6 +979,10 @@ class ExpressionWrapper(SQLiteNumericMixin, Expression):
+         return super().get_group_by_cols()
+ 
+     def as_sql(self, compiler, connection):
++        # Check if the expression is a negated Q object and adjust the compilation process accordingly.
++        if hasattr(self.expression, 'condition') and self.expression.condition == 'NOT':
++            compiled_expression, params = compiler.compile(self.expression)
++            return f"NOT ({compiled_expression})", params
+         return compiler.compile(self.expression)
+ 
+     def __repr__(self):
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index 188b640850..0e9be9a5da 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -66,6 +66,8 @@ class Q(tree.Node):
+         obj = type(self)()
+         obj.add(self, self.AND)
+         obj.negate()
++        # Ensure the negated Q object is correctly interpreted as a condition that can be compiled into SQL.
++        obj.condition = 'NOT' if not hasattr(obj, 'condition') else obj.condition
+         return obj
+ 
+     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):

@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>sympy/assumptions/refine.py</file>
+<original># TODO: this will probably not work with Integral or Polynomial
+expr = expr.func(*args)</original>
+<patched># Enhanced handling for Integral and Piecewise expressions
+if isinstance(expr, Integral) or isinstance(expr, Piecewise):
+    # Attempt to refine each part of a Piecewise expression or the integrand of an Integral
+    if isinstance(expr, Piecewise):
+        new_args = [(refine(e, assumptions), c) for e, c in expr.args]
+        expr = expr.func(*new_args)
+    elif isinstance(expr, Integral):
+        new_function = refine(expr.function, assumptions)
+        expr = expr.func(new_function, *expr.limits)
+else:
+    expr = expr.func(*args)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/integrals/integrals.py</file>
+<original>if isinstance(function, Piecewise):
+    if len(xab) == 1:
+        antideriv = function._eval_integral(xab[0],
+            **eval_kwargs)
+    else:
+        antideriv = self._eval_integral(
+            function, xab[0], **eval_kwargs)</original>
+<patched>if isinstance(function, Piecewise):
+    # Apply assumptions to Piecewise conditions before attempting to integrate
+    refined_function = refine(function, assumptions=eval_kwargs.get('assumptions', True))
+    if len(xab) == 1:
+        antideriv = refined_function._eval_integral(xab[0],
+            **eval_kwargs)
+    else:
+        antideriv = self._eval_integral(
+            refined_function, xab[0], **eval_kwargs)</patched>
+```
+
+This patch aims to enhance the `refine` function's ability to handle expressions resulting from `Integral.doit()` and `Piecewise` expressions under certain assumptions. The first modification directly addresses the issue mentioned in the `TODO` comment by adding special handling for `Integral` and `Piecewise` expressions within the `refine` function. The second modification ensures that assumptions are applied to `Piecewise` conditions before attempting to integrate, which could help in cases where the integration result depends on the truth value of those conditions.

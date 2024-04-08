@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>sklearn/cluster/_affinity_propagation.py</file>
+<original>        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
+            affinity_propagation(
+                self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                convergence_iter=self.convergence_iter, damping=self.damping,
+                copy=self.copy, verbose=self.verbose, return_n_iter=True)
+
+        if self.affinity != "precomputed":
+            self.cluster_centers_ = X[self.cluster_centers_indices_].copy()
+</original>
+<patched>        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
+            affinity_propagation(
+                self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                convergence_iter=self.convergence_iter, damping=self.damping,
+                copy=self.copy, verbose=self.verbose, return_n_iter=True)
+
+        # Check if the algorithm has converged, if not set cluster_centers_indices_ to empty array and labels_ to -1
+        if self.n_iter_ == self.max_iter:
+            warnings.warn("AffinityPropagation did not converge, you might want to increase the number of max_iter or check your data.", ConvergenceWarning)
+            self.cluster_centers_indices_ = np.array([])
+            self.labels_ = np.full(X.shape[0], -1, dtype=int)
+        elif self.affinity != "precomputed":
+            self.cluster_centers_ = X[self.cluster_centers_indices_].copy()
+</patched>
+```
+
+This modification introduces a check after the `affinity_propagation` call within the `fit` method to determine if the algorithm has converged. If it has not converged (i.e., `n_iter_` equals `max_iter`), it sets `cluster_centers_indices_` to an empty array and all entries in `labels_` to `-1`, following the behavior described in the documentation. Additionally, it issues a warning to inform the user about the non-convergence, suggesting to increase `max_iter` or check the data. This approach ensures that the user is explicitly informed about the non-convergence and receives the expected output as per the documentation.

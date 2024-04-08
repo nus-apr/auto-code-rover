@@ -1,0 +1,22 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 92213a4e67..fa05b1c491 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -711,7 +711,7 @@ class SQLCompiler:
+         # If we get to this point and the field is a relation to another model,
+         # append the default ordering for that model unless the attribute name
+         # of the field is specified.
+-        if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name:
++        if field.is_relation and opts.ordering and (getattr(field, 'attname', None) != name or field.model != opts.model):
+             # Firstly, avoid infinite loops.
+             already_seen = already_seen or set()
+             join_tuple = tuple(getattr(self.query.alias_map[j], 'join_cols', None) for j in joins)
+@@ -730,7 +730,7 @@ class SQLCompiler:
+                                                        order, already_seen))
+             return results
+         targets, alias, _ = self.query.trim_joins(targets, joins, path)
+-        return [(OrderBy(transform_function(t, alias), descending=descending), False) for t in targets]
++        return [(OrderBy(transform_function(t, alias), descending=descending if field.model == opts.model else not descending), False) for t in targets]
+ 
+     def _setup_joins(self, pieces, opts, alias):
+         """

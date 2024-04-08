@@ -1,0 +1,12 @@
+Based on the analysis, the issue seems to stem from the handling of imported members in the `generate_autosummary_content` function, specifically in the `get_members` function where it decides which members to include based on the `imported` flag. The original logic checks if the member's `__module__` attribute matches the name of the object being documented. However, this might not accurately filter out imported members in all cases, especially when the module name does not match due to various import mechanisms or aliasing.
+
+To address this, we can refine the logic to more accurately determine if a member is imported. One approach is to compare the `__module__` attribute of the member with the `__name__` attribute of the parent object's module, rather than comparing it to the object's name. This should provide a more accurate check for whether a member was defined in the same module as the parent object or was imported from elsewhere.
+
+# modification 1
+```python
+<file>sphinx/ext/autosummary/generate.py</file>
+<original>if imported or getattr(value, '__module__', None) == obj.__name__:</original>
+<patched>if imported or getattr(value, '__module__', None) == getattr(obj, '__module__', None):</patched>
+```
+
+This modification changes the condition under which a member is considered not imported (`imported` is `False`). By comparing the `__module__` attribute of both the member (`value`) and the parent object (`obj`), we ensure that only members that are actually defined within the same module as the parent object are included when `imported_members` is set to `False`. This should resolve the issue of incorrectly including imported members in the autosummary documentation.

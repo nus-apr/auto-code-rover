@@ -1,0 +1,62 @@
+Given the context and the issue at hand, a potential patch could involve ensuring that the `add_select_related` and `add_immediate_loading` methods work together more effectively, particularly when `only()` is used in conjunction with `select_related()` on a reverse `OneToOneField` relation. The goal is to ensure that only the specified fields from both the main model and the related model are included in the SQL query.
+
+However, without a clear indication of a specific bug in the provided methods or a detailed understanding of the internal workings of the Django ORM's compiler, proposing a precise patch is challenging. A general approach to address the issue might involve enhancing the `add_immediate_loading` method to better handle fields from related models specified via `select_related`. This is speculative and should be validated and tested thoroughly.
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def add_immediate_loading(self, field_names):
+        """
+        Add the given list of model field names to the set of fields to
+        retrieve when the SQL is executed ("immediate loading" fields). The
+        field names replace any existing immediate loading field names. If
+        there are field names already specified for deferred loading, remove
+        those names from the new field_names before storing the new names
+        for immediate loading. (That is, immediate loading overrides any
+        existing immediate values, but respects existing deferrals.)
+        """
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if "pk" in field_names:
+            field_names.remove("pk")
+            field_names.add(self.get_meta().pk.name)
+
+        if defer:
+            # Remove any existing deferred names from the current set before
+            # setting the new names.
+            self.deferred_loading = field_names.difference(existing), False
+        else:
+            # Replace any existing "immediate load" field names.
+            self.deferred_loading = frozenset(field_names), False
+</original>
+<patched>    def add_immediate_loading(self, field_names):
+        """
+        Enhanced to handle fields from related models specified via select_related,
+        ensuring that only specified fields are included for immediate loading.
+        """
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if "pk" in field_names:
+            field_names.remove("pk")
+            field_names.add(self.get_meta().pk.name)
+
+        # Begin new logic to handle related model fields
+        related_fields = {field for field in field_names if '__' in field}
+        for field in related_fields:
+            field_names.remove(field)
+            model, related_field = field.split('__', 1)
+            # This is a simplified approach; actual implementation may require more complex handling
+            if model in self.select_related:
+                self.select_related[model]['only'] = [related_field]
+        # End new logic
+
+        if defer:
+            self.deferred_loading = field_names.difference(existing), False
+        else:
+            self.deferred_loading = frozenset(field_names), False
+</patched>
+```
+
+This modification introduces a speculative approach to handling fields from related models specified via `select_related` within the `add_immediate_loading` method. It attempts to parse out related model fields and adjust the `select_related` structure accordingly. This is a simplified approach and assumes that `select_related` can be modified to include an 'only' directive for related fields, which is not currently part of Django's ORM design. Actual implementation may require a more nuanced approach, including changes in other parts of the ORM to support this functionality.
+
+Please note, this patch is speculative and aims to illustrate a potential direction for addressing the issue. It should not be applied without thorough testing and validation within the context of Django's ORM behavior and the specific issue at hand.

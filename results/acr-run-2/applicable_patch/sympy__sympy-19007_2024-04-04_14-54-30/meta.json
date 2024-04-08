@@ -1,0 +1,56 @@
+{
+    "task_id": "sympy__sympy-19007",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.6",
+        "env_name": "setup_sympy__sympy__1.6",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/matrices/expressions/tests/test_blockmatrix.py sympy/matrices/expressions/tests/test_indexing.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-19007",
+        "base_commit": "f9e030b57623bebdc2efa7f297c1b5ede08fcebf",
+        "hints_text": "I was aware of the problem that the coordinates were loosely handled even if the matrix had symbolic dimensions\r\nI also think that `C[3, 0]` should be undefined because there is no guarantee that n is sufficiently large to contain elements.\n`C[3, 0]` should just stay unevaluated, since it might be valid (I assume that's what you mean by 'undefined'). It should be possible to handle some cases properly, for example `C[n, 0]` should return `B[n - 1, 0]`.\r\n\r\nIf I get some time I might have a go at it, seems to be a nice first PR.\r\n\r\n**EDIT:** Sorry that's not even true. If `n` is zero, then `C[n, 0]` is not `B[n - 1, 0]`.",
+        "created_at": "2020-03-29T13:47:11Z",
+        "test_patch": "diff --git a/sympy/matrices/expressions/tests/test_blockmatrix.py b/sympy/matrices/expressions/tests/test_blockmatrix.py\n--- a/sympy/matrices/expressions/tests/test_blockmatrix.py\n+++ b/sympy/matrices/expressions/tests/test_blockmatrix.py\n@@ -192,7 +192,6 @@ def test_BlockDiagMatrix():\n def test_blockcut():\n     A = MatrixSymbol('A', n, m)\n     B = blockcut(A, (n/2, n/2), (m/2, m/2))\n-    assert A[i, j] == B[i, j]\n     assert B == BlockMatrix([[A[:n/2, :m/2], A[:n/2, m/2:]],\n                              [A[n/2:, :m/2], A[n/2:, m/2:]]])\n \ndiff --git a/sympy/matrices/expressions/tests/test_indexing.py b/sympy/matrices/expressions/tests/test_indexing.py\n--- a/sympy/matrices/expressions/tests/test_indexing.py\n+++ b/sympy/matrices/expressions/tests/test_indexing.py\n@@ -1,7 +1,7 @@\n from sympy import (symbols, MatrixSymbol, MatPow, BlockMatrix, KroneckerDelta,\n         Identity, ZeroMatrix, ImmutableMatrix, eye, Sum, Dummy, trace,\n         Symbol)\n-from sympy.testing.pytest import raises\n+from sympy.testing.pytest import raises, XFAIL\n from sympy.matrices.expressions.matexpr import MatrixElement, MatrixExpr\n \n k, l, m, n = symbols('k l m n', integer=True)\n@@ -83,6 +83,72 @@ def test_block_index():\n     assert BI.as_explicit().equals(eye(6))\n \n \n+def test_block_index_symbolic():\n+    # Note that these matrices may be zero-sized and indices may be negative, which causes\n+    # all naive simplifications given in the comments to be invalid\n+    A1 = MatrixSymbol('A1', n, k)\n+    A2 = MatrixSymbol('A2', n, l)\n+    A3 = MatrixSymbol('A3', m, k)\n+    A4 = MatrixSymbol('A4', m, l)\n+    A = BlockMatrix([[A1, A2], [A3, A4]])\n+    assert A[0, 0] == MatrixElement(A, 0, 0)  # Cannot be A1[0, 0]\n+    assert A[n - 1, k - 1] == A1[n - 1, k - 1]\n+    assert A[n, k] == A4[0, 0]\n+    assert A[n + m - 1, 0] == MatrixElement(A, n + m - 1, 0)  # Cannot be A3[m - 1, 0]\n+    assert A[0, k + l - 1] == MatrixElement(A, 0, k + l - 1)  # Cannot be A2[0, l - 1]\n+    assert A[n + m - 1, k + l - 1] == MatrixElement(A, n + m - 1, k + l - 1)  # Cannot be A4[m - 1, l - 1]\n+    assert A[i, j] == MatrixElement(A, i, j)\n+    assert A[n + i, k + j] == MatrixElement(A, n + i, k + j)  # Cannot be A4[i, j]\n+    assert A[n - i - 1, k - j - 1] == MatrixElement(A, n - i - 1, k - j - 1)  # Cannot be A1[n - i - 1, k - j - 1]\n+\n+\n+def test_block_index_symbolic_nonzero():\n+    # All invalid simplifications from test_block_index_symbolic() that become valid if all\n+    # matrices have nonzero size and all indices are nonnegative\n+    k, l, m, n = symbols('k l m n', integer=True, positive=True)\n+    i, j = symbols('i j', integer=True, nonnegative=True)\n+    A1 = MatrixSymbol('A1', n, k)\n+    A2 = MatrixSymbol('A2', n, l)\n+    A3 = MatrixSymbol('A3', m, k)\n+    A4 = MatrixSymbol('A4', m, l)\n+    A = BlockMatrix([[A1, A2], [A3, A4]])\n+    assert A[0, 0] == A1[0, 0]\n+    assert A[n + m - 1, 0] == A3[m - 1, 0]\n+    assert A[0, k + l - 1] == A2[0, l - 1]\n+    assert A[n + m - 1, k + l - 1] == A4[m - 1, l - 1]\n+    assert A[i, j] == MatrixElement(A, i, j)\n+    assert A[n + i, k + j] == A4[i, j]\n+    assert A[n - i - 1, k - j - 1] == A1[n - i - 1, k - j - 1]\n+    assert A[2 * n, 2 * k] == A4[n, k]\n+\n+\n+def test_block_index_large():\n+    n, m, k = symbols('n m k', integer=True, positive=True)\n+    i = symbols('i', integer=True, nonnegative=True)\n+    A1 = MatrixSymbol('A1', n, n)\n+    A2 = MatrixSymbol('A2', n, m)\n+    A3 = MatrixSymbol('A3', n, k)\n+    A4 = MatrixSymbol('A4', m, n)\n+    A5 = MatrixSymbol('A5', m, m)\n+    A6 = MatrixSymbol('A6', m, k)\n+    A7 = MatrixSymbol('A7', k, n)\n+    A8 = MatrixSymbol('A8', k, m)\n+    A9 = MatrixSymbol('A9', k, k)\n+    A = BlockMatrix([[A1, A2, A3], [A4, A5, A6], [A7, A8, A9]])\n+    assert A[n + i, n + i] == MatrixElement(A, n + i, n + i)\n+\n+\n+@XFAIL\n+def test_block_index_symbolic_fail():\n+    # To make this work, symbolic matrix dimensions would need to be somehow assumed nonnegative\n+    # even if the symbols aren't specified as such.  Then 2 * n < n would correctly evaluate to\n+    # False in BlockMatrix._entry()\n+    A1 = MatrixSymbol('A1', n, 1)\n+    A2 = MatrixSymbol('A2', m, 1)\n+    A = BlockMatrix([[A1], [A2]])\n+    assert A[2 * n, 0] == A2[n, 0]\n+\n+\n def test_slicing():\n     A.as_explicit()[0, :]  # does not raise an error\n \n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Wrong matrix element fetched from BlockMatrix\nGiven this code:\r\n```\r\nfrom sympy import *\r\nn, i = symbols('n, i', integer=True)\r\nA = MatrixSymbol('A', 1, 1)\r\nB = MatrixSymbol('B', n, 1)\r\nC = BlockMatrix([[A], [B]])\r\nprint('C is')\r\npprint(C)\r\nprint('C[i, 0] is')\r\npprint(C[i, 0])\r\n```\r\nI get this output:\r\n```\r\nC is\r\n\u23a1A\u23a4\r\n\u23a2 \u23a5\r\n\u23a3B\u23a6\r\nC[i, 0] is\r\n(A)[i, 0]\r\n```\r\n`(A)[i, 0]` is the wrong here. `C[i, 0]` should not be simplified as that element may come from either `A` or `B`.\n",
+        "version": "1.6",
+        "FAIL_TO_PASS": [
+            "test_block_index_large",
+            "test_block_index_symbolic",
+            "test_block_index_symbolic_nonzero"
+        ],
+        "PASS_TO_PASS": [
+            "test_BlockDiagMatrix",
+            "test_BlockMatrix",
+            "test_BlockMatrix_Determinant",
+            "test_BlockMatrix_trace",
+            "test_Identity_index",
+            "test_add_index",
+            "test_bc_dist_diag",
+            "test_bc_matadd",
+            "test_bc_matmul",
+            "test_bc_transpose",
+            "test_block_collapse_explicit_matrices",
+            "test_block_index",
+            "test_block_plus_ident",
+            "test_blockcut",
+            "test_deblock",
+            "test_errors",
+            "test_issue_17624",
+            "test_issue_18618",
+            "test_matrix_expression_to_indices",
+            "test_mul_index",
+            "test_pow_index",
+            "test_reblock_2x2",
+            "test_slicing",
+            "test_squareBlockMatrix",
+            "test_symbolic_indexing",
+            "test_transpose_index"
+        ],
+        "environment_setup_commit": "28b41c73c12b70d6ad9f6e45109a80649c4456da",
+        "patch": "diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\n--- a/sympy/matrices/expressions/blockmatrix.py\n+++ b/sympy/matrices/expressions/blockmatrix.py\n@@ -7,7 +7,7 @@\n from sympy.utilities import sift\n from sympy.utilities.misc import filldedent\n \n-from sympy.matrices.expressions.matexpr import MatrixExpr, ZeroMatrix, Identity\n+from sympy.matrices.expressions.matexpr import MatrixExpr, ZeroMatrix, Identity, MatrixElement\n from sympy.matrices.expressions.matmul import MatMul\n from sympy.matrices.expressions.matadd import MatAdd\n from sympy.matrices.expressions.matpow import MatPow\n@@ -234,16 +234,24 @@ def transpose(self):\n \n     def _entry(self, i, j, **kwargs):\n         # Find row entry\n+        orig_i, orig_j = i, j\n         for row_block, numrows in enumerate(self.rowblocksizes):\n-            if (i < numrows) != False:\n+            cmp = i < numrows\n+            if cmp == True:\n                 break\n-            else:\n+            elif cmp == False:\n                 i -= numrows\n+            elif row_block < self.blockshape[0] - 1:\n+                # Can't tell which block and it's not the last one, return unevaluated\n+                return MatrixElement(self, orig_i, orig_j)\n         for col_block, numcols in enumerate(self.colblocksizes):\n-            if (j < numcols) != False:\n+            cmp = j < numcols\n+            if cmp == True:\n                 break\n-            else:\n+            elif cmp == False:\n                 j -= numcols\n+            elif col_block < self.blockshape[1] - 1:\n+                return MatrixElement(self, orig_i, orig_j)\n         return self.blocks[row_block, col_block][i, j]\n \n     @property\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/19007"
+    }
+}

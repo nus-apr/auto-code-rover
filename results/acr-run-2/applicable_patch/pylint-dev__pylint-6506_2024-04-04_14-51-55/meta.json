@@ -1,0 +1,35 @@
+{
+    "task_id": "pylint-dev__pylint-6506",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/pylint-dev__pylint/setup_pylint-dev__pylint__2.14",
+        "env_name": "setup_pylint-dev__pylint__2.14",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider tests/config/test_config.py"
+    },
+    "task_info": {
+        "instance_id": "pylint-dev__pylint-6506",
+        "base_commit": "0a4204fd7555cfedd43f43017c94d24ef48244a5",
+        "hints_text": "@Pierre-Sassoulas Agreed that this is a blocker for `2.14` but not necessarily for the beta. This is just a \"nice-to-have\".\r\n\r\nThanks @mbyrnepr2 for reporting though!\n\ud83d\udc4d the blocker are for the final release only. We could add a 'beta-blocker' label, that would be very humorous !",
+        "created_at": "2022-05-05T13:01:41Z",
+        "test_patch": "diff --git a/tests/config/test_config.py b/tests/config/test_config.py\n--- a/tests/config/test_config.py\n+++ b/tests/config/test_config.py\n@@ -10,7 +10,6 @@\n import pytest\n from pytest import CaptureFixture\n \n-from pylint.config.exceptions import _UnrecognizedOptionError\n from pylint.lint import Run as LintRun\n from pylint.testutils._run import _Run as Run\n from pylint.testutils.configuration_test import run_using_a_configuration_file\n@@ -65,18 +64,20 @@ def test_unknown_message_id(capsys: CaptureFixture) -> None:\n \n def test_unknown_option_name(capsys: CaptureFixture) -> None:\n     \"\"\"Check that we correctly raise a message on an unknown option.\"\"\"\n-    with pytest.raises(_UnrecognizedOptionError):\n+    with pytest.raises(SystemExit):\n         Run([str(EMPTY_MODULE), \"--unknown-option=yes\"], exit=False)\n     output = capsys.readouterr()\n-    assert \"E0015: Unrecognized option found: unknown-option=yes\" in output.out\n+    assert \"usage: pylint\" in output.err\n+    assert \"Unrecognized option\" in output.err\n \n \n def test_unknown_short_option_name(capsys: CaptureFixture) -> None:\n     \"\"\"Check that we correctly raise a message on an unknown short option.\"\"\"\n-    with pytest.raises(_UnrecognizedOptionError):\n+    with pytest.raises(SystemExit):\n         Run([str(EMPTY_MODULE), \"-Q\"], exit=False)\n     output = capsys.readouterr()\n-    assert \"E0015: Unrecognized option found: Q\" in output.out\n+    assert \"usage: pylint\" in output.err\n+    assert \"Unrecognized option\" in output.err\n \n \n def test_unknown_confidence(capsys: CaptureFixture) -> None:\n",
+        "repo": "pylint-dev/pylint",
+        "problem_statement": "Traceback printed for unrecognized option\n### Bug description\n\nA traceback is printed when an unrecognized option is passed to pylint.\n\n### Configuration\n\n_No response_\n\n### Command used\n\n```shell\npylint -Q\n```\n\n\n### Pylint output\n\n```shell\n************* Module Command line\r\nCommand line:1:0: E0015: Unrecognized option found: Q (unrecognized-option)\r\nTraceback (most recent call last):\r\n  File \"/Users/markbyrne/venv310/bin/pylint\", line 33, in <module>\r\n    sys.exit(load_entry_point('pylint', 'console_scripts', 'pylint')())\r\n  File \"/Users/markbyrne/programming/pylint/pylint/__init__.py\", line 24, in run_pylint\r\n    PylintRun(argv or sys.argv[1:])\r\n  File \"/Users/markbyrne/programming/pylint/pylint/lint/run.py\", line 135, in __init__\r\n    args = _config_initialization(\r\n  File \"/Users/markbyrne/programming/pylint/pylint/config/config_initialization.py\", line 85, in _config_initialization\r\n    raise _UnrecognizedOptionError(options=unrecognized_options)\r\npylint.config.exceptions._UnrecognizedOptionError\n```\n\n\n### Expected behavior\n\nThe top part of the current output is handy:\r\n`Command line:1:0: E0015: Unrecognized option found: Q (unrecognized-option)`\r\n\r\nThe traceback I don't think is expected & not user-friendly.\r\nA usage tip, for example:\r\n```python\r\nmypy -Q\r\nusage: mypy [-h] [-v] [-V] [more options; see below]\r\n            [-m MODULE] [-p PACKAGE] [-c PROGRAM_TEXT] [files ...]\r\nmypy: error: unrecognized arguments: -Q\r\n```\n\n### Pylint version\n\n```shell\npylint 2.14.0-dev0\r\nastroid 2.11.3\r\nPython 3.10.0b2 (v3.10.0b2:317314165a, May 31 2021, 10:02:22) [Clang 12.0.5 (clang-1205.0.22.9)]\n```\n\n\n### OS / Environment\n\n_No response_\n\n### Additional dependencies\n\n_No response_\n",
+        "version": "2.14",
+        "FAIL_TO_PASS": [
+            "tests/config/test_config.py::test_unknown_option_name",
+            "tests/config/test_config.py::test_unknown_short_option_name"
+        ],
+        "PASS_TO_PASS": [
+            "tests/config/test_config.py::test_can_read_toml_env_variable",
+            "tests/config/test_config.py::test_short_verbose",
+            "tests/config/test_config.py::test_unknown_confidence",
+            "tests/config/test_config.py::test_unknown_message_id",
+            "tests/config/test_config.py::test_unknown_py_version",
+            "tests/config/test_config.py::test_unknown_yes_no"
+        ],
+        "environment_setup_commit": "680edebc686cad664bbed934a490aeafa775f163",
+        "patch": "diff --git a/pylint/config/config_initialization.py b/pylint/config/config_initialization.py\n--- a/pylint/config/config_initialization.py\n+++ b/pylint/config/config_initialization.py\n@@ -81,8 +81,7 @@ def _config_initialization(\n             unrecognized_options.append(opt[1:])\n     if unrecognized_options:\n         msg = \", \".join(unrecognized_options)\n-        linter.add_message(\"unrecognized-option\", line=0, args=msg)\n-        raise _UnrecognizedOptionError(options=unrecognized_options)\n+        linter._arg_parser.error(f\"Unrecognized option found: {msg}\")\n \n     # Set the current module to configuration as we don't know where\n     # the --load-plugins key is coming from\n",
+        "pr_link": "https://github.com/pylint-dev/pylint/pull/6506"
+    }
+}

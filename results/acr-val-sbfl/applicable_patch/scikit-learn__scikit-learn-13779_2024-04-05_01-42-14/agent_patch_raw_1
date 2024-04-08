@@ -1,0 +1,80 @@
+# modification 1
+```python
+<file>sklearn/ensemble/voting.py</file>
+<original>    def fit(self, X, y, sample_weight=None):
+        """ Fit the estimators.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training vectors, where n_samples is the number of samples and
+            n_features is the number of features.
+
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        sample_weight : array-like, shape (n_samples,) or None
+            Sample weights. If None, then samples are equally weighted.
+            Note that this is supported only if all underlying estimators
+            support sample weights.
+
+        Returns
+        -------
+        self : object
+        """
+        if isinstance(y, np.ndarray) and len(y.shape) > 1 and y.shape[1] > 1:
+            raise NotImplementedError('Multilabel and multi-output'
+                                      ' classification is not supported.')
+
+        if self.voting not in ('soft', 'hard'):
+            raise ValueError("Voting must be 'soft' or 'hard'; got (voting=%r)"
+                             % self.voting)
+
+        self.le_ = LabelEncoder().fit(y)
+        self.classes_ = self.le_.classes_
+        transformed_y = self.le_.transform(y)
+
+        return super().fit(X, transformed_y, sample_weight)
+</original>
+<patched>    def fit(self, X, y, sample_weight=None):
+        """ Fit the estimators.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training vectors, where n_samples is the number of samples and
+            n_features is the number of features.
+
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        sample_weight : array-like, shape (n_samples,) or None
+            Sample weights. If None, then samples are equally weighted.
+            Note that this is supported only if all underlying estimators
+            support sample weights.
+
+        Returns
+        -------
+        self : object
+        """
+        if isinstance(y, np.ndarray) and len(y.shape) > 1 and y.shape[1] > 1:
+            raise NotImplementedError('Multilabel and multi-output'
+                                      ' classification is not supported.')
+
+        if self.voting not in ('soft', 'hard'):
+            raise ValueError("Voting must be 'soft' or 'hard'; got (voting=%r)"
+                             % self.voting)
+
+        # Filter out None estimators before fitting
+        self.estimators_ = [(name, est) for name, est in self.estimators if est is not None]
+        if not self.estimators_:
+            raise ValueError("All estimators are None. VotingClassifier requires at least one estimator.")
+
+        self.le_ = LabelEncoder().fit(y)
+        self.classes_ = self.le_.classes_
+        transformed_y = self.le_.transform(y)
+
+        # Call fit on super with filtered estimators
+        return super().fit(X, transformed_y, sample_weight)
+</patched>
+```

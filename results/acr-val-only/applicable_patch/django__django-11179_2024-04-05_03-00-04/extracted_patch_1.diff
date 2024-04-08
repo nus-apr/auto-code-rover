@@ -1,0 +1,31 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index f2560117d2..8f5ce3ea94 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -916,7 +916,10 @@ class Model(metaclass=ModelBase):
+ 
+         collector = Collector(using=using)
+         collector.collect([self], keep_parents=keep_parents)
+-        return collector.delete()
++        deleted_count, deleted_details = collector.delete()
++        # Set the instance's PK to None after successful deletion
++        self.pk = None
++        return deleted_count, deleted_details
+ 
+     delete.alters_data = True
+ 
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index 92fe4affb9..5c6020d7b5 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -321,7 +321,7 @@ class Collector:
+             for (field, value), instances in instances_for_fieldvalues.items():
+                 for obj in instances:
+                     setattr(obj, field.attname, value)
+-        for model, instances in self.data.items():
+-            for instance in instances:
+-                setattr(instance, model._meta.pk.attname, None)
++        # This block is removed as setting the PK to None after deletion
++        # should be handled in the model's delete method to ensure consistency
++        # across different types of deletions.
+         return sum(deleted_counter.values()), dict(deleted_counter)

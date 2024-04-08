@@ -1,0 +1,26 @@
+Based on the context and the issue described, the problem seems to stem from the handling of custom arguments within the `--msg-template` that are not recognized as part of `MESSAGE_FIELDS`. The current implementation warns and removes unrecognized arguments, which could inadvertently strip out intended custom formatting. To resolve this issue, we could adjust the method to allow custom arguments by skipping the removal process for unrecognized fields, thus preserving the user's intended template.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>pylint/reporters/text.py</file>
+<original>                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</original>
+<patched>                # Allow custom arguments in msg-template by not removing them
+                if argument[0] not in CUSTOM_MESSAGE_FIELDS:
+                    warnings.warn(
+                        f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                        "Are you sure it is supported on the current version of pylint?"
+                    )
+                else:
+                    # Log or handle custom arguments as needed
+                    pass</patched>
+```
+
+In this patch, `CUSTOM_MESSAGE_FIELDS` would be a new set or list that contains allowed custom fields or patterns that should not trigger the warning or removal. This approach assumes that there's a mechanism to define or recognize custom fields, which might involve additional changes elsewhere in the code to support such customization fully.
+
+Please note, this patch is conceptual and aims to illustrate a possible direction for resolving the issue. Depending on the broader context of how `--msg-template` is used and the design philosophy of Pylint, different or additional modifications might be necessary. For instance, introducing a way to register or recognize custom fields in `MESSAGE_FIELDS` dynamically, or adjusting the logic to better accommodate custom formatting without compromising the integrity of the message template processing.

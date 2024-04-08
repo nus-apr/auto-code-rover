@@ -1,0 +1,42 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 5ac2407ea3..819e8d889e 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1837,16 +1837,33 @@ class QuerySet(AltersData):
+         inserted_rows = []
+         bulk_return = connection.features.can_return_rows_from_bulk_insert
+         for item in [objs[i : i + batch_size] for i in range(0, len(objs), batch_size)]:
+-            if bulk_return and on_conflict is None:
+-                inserted_rows.extend(
++            if bulk_return:
++                if on_conflict is None or (on_conflict and update_fields):
++                    # If there's no conflict or if there's an update conflict with specified update fields,
++                    # attempt to return inserted rows.
++                    inserted_rows.extend(
++                        self._insert(
++                            item,
++                            fields=fields,
++                            using=self.db,
++                            on_conflict=on_conflict,
++                            update_fields=update_fields,
++                            unique_fields=unique_fields,
++                            returning_fields=(self.model._meta.db_returning_fields if on_conflict and update_fields else None),
++                        )
++                    )
++                else:
+                     self._insert(
+                         item,
+                         fields=fields,
+                         using=self.db,
+-                        returning_fields=self.model._meta.db_returning_fields,
++                        on_conflict=on_conflict,
++                        update_fields=update_fields,
++                        unique_fields=unique_fields,
+                     )
+-                )
+             else:
++                # If the database does not support returning rows from bulk insert,
++                # proceed without attempting to return inserted rows.
+                 self._insert(
+                     item,
+                     fields=fields,

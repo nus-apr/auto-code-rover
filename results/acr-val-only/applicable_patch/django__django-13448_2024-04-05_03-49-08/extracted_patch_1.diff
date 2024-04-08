@@ -1,0 +1,44 @@
+diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py
+index 503f7f56fd..868cb51a36 100644
+--- a/django/db/backends/base/creation.py
++++ b/django/db/backends/base/creation.py
+@@ -58,7 +58,7 @@ class BaseDatabaseCreation:
+         settings.DATABASES[self.connection.alias]["NAME"] = test_database_name
+         self.connection.settings_dict["NAME"] = test_database_name
+ 
+-        if self.connection.settings_dict['TEST']['MIGRATE']:
++        if self.connection.settings_dict['TEST'].get('MIGRATE', True):
+             # We report migrate messages at one level lower than that
+             # requested. This ensures we don't get flooded with messages during
+             # testing (unless you really ask to be flooded).
+@@ -69,13 +69,29 @@ class BaseDatabaseCreation:
+                 database=self.connection.alias,
+                 run_syncdb=True,
+             )
++        else:
++            # When migrations are skipped, ensure essential system tables are created.
++            # This is a workaround for systems like django_admin_log which are expected to exist.
++            if 'django.contrib.admin' in settings.INSTALLED_APPS:
++                call_command(
++                    'migrate',
++                    verbosity=max(verbosity - 1, 0),
++                    interactive=False,
++                    database=self.connection.alias,
++                    app_label='admin',
++                    migration_name='0001_initial',
++                    fake=True
++                )
+ 
+         # We then serialize the current state of the database into a string
+         # and store it on the connection. This slightly horrific process is so people
+         # who are testing on databases without transactions or who are using
+         # a TransactionTestCase still get a clean database on every test run.
+-        if serialize:
++        if serialize and self.connection.settings_dict['TEST'].get('MIGRATE', True):
+             self.connection._test_serialized_contents = self.serialize_db_to_string()
++        elif not self.connection.settings_dict['TEST'].get('MIGRATE', True):
++            # Skip serialization if migrations are not run to avoid errors with missing tables.
++            self.connection._test_serialized_contents = None
+ 
+         call_command('createcachetable', database=self.connection.alias)
+ 

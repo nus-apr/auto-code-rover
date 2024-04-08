@@ -1,0 +1,39 @@
+Given the context and the nature of the issue, a direct patch cannot be provided without seeing the specific implementation details of the `inspectdb` command's `handle` method in `django/core/management/commands/inspectdb.py`. However, I can outline a conceptual approach to how one might modify the `inspectdb` command to automatically generate `related_name` attributes for fields that are relations to the same entity.
+
+The goal is to modify the `inspectdb` command to detect when it is generating model fields that are foreign keys (or other types of relations) to the same model and automatically assign a unique `related_name` to each to avoid clashes.
+
+Since the actual implementation details are not provided, the following is a hypothetical patch that illustrates the concept:
+
+# modification 1
+```python
+<file>django/core/management/commands/inspectdb.py</file>
+<original>
+# This is a placeholder for where you might find the logic that generates
+# model field definitions based on database introspection.
+field_definition = "models.ForeignKey(%s)" % related_model
+</original>
+<patched>
+# Import necessary library
+from django.utils.text import slugify
+
+# Hypothetical logic to generate a unique related_name for each relation to the same model
+related_model_counter = {}
+def generate_related_name(base_model, related_model):
+    key = (base_model, related_model)
+    if key not in related_model_counter:
+        related_model_counter[key] = 0
+    related_model_counter[key] += 1
+    count = related_model_counter[key]
+    return "%s_%s_rel_%s" % (slugify(base_model), slugify(related_model), count)
+
+# Modified field definition to include a unique related_name
+field_definition = "models.ForeignKey(%s, related_name='%s')" % (
+    related_model, generate_related_name(base_model, related_model))
+</patched>
+```
+
+Please note, this modification is conceptual and assumes the existence of variables `base_model` and `related_model` which represent the names of the models being linked by the foreign key. The actual implementation would need to integrate with the existing logic of the `inspectdb` command, handling the specifics of how models and fields are generated based on the database schema introspection.
+
+This approach introduces a function `generate_related_name` that generates a unique `related_name` for each relation based on the models involved and a counter to ensure uniqueness. This `related_name` is then used in the field definition.
+
+Keep in mind that this is a simplified example. The actual implementation might need to handle various edge cases and integrate more closely with Django's model field generation logic in the `inspectdb` command.

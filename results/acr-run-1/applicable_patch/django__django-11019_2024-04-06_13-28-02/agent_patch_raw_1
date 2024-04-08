@@ -1,0 +1,83 @@
+# modification 1
+```python
+<file>django/forms/widgets.py</file>
+<original>    def __add__(self, other):
+        combined = Media()
+        combined._css_lists = self._css_lists + other._css_lists
+        combined._js_lists = self._js_lists + other._js_lists
+        return combined
+</original>
+<patched>    def __add__(self, other):
+        combined = Media()
+        combined._css_lists = self._css_lists + other._css_lists
+        # Start with a copy of self._js_lists to maintain the original order
+        combined._js_lists = list(self._js_lists)
+        # Append items from other._js_lists that are not already in combined._js_lists
+        for item in other._js_lists:
+            if item not in combined._js_lists:
+                combined._js_lists.append(item)
+        return combined
+</patched>
+```
+
+# modification 2
+```python
+<file>django/forms/widgets.py</file>
+<original>    def merge(list_1, list_2):
+        """
+        Merge two lists while trying to keep the relative order of the elements.
+        Warn if the lists have the same two elements in a different relative
+        order.
+
+        For static assets it can be important to have them included in the DOM
+        in a certain order. In JavaScript you may not be able to reference a
+        global or in CSS you might want to override a style.
+        """
+        # Start with a copy of list_1.
+        combined_list = list(list_1)
+        last_insert_index = len(list_1)
+        # Walk list_2 in reverse, inserting each element into combined_list if
+        # it doesn't already exist.
+        for path in reversed(list_2):
+            try:
+                # Does path already exist in the list?
+                index = combined_list.index(path)
+            except ValueError:
+                # Add path to combined_list since it doesn't exist.
+                combined_list.insert(last_insert_index, path)
+            else:
+                if index > last_insert_index:
+                    warnings.warn(
+                        'Detected duplicate Media files in an opposite order:\n'
+                        '%s\n%s' % (combined_list[last_insert_index], combined_list[index]),
+                        MediaOrderConflictWarning,
+                    )
+                # path already exists in the list. Update last_insert_index so
+                # that the following elements are inserted in front of this one.
+                last_insert_index = index
+        return combined_list
+</original>
+<patched>    def merge(list_1, list_2):
+        """
+        Merge two lists while trying to keep the relative order of the elements.
+        This version improves handling to reduce false positives in conflict warnings.
+
+        For static assets it can be important to have them included in the DOM
+        in a certain order. In JavaScript you may not be able to reference a
+        global or in CSS you might want to override a style.
+        """
+        # Start with a copy of list_1.
+        combined_list = list(list_1)
+        # Create a set for faster lookups to check if an item exists in list_1
+        list_1_set = set(list_1)
+        # Walk list_2, inserting each element into combined_list if
+        # it doesn't already exist, trying to maintain order without causing false warnings.
+        for path in list_2:
+            if path not in list_1_set:
+                # Add path to the end to maintain order without conflict
+                combined_list.append(path)
+        return combined_list
+</patched>
+```
+
+These modifications aim to address the issue by improving the logic for merging JavaScript files in the `__add__` method and refining the `merge` method to reduce false positives in conflict warnings. The first modification ensures that the order of JavaScript files is preserved when combining `Media` objects, and duplicates are not added. The second modification changes the approach to merging lists to maintain order without incorrectly warning about conflicts, by appending new items from `list_2` that do not exist in `list_1`, thus avoiding the problematic scenario of detecting false order conflicts.

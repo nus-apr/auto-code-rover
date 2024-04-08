@@ -1,0 +1,26 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index ffc3a7fda5..94c3f7e71c 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -92,6 +92,8 @@ class Combinable:
+     def __and__(self, other):
+         if getattr(self, 'conditional', False) and getattr(other, 'conditional', False):
+             return Q(self) & Q(other)
++        elif isinstance(other, Exists):
++            return Q(self) & Q(other)
+         raise NotImplementedError(
+             "Use .bitand() and .bitor() for bitwise logical operations."
+         )
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c957ffa564..31fed93377 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -40,7 +40,7 @@ class Q(tree.Node):
+         super().__init__(children=[*args, *sorted(kwargs.items())], connector=_connector, negated=_negated)
+ 
+     def _combine(self, other, conn):
+-        if not isinstance(other, Q):
++        if not isinstance(other, (Q, Exists)):
+             raise TypeError(other)
+ 
+         # If the other Q() is empty, ignore it and just use `self`.

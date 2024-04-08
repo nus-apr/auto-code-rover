@@ -1,0 +1,25 @@
+# modification 1
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>labels_true, labels_pred = check_clusterings(labels_true, labels_pred)</original>
+<patched>labels_true, labels_pred = check_clusterings(np.asarray(labels_true), np.asarray(labels_pred))</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>classes, class_idx = np.unique(labels_true, return_inverse=True)
+clusters, cluster_idx = np.unique(labels_pred, return_inverse=True)</original>
+<patched>classes, class_idx = np.unique(labels_true, return_inverse=True)
+clusters, cluster_idx = np.unique(labels_pred, return_inverse=True)
+# Ensure labels are of a numeric type for mutual information computation
+if labels_true.dtype == object or labels_pred.dtype == object:
+    raise ValueError("Input labels must be of a numeric type.")</patched>
+```
+
+Explanation:
+- **Modification 1** ensures that the inputs to `check_clusterings` are numpy arrays. This is a precautionary measure to handle cases where the inputs might not be in an expected format, although `check_clusterings` should ideally handle various input types. This change alone does not resolve the issue but ensures consistency in input handling.
+  
+- **Modification 2** introduces a check after the unique classes and clusters are identified. If either `labels_true` or `labels_pred` is of dtype `object`, which could happen if the input is a string or mixed types, a `ValueError` is raised with a clear message. This directly addresses the issue by preventing the computation from proceeding with non-numeric types, which are not supported by the mutual information computation logic as it stands. This approach was chosen instead of attempting to convert strings to numeric types because the semantic meaning of string labels in clustering contexts can vary widely, and automatic conversion could lead to misleading results.
+
+These modifications aim to make the function's requirements more explicit and prevent misuse with unsupported data types, thus addressing the regression without altering the core functionality or performance of the `mutual_info_score` function.

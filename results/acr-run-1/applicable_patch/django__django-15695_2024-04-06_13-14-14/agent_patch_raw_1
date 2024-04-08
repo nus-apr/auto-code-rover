@@ -1,0 +1,116 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.model_name)
+        if not self.allow_migrate_model(schema_editor.connection.alias, model):
+            return
+
+        if self.old_fields:
+            from_model = from_state.apps.get_model(app_label, self.model_name)
+            columns = [
+                from_model._meta.get_field(field).column for field in self.old_fields
+            ]
+            matching_index_name = schema_editor._constraint_names(
+                from_model, column_names=columns, index=True
+            )
+            if len(matching_index_name) != 1:
+                raise ValueError(
+                    "Found wrong number (%s) of indexes for %s(%s)."
+                    % (
+                        len(matching_index_name),
+                        from_model._meta.db_table,
+                        ", ".join(columns),
+                    )
+                )
+            old_index = models.Index(
+                fields=self.old_fields,
+                name=matching_index_name[0],
+            )
+        else:
+            from_model_state = from_state.models[app_label, self.model_name_lower]
+            old_index = from_model_state.get_index_by_name(self.old_name)
+
+        to_model_state = to_state.models[app_label, self.model_name_lower]
+        new_index = to_model_state.get_index_by_name(self.new_name)
+        schema_editor.rename_index(model, old_index, new_index)</original>
+<patched>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.model_name)
+        if not self.allow_migrate_model(schema_editor.connection.alias, model):
+            return
+
+        if self.old_fields:
+            from_model = from_state.apps.get_model(app_label, self.model_name)
+            columns = [
+                from_model._meta.get_field(field).column for field in self.old_fields
+            ]
+            matching_index_name = schema_editor._constraint_names(
+                from_model, column_names=columns, index=True
+            )
+            if len(matching_index_name) != 1:
+                raise ValueError(
+                    "Found wrong number (%s) of indexes for %s(%s)."
+                    % (
+                        len(matching_index_name),
+                        from_model._meta.db_table,
+                        ", ".join(columns),
+                    )
+                )
+            old_index = models.Index(
+                fields=self.old_fields,
+                name=matching_index_name[0],
+            )
+        else:
+            from_model_state = from_state.models[app_label, self.model_name_lower]
+            old_index = from_model_state.get_index_by_name(self.old_name)
+
+        to_model_state = to_state.models[app_label, self.model_name_lower]
+        new_index = to_model_state.get_index_by_name(self.new_name)
+        
+        # Check if the new index name already exists to prevent crash
+        existing_index_names = schema_editor._constraint_names(model, index=True)
+        if new_index.name in existing_index_names:
+            schema_editor.remove_index(model, new_index)
+        
+        schema_editor.rename_index(model, old_index, new_index)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        if self.old_fields:
+            # Backward operation with unnamed index is a no-op.
+            return
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        self.database_forwards(app_label, schema_editor, from_state, to_state)
+
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name</original>
+<patched>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        if self.old_fields:
+            # Backward operation with unnamed index is a no-op.
+            return
+
+        # Swap names for backward operation
+        self.new_name_lower, self.old_name_lower = (
+            self.old_name_lower,
+            self.new_name_lower,
+        )
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        # Before calling database_forwards, check if the index with the old name (now new_name) already exists
+        model = to_state.apps.get_model(app_label, self.model_name)
+        existing_index_names = schema_editor._constraint_names(model, index=True)
+        if self.new_name in existing_index_names:
+            # If the index exists, it's likely due to a forward-backward-forward sequence. Remove the existing index to avoid conflict.
+            to_model_state =

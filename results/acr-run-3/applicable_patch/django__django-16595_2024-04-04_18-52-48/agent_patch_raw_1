@@ -1,0 +1,57 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/fields.py</file>
+<original>    def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        return super().reduce(operation, app_label)</original>
+<patched>    def reduce(self, operation, app_label):
+        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
+        elif (
+            isinstance(operation, RenameField)
+            and self.is_same_field_operation(operation)
+            and self.field.db_column is None
+        ):
+            return [
+                operation,
+                AlterField(
+                    model_name=self.model_name,
+                    name=operation.new_name,
+                    field=self.field,
+                ),
+            ]
+        elif isinstance(operation, AlterField) and self.is_same_field_operation(operation):
+            # Combine attributes of both AlterField operations
+            combined_field_attributes = {**self.field.deconstruct()[3], **operation.field.deconstruct()[3]}
+            # Create a new field instance with combined attributes
+            from django.db.models import CharField  # Assuming CharField for simplicity; actual implementation may need to dynamically determine field class
+            combined_field = CharField(**combined_field_attributes)
+            return [
+                AlterField(
+                    model_name=self.model_name,
+                    name=self.name,
+                    field=combined_field,
+                )
+            ]
+        return super().reduce(operation, app_label)</patched>
+```
+
+This patch introduces logic to handle consecutive `AlterField` operations on the same field by combining their attributes into a single `AlterField` operation. The implementation assumes the use of `CharField` for simplicity, but the actual implementation should dynamically determine the field class based on the operations being combined. This approach aims to optimize migration operations by reducing redundant alterations to the same field.

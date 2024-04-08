@@ -1,0 +1,33 @@
+diff --git a/sklearn/preprocessing/_encoders.py b/sklearn/preprocessing/_encoders.py
+index 1e05aba59..73ba820eb 100644
+--- a/sklearn/preprocessing/_encoders.py
++++ b/sklearn/preprocessing/_encoders.py
+@@ -111,6 +111,10 @@ class _BaseEncoder(BaseEstimator, TransformerMixin):
+                     # removed later.
+                     X_mask[:, i] = valid_mask
+                     Xi = Xi.copy()
++                    # Convert Xi to an object array to safely accommodate the replacement
++                    # with a potentially longer string from categories_[i][0]
++                    if Xi.dtype.kind in 'U' and not isinstance(Xi, np.ndarray):
++                        Xi = Xi.astype(object)
+                     Xi[~valid_mask] = self.categories_[i][0]
+             _, encoded = _encode(Xi, self.categories_[i], encode=True)
+             X_int[:, i] = encoded
+diff --git a/sklearn/preprocessing/label.py b/sklearn/preprocessing/label.py
+index 12f95b5e2..737bb762e 100644
+--- a/sklearn/preprocessing/label.py
++++ b/sklearn/preprocessing/label.py
+@@ -48,7 +48,12 @@ def _encode_numpy(values, uniques=None, encode=False):
+             return np.unique(values)
+     if encode:
+         diff = _encode_check_unknown(values, uniques)
+-        if diff:
++        # Adjusted to handle the case when diff is not empty but we are in 'ignore' mode
++        # This part of the code is reached through _encode_numpy from _encode
++        # which is ultimately called by OneHotEncoder's _transform method.
++        # The 'ignore' mode is not directly accessible here, so this adjustment
++        # is a workaround for the reported issue without changing the API.
++        if diff and not getattr(self, 'handle_unknown', '') == 'ignore':
+             raise ValueError("y contains previously unseen labels: %s"
+                              % str(diff))
+         encoded = np.searchsorted(uniques, values)

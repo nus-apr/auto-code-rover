@@ -1,0 +1,34 @@
+Given the constraints and the context provided, it seems the initial approach to directly modify the `UniqueConstraint`'s `__init__` method to include model validation directly within it might not be feasible without significant changes elsewhere in Django's codebase to support passing the model reference at the point of constraint definition. This is because constraints are typically defined at the class level within models, where the model itself is not fully constructed yet.
+
+A more appropriate approach might involve leveraging Django's system checks framework, which runs checks on models after they are loaded but before the project starts. This system is already used to catch issues like the one raised with `unique_together`. We can define a new check specifically for `UniqueConstraint` definitions to ensure that the fields specified exist on the model.
+
+This approach does not require modifying the `UniqueConstraint` initialization directly but instead adds a check that runs at a point in the startup process where all models are loaded and can be introspected. This aligns with how Django performs other similar validations.
+
+# modification 1
+```python
+<file>django/core/checks/model_checks.py</file>
+<original></original>
+<patched>from django.core.checks import Error, Tags, register
+from django.db.models import UniqueConstraint
+
+@register(Tags.models)
+def check_unique_constraint_fields(app_configs, **kwargs):
+    errors = []
+    for config in app_configs or []:
+        for model in config.get_models():
+            unique_constraints = [constraint for constraint in model._meta.constraints if isinstance(constraint, UniqueConstraint)]
+            for constraint in unique_constraints:
+                undefined_fields = [field for field in constraint.fields if field not in [f.name for f in model._meta.fields]]
+                if undefined_fields:
+                    errors.append(Error(
+                        f"UniqueConstraint contains undefined field(s): {', '.join(undefined_fields)}",
+                        obj=model,
+                        id='models.E012',
+                    ))
+    return errors
+</patched>
+```
+
+This patch introduces a new system check that iterates over all models in all installed apps, identifies `UniqueConstraint` instances among their constraints, and checks if all fields specified in each `UniqueConstraint` actually exist on the model. If any undefined fields are found, it adds an error to the list of errors returned by the check, which will be displayed when running `manage.py check` or starting a Django project.
+
+This solution leverages Django's existing infrastructure for model validation and does not require changes to the `UniqueConstraint` class itself, thus avoiding the complexities of modifying its initialization logic and handling model references. It also aligns with Django's philosophy of keeping model definitions clean and leveraging checks to enforce constraints and validations.

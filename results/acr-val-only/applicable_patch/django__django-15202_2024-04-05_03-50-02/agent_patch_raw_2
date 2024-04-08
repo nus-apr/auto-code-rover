@@ -1,0 +1,18 @@
+Given the feedback, it seems the initial approach to directly modify the exception type in `_urlsplit` might not be the best solution, especially considering the broader impact on the Django framework and potential test failures. A more targeted approach, ensuring that the form validation process specifically handles the `ValueError` and converts it into a `ValidationError` without altering the lower-level utility function behavior, might be more appropriate. Let's revise the patch with this consideration.
+
+# modification 1
+```python
+<file>django/core/validators.py</file>
+<original>except ValueError:  # for example, "Invalid IPv6 URL"
+                    raise ValidationError(self.message, code=self.code, params={'value': value})</original>
+<patched>except ValueError as e:  # for example, "Invalid IPv6 URL"
+                    # Convert ValueError to ValidationError to maintain consistency in form validation errors.
+                    if "Invalid IPv6 URL" in str(e):
+                        raise ValidationError(self.message, code=self.code, params={'value': value})
+                    else:
+                        raise e</patched>
+```
+
+This modification ensures that within the `URLValidator` class in `django/core/validators.py`, when a `ValueError` is caught, it specifically checks if the error message is related to an "Invalid IPv6 URL". If so, it raises a `ValidationError` with the appropriate message and code, ensuring consistency with other form validation errors. This approach targets the form validation process, addressing the issue without altering the behavior of utility functions like `_urlsplit` that might be used in various contexts within Django or other applications relying on Django.
+
+This targeted approach minimizes the impact on the rest of the framework and focuses on ensuring that form validation errors are handled consistently, addressing the issue described without introducing broader changes that might affect other parts of Django or cause test failures.

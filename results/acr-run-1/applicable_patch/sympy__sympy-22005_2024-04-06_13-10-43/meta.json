@@ -1,0 +1,30 @@
+{
+    "task_id": "sympy__sympy-22005",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.9",
+        "env_name": "setup_sympy__sympy__1.9",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/solvers/tests/test_polysys.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-22005",
+        "base_commit": "2c83657ff1c62fc2761b639469fdac7f7561a72a",
+        "hints_text": "This is not a possible solution i feel , since some of the tests are failing and also weirdly `solve_poly_system([2*x - 3, y*Rational(3, 2) - 2*x, z - 5*y], x, y, z)`  is throwing a `NotImplementedError` .\nHmm. Well, they should yield similar results: an error or a solution. Looks like maybe a solution, then, should be returned? I am not sure. Maybe @jksuom would have some idea.\nIt seems that the number of polynomials in the Gr\u00f6bner basis should be the same as the number of variables so there should be something like\r\n```\r\n    if len(basis) != len(gens):\r\n        raise NotImplementedError(...)\n> It seems that the number of polynomials in the Gr\u00f6bner basis should be the same as the number of variables\r\n\r\nThis raises a `NotImplementedError` for `solve_poly_system([x*y - 2*y, 2*y**2 - x**2], x, y)` but which isn't the case since it has a solution.\nIt looks like the test could be `if len(basis) < len(gens)` though I'm not sure if the implementation can handle all cases where `len(basis) > len(gens)`.\nYes this works and now `solve_poly_system((y - 1,), x, y)` also returns `NotImplementedError` , I'll open a PR for this.\r\nI'm not sure but all cases of `len(basis) > len(gens)` are being handled.",
+        "created_at": "2021-09-02T13:05:27Z",
+        "test_patch": "diff --git a/sympy/solvers/tests/test_polysys.py b/sympy/solvers/tests/test_polysys.py\n--- a/sympy/solvers/tests/test_polysys.py\n+++ b/sympy/solvers/tests/test_polysys.py\n@@ -49,6 +49,11 @@ def test_solve_poly_system():\n         [z, -2*x*y**2 + x + y**2*z, y**2*(-z - 4) + 2]))\n     raises(PolynomialError, lambda: solve_poly_system([1/x], x))\n \n+    raises(NotImplementedError, lambda: solve_poly_system(\n+          [x-1,], (x, y)))\n+    raises(NotImplementedError, lambda: solve_poly_system(\n+          [y-1,], (x, y)))\n+\n \n def test_solve_biquadratic():\n     x0, y0, x1, y1, r = symbols('x0 y0 x1 y1 r')\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "detection of infinite solution request\n```python\r\n>>> solve_poly_system((x - 1,), x, y)\r\nTraceback (most recent call last):\r\n...\r\nNotImplementedError:\r\nonly zero-dimensional systems supported (finite number of solutions)\r\n>>> solve_poly_system((y - 1,), x, y)  <--- this is not handled correctly\r\n[(1,)]\r\n```\r\n```diff\r\ndiff --git a/sympy/solvers/polysys.py b/sympy/solvers/polysys.py\r\nindex b9809fd4e9..674322d4eb 100644\r\n--- a/sympy/solvers/polysys.py\r\n+++ b/sympy/solvers/polysys.py\r\n@@ -240,7 +240,7 @@ def _solve_reduced_system(system, gens, entry=False):\r\n \r\n         univariate = list(filter(_is_univariate, basis))\r\n \r\n-        if len(univariate) == 1:\r\n+        if len(univariate) == 1 and len(gens) == 1:\r\n             f = univariate.pop()\r\n         else:\r\n             raise NotImplementedError(filldedent('''\r\ndiff --git a/sympy/solvers/tests/test_polysys.py b/sympy/solvers/tests/test_polysys.py\r\nindex 58419f8762..9e674a6fe6 100644\r\n--- a/sympy/solvers/tests/test_polysys.py\r\n+++ b/sympy/solvers/tests/test_polysys.py\r\n@@ -48,6 +48,10 @@ def test_solve_poly_system():\r\n     raises(NotImplementedError, lambda: solve_poly_system(\r\n         [z, -2*x*y**2 + x + y**2*z, y**2*(-z - 4) + 2]))\r\n     raises(PolynomialError, lambda: solve_poly_system([1/x], x))\r\n+    raises(NotImplementedError, lambda: solve_poly_system(\r\n+        Poly(x - 1, x, y), (x, y)))\r\n+    raises(NotImplementedError, lambda: solve_poly_system(\r\n+        Poly(y - 1, x, y), (x, y)))\r\n \r\n \r\n def test_solve_biquadratic():\r\n```\n",
+        "version": "1.9",
+        "FAIL_TO_PASS": [
+            "test_solve_poly_system"
+        ],
+        "PASS_TO_PASS": [
+            "test_solve_biquadratic",
+            "test_solve_triangulated"
+        ],
+        "environment_setup_commit": "f9a6f50ec0c74d935c50a6e9c9b2cb0469570d91",
+        "patch": "diff --git a/sympy/solvers/polysys.py b/sympy/solvers/polysys.py\n--- a/sympy/solvers/polysys.py\n+++ b/sympy/solvers/polysys.py\n@@ -240,6 +240,12 @@ def _solve_reduced_system(system, gens, entry=False):\n \n         univariate = list(filter(_is_univariate, basis))\n \n+        if len(basis) < len(gens):\n+            raise NotImplementedError(filldedent('''\n+                only zero-dimensional systems supported\n+                (finite number of solutions)\n+                '''))\n+\n         if len(univariate) == 1:\n             f = univariate.pop()\n         else:\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/22005"
+    }
+}

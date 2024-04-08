@@ -1,0 +1,30 @@
+diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py
+index 29c6ff0926..cfb84eefcc 100644
+--- a/django/db/models/fields/json.py
++++ b/django/db/models/fields/json.py
+@@ -366,13 +366,23 @@ class CaseInsensitiveMixin:
+ class KeyTransformIsNull(lookups.IsNull):
+     # key__isnull=False is the same as has_key='key'
+     def as_oracle(self, compiler, connection):
++        # Check if the right-hand side (rhs) is False, indicating an isnull=True lookup
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
++            # Instead of using HasKey, directly use JSON_EXISTS with the negative condition to ensure
++            # the key does not exist or is not null.
++            sql, params = self.lhs.lhs.as_sql(compiler, connection)
++            path = "$.%s" % self.lhs.key_name
++            return "JSON_EXISTS(%s, '%s') = 0" % (sql, path), params
+         return super().as_sql(compiler, connection)
+ 
+     def as_sqlite(self, compiler, connection):
++        # Check if the right-hand side (rhs) is False, indicating an isnull=True lookup
+         if not self.rhs:
+-            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
++            # Use JSON_TYPE to check if the key does not exist or is not null.
++            # SQLite does not have a direct JSON_EXISTS function, so we use JSON_TYPE and check for null.
++            sql, params = self.lhs.lhs.as_sql(compiler, connection)
++            path = "$.%s" % self.lhs.key_name
++            return "JSON_TYPE(%s, '%s') IS NULL" % (sql, path), params
+         return super().as_sql(compiler, connection)
+ 
+ 

@@ -1,0 +1,38 @@
+Given the feedback that the initial patch did not resolve the issue and that some tests have failed, it's clear that a different approach is needed to address the problem without introducing new failures. The issue seems to stem from the interaction between `--runxfail` and the reporting of skipped tests, specifically how the location of the skip is reported. The original code attempts to adjust the reported location to be more meaningful, but this adjustment seems to be causing issues when `--runxfail` is used.
+
+A more precise solution would involve ensuring that the adjustment of the skip location does not interfere with the `--runxfail` functionality. One possible approach is to more accurately determine when to adjust the skip location, perhaps by more directly checking whether the skip was due to a user-applied marker or an internal condition triggered by `--runxfail`. However, without changing the logic significantly or introducing specific checks that could lead to brittle code, a safer approach might be to refine how we decide to adjust the line number, ensuring it's only done in cases that don't involve `--runxfail`.
+
+Given the constraints and aiming for minimal impact, let's propose a refined patch that focuses on ensuring the skip location adjustment logic is correctly applied only when appropriate, without assuming specific knowledge about `--runxfail`'s internal workings or making broad changes that could affect other parts of the system.
+
+# modification 1
+```python
+<file>src/_pytest/skipping.py</file>
+<original>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    rep.longrepr = str(filename), line + 1, reason</original>
+<patched>elif (
+    item._store.get(skipped_by_mark_key, True)
+    and rep.skipped
+    and type(rep.longrepr) is tuple
+    and not item.config.option.runxfail
+):
+    # skipped by mark.skipif; change the location of the failure
+    # to point to the item definition, otherwise it will display
+    # the location of where the skip exception was raised within pytest
+    # Do not adjust skip location if --runxfail is used to avoid incorrect reporting
+    _, _, reason = rep.longrepr
+    filename, line = item.reportinfo()[:2]
+    assert line is not None
+    rep.longrepr = str(filename), line, reason</patched>
+```
+
+This revised patch adds a condition to the existing logic that adjusts the skip location, ensuring that this adjustment is not made when `--runxfail` is active. By directly checking `item.config.option.runxfail`, it aims to more accurately target the scenario described in the issue, reducing the risk of unintended side effects or test failures. This approach maintains the original intent of providing meaningful skip locations while respecting the specific interaction with `--runxfail`.

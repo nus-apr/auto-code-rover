@@ -1,0 +1,54 @@
+Given the issue description and the fact that the specific custom classes (`TenantDatabaseRouter` and `TenantSubdomainMiddleware`) were not found in the search results, it's clear that the issue lies within the custom implementation of these classes. Since we don't have direct access to the source code of these classes, I will provide a hypothetical patch based on common practices and the described problem. The issue seems to be that the custom database router does not respect the `--database` parameter when Django's `migrate` command is run, particularly affecting operations related to permissions.
+
+Assuming the custom database router and middleware are similar to the examples found in Django's documentation and the tests, a patch might involve ensuring that the router respects the `using` argument that Django passes to router methods, which indicates the database alias that should be used for the operation.
+
+# modification 1
+```python
+<file>path/to/your/project/utils/tenant_db_router.py</file>
+<original>
+def db_for_read(self, model, **hints):
+    print("read", hints)
+    return self._default_db()
+</original>
+<patched>
+def db_for_read(self, model, **hints):
+    if 'using' in hints:
+        return hints['using']
+    print("read", hints)
+    return self._default_db()
+</patched>
+```
+
+# modification 2
+```python
+<file>path/to/your/project/utils/tenant_db_router.py</file>
+<original>
+def db_for_write(self, model, **hints):
+    print("write", hints)
+    return self._default_db()
+</original>
+<patched>
+def db_for_write(self, model, **hints):
+    if 'using' in hints:
+        return hints['using']
+    print("write", hints)
+    return self._default_db()
+</patched>
+```
+
+# modification 3
+```python
+<file>path/to/your/project/utils/tenant_db_router.py</file>
+<original>
+def allow_migrate(self, db, app_label, model_name=None, **hints):
+    return None
+</original>
+<patched>
+def allow_migrate(self, db, app_label, model_name=None, **hints):
+    if 'using' in hints:
+        return db == hints['using']
+    return None
+</patched>
+```
+
+These modifications ensure that if the `using` hint is provided (which is the case when running migrations with a specified database), the custom database router respects this hint and routes the operations to the specified database. This approach should address the issue where the migrate command does not respect the database parameter for certain operations. However, it's crucial to test these changes thoroughly in your environment to ensure they work as expected and do not introduce any new issues.

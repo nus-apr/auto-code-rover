@@ -1,0 +1,27 @@
+diff --git a/django/template/engine.py b/django/template/engine.py
+index f2215c0e4e..6b12a32e86 100644
+--- a/django/template/engine.py
++++ b/django/template/engine.py
+@@ -118,10 +118,21 @@ class Engine:
+     def get_template_builtins(self, builtins):
+         return [import_library(x) for x in builtins]
+ 
++    import logging
++    from django.utils.module_loading import import_string
++
+     def get_template_libraries(self, libraries):
+         loaded = {}
+         for name, path in libraries.items():
+-            loaded[name] = import_library(path)
++            if name in loaded:
++                # Log a warning if the same library name is used for different paths
++                existing_path = loaded[name].__module__
++                if existing_path != path:
++                    logging.warning(f"Duplicate template tag library name detected: '{name}'. "
++                                    f"Existing path: '{existing_path}', new path: '{path}'. "
++                                    "Using the first occurrence. Please ensure each library name is unique.")
++                continue  # Keep the first occurrence and skip adding the duplicate
++            loaded[name] = import_string(path)
+         return loaded
+ 
+     @cached_property

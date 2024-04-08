@@ -1,0 +1,49 @@
+Given the issue description and without direct access to the specific project files or the ability to execute search API calls, I'll provide a hypothetical patch based on common Django practices and the nature of the issue described. This patch assumes the problem lies in the handling of ForeignKey relationships when the primary key of the related object is assigned after the relationship is established, particularly within a transaction context.
+
+Please note, the actual file paths and code snippets would depend on the specific implementation details of the Django project in question. The following is a conceptual guide intended to illustrate how one might address the issue described.
+
+# modification 1
+```python
+<file>models.py</file>
+<original>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+</original>
+<patched>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    def save(self, *args, **kwargs):
+        if self.product_id is None and self.product.pk is not None:
+            self.product_id = self.product.pk
+        super(Order, self).save(*args, **kwargs)
+</patched>
+```
+
+This modification ensures that before saving an `Order` instance, if `product_id` is not set but the related `Product` instance has a primary key (`pk`), the `product_id` field of the `Order` is updated to match the `Product`'s `pk`. This addresses the issue where `product_id` might not be correctly set when the `Product`'s primary key is assigned after establishing the relationship.
+
+# modification 2
+```python
+<file>views.py or wherever the transaction is being handled</file>
+<original>
+with transaction.atomic():
+    order = Order()
+    order.product = Product()
+    order.product.sku = "foo"
+    order.product.save()
+    order.save()
+</original>
+<patched>
+from django.db import transaction
+
+with transaction.atomic():
+    product = Product(sku="foo")
+    product.save()
+    order = Order(product=product)
+    order.save()
+</patched>
+```
+
+This modification changes the approach to creating and saving related `Product` and `Order` instances within a transaction. By explicitly creating and saving the `Product` instance before creating the `Order` instance, it ensures that the `Order`'s `product_id` field is correctly populated based on the `Product`'s primary key. This approach avoids the issue described in the original problem statement.
+
+Please adapt these conceptual modifications to fit the actual structure and requirements of your Django project.

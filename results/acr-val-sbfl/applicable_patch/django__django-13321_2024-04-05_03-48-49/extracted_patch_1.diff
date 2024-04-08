@@ -1,0 +1,50 @@
+diff --git a/django/contrib/sessions/backends/base.py b/django/contrib/sessions/backends/base.py
+index 187e14b1b7..7436931efc 100644
+--- a/django/contrib/sessions/backends/base.py
++++ b/django/contrib/sessions/backends/base.py
+@@ -119,8 +119,10 @@ class SessionBase:
+     def decode(self, session_data):
+         try:
+             return signing.loads(session_data, salt=self.key_salt, serializer=self.serializer)
+-        # RemovedInDjango40Warning: when the deprecation ends, handle here
+-        # exceptions similar to what _legacy_decode() does now.
++        except signing.BadSignature:
++            raise
++        except binascii.Error as e:
++            raise ValueError("Session data corrupted") from e
+         except Exception:
+             return self._legacy_decode(session_data)
+ 
+@@ -205,10 +207,12 @@ class SessionBase:
+     def _set_session_key(self, value):
+         """
+         Validate session key on assignment. Invalid values will set to None.
++        Enhanced to log a warning when setting an invalid session key.
+         """
+         if self._validate_session_key(value):
+             self.__session_key = value
+         else:
++            logging.warning("Attempted to set an invalid session key: %s", value)
+             self.__session_key = None
+ 
+     session_key = property(_get_session_key)
+@@ -220,13 +224,15 @@ class SessionBase:
+         an empty dict is stored) and store it in the current instance.
+         """
+         self.accessed = True
+-        try:
+-            return self._session_cache
+-        except AttributeError:
++        if not hasattr(self, '_session_cache'):
+             if self.session_key is None or no_load:
+                 self._session_cache = {}
+             else:
+-                self._session_cache = self.load()
++                try:
++                    self._session_cache = self.load()
++                except Exception as e:
++                    logging.exception("Failed to load session data: %s", e)
++                    self._session_cache = {}
+         return self._session_cache
+ 
+     _session = property(_get_session)

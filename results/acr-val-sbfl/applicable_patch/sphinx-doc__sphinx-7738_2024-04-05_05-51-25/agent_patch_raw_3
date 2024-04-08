@@ -1,0 +1,42 @@
+Given the constraints and the need for a solution that addresses the issue without introducing new configuration options or affecting other functionalities negatively, let's refine the approach. The key is to ensure that trailing underscores in attribute names are not escaped, as this is causing the reported issue. However, we must also ensure that other necessary escaping (for special characters like `*`) remains intact.
+
+Considering the feedback and the need for a precise fix, let's propose a patch that specifically targets the issue of trailing underscore escaping without altering other escaping behaviors:
+
+# modification 1
+```python
+<file>sphinx/ext/napoleon/docstring.py</file>
+<original>    def _escape_args_and_kwargs(self, name: str) -> str:
+        if name.endswith('_'):
+            name = name[:-1] + r'\_'
+
+        if name[:2] == '**':
+            return r'\*\*' + name[2:]
+        elif name[:1] == '*':
+            return r'\*' + name[1:]
+        else:
+            return name
+</original>
+<patched>    def _escape_args_and_kwargs(self, name: str) -> str:
+        # Adjusted to prevent escaping trailing underscore
+        if name.endswith('_'):
+            # Temporarily remove trailing underscore for further checks
+            temp_name = name[:-1]
+        else:
+            temp_name = name
+
+        if temp_name[:2] == '**':
+            escaped_name = r'\*\*' + temp_name[2:]
+        elif temp_name[:1] == '*':
+            escaped_name = r'\*' + temp_name[1:]
+        else:
+            escaped_name = temp_name
+
+        # Append trailing underscore without escaping if it was originally present
+        if name.endswith('_'):
+            escaped_name += '_'
+
+        return escaped_name
+</patched>
+```
+
+This modification ensures that the method `_escape_args_and_kwargs` still performs its intended function of escaping special characters like `*` in argument names (`*args` and `**kwargs`), but it no longer escapes trailing underscores in attribute names. The temporary variable `temp_name` is used to handle the escaping logic separately from the trailing underscore handling, ensuring that the underscore is appended back without the escape character if it was originally present. This approach directly addresses the reported issue while minimizing the risk of unintended side effects on other functionalities.

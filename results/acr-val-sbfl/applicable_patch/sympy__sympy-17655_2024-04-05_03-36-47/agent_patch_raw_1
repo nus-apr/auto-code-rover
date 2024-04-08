@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</original>
+<patched>        from sympy.core.mul import Mul
+        from sympy.geometry.entity import GeometryEntity
+
+        if isinstance(other, Mul) and any(isinstance(arg, GeometryEntity) for arg in other.args):
+            # Handle the case where 'other' is a product of a number and a Point
+            for arg in other.args:
+                if isinstance(arg, GeometryEntity):
+                    other_point = arg
+                    break
+            factor = other / other_point
+            try:
+                s, o = Point._normalize_dimension(self, other_point, evaluate=False)
+                coords = [simplify(a + factor * b) for a, b in zip(s, o)]
+                return Point(coords, evaluate=False)
+            except TypeError:
+                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+        else:
+            try:
+                s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+            except TypeError:
+                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+            coords = [simplify(a + b) for a, b in zip(s, o)]
+            return Point(coords, evaluate=False)</patched>
+```

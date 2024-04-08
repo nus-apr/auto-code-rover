@@ -1,0 +1,72 @@
+# modification 1
+```python
+<file>django/utils/decorators.py</file>
+<original>def method_decorator(decorator, name=''):
+    """
+    Convert a function decorator into a method decorator
+    """
+    # 'obj' can be a class or a function. If 'obj' is a function at the time it
+    # is passed to _dec,  it will eventually be a method of the class it is
+    # defined on. If 'obj' is a class, the 'name' is required to be the name
+    # of the method that will be decorated.
+    def _dec(obj):
+        if not isinstance(obj, type):
+            return _multi_decorate(decorator, obj)
+        if not (name and hasattr(obj, name)):
+            raise ValueError(
+                "The keyword argument `name` must be the name of a method "
+                "of the decorated class: %s. Got '%s' instead." % (obj, name)
+            )
+        method = getattr(obj, name)
+        if not callable(method):
+            raise TypeError(
+                "Cannot decorate '%s' as it isn't a callable attribute of "
+                "%s (%s)." % (name, obj, method)
+            )
+        _wrapper = _multi_decorate(decorator, method)
+        setattr(obj, name, _wrapper)
+        return obj
+
+    # Don't worry about making _dec look similar to a list/tuple as it's rather
+    # meaningless.
+    if not hasattr(decorator, '__iter__'):
+        update_wrapper(_dec, decorator)
+    # Change the name to aid debugging.
+    obj = decorator if hasattr(decorator, '__name__') else decorator.__class__
+    _dec.__name__ = 'method_decorator(%s)' % obj.__name__
+    return _dec</original>
+<patched>from functools import partial, update_wrapper
+
+def method_decorator(decorator, name=''):
+    """
+    Convert a function decorator into a method decorator
+    """
+    def _dec(obj):
+        if not isinstance(obj, type):
+            if isinstance(obj, partial):
+                obj.func.__name__ = getattr(obj.func, '__name__', obj.func.__class__.__name__)
+                obj.func.__module__ = getattr(obj.func, '__module__', None)
+            return _multi_decorate(decorator, obj)
+        if not (name and hasattr(obj, name)):
+            raise ValueError(
+                "The keyword argument `name` must be the name of a method "
+                "of the decorated class: %s. Got '%s' instead." % (obj, name)
+            )
+        method = getattr(obj, name)
+        if not callable(method):
+            raise TypeError(
+                "Cannot decorate '%s' as it isn't a callable attribute of "
+                "%s (%s)." % (name, obj, method)
+            )
+        _wrapper = _multi_decorate(decorator, method)
+        setattr(obj, name, _wrapper)
+        return obj
+
+    if not hasattr(decorator, '__iter__'):
+        update_wrapper(_dec, decorator, assigned=('__name__', '__module__'))
+    obj = decorator if hasattr(decorator, '__name__') else decorator.__class__
+    _dec.__name__ = 'method_decorator(%s)' % obj.__name__
+    return _dec</patched>
+```
+
+This patch addresses the issue by ensuring that if the object being decorated is a `partial` object, it manually sets the `__name__` and `__module__` attributes from the underlying function to the `partial` object before proceeding with the decoration. This should prevent the `AttributeError` when these attributes are accessed later. Additionally, the `update_wrapper` function is modified to explicitly assign `__name__` and `__module__` attributes, ensuring that decorators that rely on these attributes can function correctly even when applied to `partial` objects.

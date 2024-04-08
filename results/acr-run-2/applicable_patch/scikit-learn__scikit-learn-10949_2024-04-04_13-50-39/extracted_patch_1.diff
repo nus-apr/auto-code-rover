@@ -1,0 +1,23 @@
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index fe1f7236e..5c224c3b2 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -547,8 +547,16 @@ def check_array(array, accept_sparse=False, accept_large_sparse=True,
+                 FutureWarning)
+ 
+         # make sure we actually converted to numeric:
+-        if dtype_numeric and array.dtype.kind == "O":
+-            array = array.astype(np.float64)
++        if dtype_numeric:
++            if hasattr(array, "dtypes") and any(dtype.kind == "O" for dtype in array.dtypes):
++                # This is a DataFrame with object type, convert to float and warn
++                array = array.astype(np.float64)
++                if warn_on_dtype:
++                    msg = ("Data with input dtype object was converted to float64.")
++                    warnings.warn(msg, DataConversionWarning)
++            elif array.dtype.kind == "O":
++                # This is a numpy array with object type, convert to float
++                array = array.astype(np.float64)
+         if not allow_nd and array.ndim >= 3:
+             raise ValueError("Found array with dim %d. %s expected <= 2."
+                              % (array.ndim, estimator_name))

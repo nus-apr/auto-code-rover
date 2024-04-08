@@ -1,0 +1,14 @@
+# modification 1
+```python
+<file>lib/matplotlib/axes/_base.py</file>
+<original>        return self.xaxis._set_lim(left, right, emit=emit, auto=auto)</original>
+<patched>        result = self.xaxis._set_lim(left, right, emit=emit, auto=auto)
+        if emit:
+            # Emit 'xlim_changed' for shared axes
+            for other in self._shared_x_axes.get_siblings(self):
+                if other is not self:
+                    other.callbacks.process('xlim_changed', other)
+        return result</patched>
+```
+
+This patch modifies the `set_xlim` method in the `_AxesBase` class to ensure that when the x-axis limits are set and the `emit` parameter is `True`, the `xlim_changed` event is also emitted for all axes that share the x-axis with the current one. This addresses the issue where `xlim_changed` callbacks were not being called for shared axes when the change was induced by a shared axis. The patch carefully places the new code after the call to `self.xaxis._set_lim` to ensure that the limits have been updated before emitting the event to the shared axes. This approach avoids recursion by not directly setting the limits on the shared axes but instead directly invoking the callback processing for `xlim_changed`, ensuring that any registered observers are notified of the change.

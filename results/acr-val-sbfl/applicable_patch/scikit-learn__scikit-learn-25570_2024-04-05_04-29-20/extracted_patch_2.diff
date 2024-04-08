@@ -1,0 +1,34 @@
+diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
+index a26145117..3eb61f318 100644
+--- a/sklearn/compose/_column_transformer.py
++++ b/sklearn/compose/_column_transformer.py
+@@ -859,17 +859,22 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+                 # verbose_feature_names_out. Here we prefix the feature names if
+                 # verbose_feature_names_out=True.
+ 
+-                if not self.verbose_feature_names_out:
++                if not self.verbose_feature_names_out or not Xs:
+                     return output
+ 
+                 transformer_names = [
+-                    t[0] for t in self._iter(fitted=True, replace_strings=True)
++                    t[0] for t in self._iter(fitted=True, replace_strings=True) if hasattr(t[1], 'get_feature_names_out')
+                 ]
+-                feature_names_outs = [X.columns for X in Xs]
+-                names_out = self._add_prefix_for_feature_names_out(
+-                    list(zip(transformer_names, feature_names_outs))
+-                )
+-                output.columns = names_out
++                feature_names_outs = [X.columns for X in Xs if hasattr(X, 'columns') and not X.empty]
++                # Proceed only if there are feature names to process
++                if feature_names_outs:
++                    names_out = self._add_prefix_for_feature_names_out(
++                        list(zip(transformer_names, feature_names_outs))
++                    )
++                    output.columns = names_out
++                else:
++                    # If no features are present, avoid setting columns which can lead to errors
++                    output = output.iloc[:, :0]  # Return an empty DataFrame with the correct index
+                 return output
+ 
+             return np.hstack(Xs)

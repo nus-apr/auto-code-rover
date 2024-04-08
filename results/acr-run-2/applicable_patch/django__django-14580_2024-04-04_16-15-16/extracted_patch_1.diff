@@ -1,0 +1,26 @@
+diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
+index 4918261fb0..9d08c1f670 100644
+--- a/django/db/migrations/writer.py
++++ b/django/db/migrations/writer.py
+@@ -164,11 +164,17 @@ class MigrationWriter:
+ 
+         # django.db.migrations is always used, but models import may not be.
+         # If models import exists, merge it with migrations import.
+-        if "from django.db import models" in imports:
+-            imports.discard("from django.db import models")
+-            imports.add("from django.db import migrations, models")
++        # Ensure "models" is always imported if any operation or field requires it
++        # This is a simplistic approach; more sophisticated logic might be needed based on actual dependencies
++        needs_models_import = any(
++            "models." in operation_string for operation_string in operations
++        ) or "models." in "\n".join(dependencies)
++        if needs_models_import:
++            if "from django.db import models" not in imports and "from django.db import migrations, models" not in imports:
++                imports.add("from django.db import migrations, models")
+         else:
+-            imports.add("from django.db import migrations")
++            if "from django.db import models" not in imports:
++                imports.add("from django.db import migrations")
+ 
+         # Sort imports by the package / module to be imported (the part after
+         # "from" in "from ... import ..." or after "import" in "import ...").

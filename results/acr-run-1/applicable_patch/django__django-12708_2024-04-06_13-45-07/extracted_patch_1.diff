@@ -1,0 +1,32 @@
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 61f88401ab..119d523f2d 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -407,12 +407,21 @@ class BaseDatabaseSchemaEditor:
+             model, columns, exclude=meta_constraint_names | meta_index_names,
+             **constraint_kwargs
+         )
+-        if len(constraint_names) != 1:
+-            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+-                len(constraint_names),
+-                model._meta.db_table,
+-                ", ".join(columns),
+-            ))
++        # Allow deletion if there's exactly one index and one unique constraint on the same fields
++        if len(constraint_names) > 1:
++            unique_constraints = self._constraint_names(
++                model, columns, type="UNIQUE", exclude=meta_constraint_names | meta_index_names,
++                **constraint_kwargs
++            )
++            if len(unique_constraints) == 1 and (len(constraint_names) - len(unique_constraints)) == 1:
++                # Assuming the other constraint is the index to be deleted
++                constraint_names = list(set(constraint_names) - set(unique_constraints))
++            else:
++                raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
++                    len(constraint_names),
++                    model._meta.db_table,
++                    ", ".join(columns),
++                ))
+         self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+ 
+     def alter_db_table(self, model, old_db_table, new_db_table):

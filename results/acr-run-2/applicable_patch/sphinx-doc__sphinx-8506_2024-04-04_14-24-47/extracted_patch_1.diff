@@ -1,0 +1,42 @@
+diff --git a/sphinx/domains/std.py b/sphinx/domains/std.py
+index c87217c56..a9d1d834c 100644
+--- a/sphinx/domains/std.py
++++ b/sphinx/domains/std.py
+@@ -42,8 +42,8 @@ if False:
+ logger = logging.getLogger(__name__)
+ 
+ 
+-# RE for option descriptions
+-option_desc_re = re.compile(r'((?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')
++# RE for option descriptions, updated to include options starting with '['
++option_desc_re = re.compile(r'((?:\[)?(?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')
+ # RE for grammar tokens
+ token_re = re.compile(r'`(\w+)`', re.U)
+ 
+@@ -191,11 +191,21 @@ class Cmdoption(ObjectDescription):
+             potential_option = potential_option.strip()
+             m = option_desc_re.match(potential_option)
+             if not m:
+-                logger.warning(__('Malformed option description %r, should '
+-                                  'look like "opt", "-opt args", "--opt args", '
+-                                  '"/opt args" or "+opt args"'), potential_option,
+-                               location=signode)
+-                continue
++                # Enhanced error handling to provide more detailed feedback
++                # and to allow certain patterns that do not strictly match but are valid
++                if '[' in potential_option and ']' in potential_option:
++                    # Handle specific cases like '[enable=]PATTERN' more gracefully
++                    optname, args = potential_option.split('=', 1) if '=' in potential_option else (potential_option, '')
++                    args = ' ' + args if args else args
++                else:
++                    logger.warning(__('Malformed option description %r, should '
++                                      'look like "opt", "-opt args", "--opt args", '
++                                      '"/opt args" or "+opt args"'), potential_option,
++                                   location=signode)
++                    continue
++                signode += addnodes.desc_addname(', ', ', ')
++                signode += addnodes.desc_name(optname, optname)
++                signode += addnodes.desc_addname(args, args)
+             optname, args = m.groups()
+             if count:
+                 signode += addnodes.desc_addname(', ', ', ')

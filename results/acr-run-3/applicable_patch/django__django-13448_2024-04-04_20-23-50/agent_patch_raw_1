@@ -1,0 +1,50 @@
+# modification 1
+```python
+<file>django/db/backends/base/creation.py</file>
+<original>if self.connection.settings_dict['TEST']['MIGRATE']:
+    # We report migrate messages at one level lower than that
+    # requested. This ensures we don't get flooded with messages during
+    # testing (unless you really ask to be flooded).
+    call_command(
+        'migrate',
+        verbosity=max(verbosity - 1, 0),
+        interactive=False,
+        database=self.connection.alias,
+        run_syncdb=True,
+    )</original>
+<patched>if self.connection.settings_dict['TEST'].get('MIGRATE', True):
+    # We report migrate messages at one level lower than that
+    # requested. This ensures we don't get flooded with messages during
+    # testing (unless you really ask to be flooded).
+    call_command(
+        'migrate',
+        verbosity=max(verbosity - 1, 0),
+        interactive=False,
+        database=self.connection.alias,
+        run_syncdb=True,
+    )
+else:
+    # When MIGRATE is False, ensure basic initial setup is done for the database, 
+    # which is required for the test cases to run without actual migrations.
+    call_command(
+        'migrate',
+        verbosity=max(verbosity - 1, 0),
+        interactive=False,
+        database=self.connection.alias,
+        run_syncdb=True,
+        skip=['auth', 'contenttypes', 'sessions']
+    )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/backends/base/creation.py</file>
+<original>if serialize:
+    self.connection._test_serialized_contents = self.serialize_db_to_string()</original>
+<patched>if serialize and self.connection.settings_dict['TEST'].get('MIGRATE', True):
+    # Only serialize database contents if migrations are not skipped.
+    # This avoids serialization errors when certain tables are missing due to skipped migrations.
+    self.connection._test_serialized_contents = self.serialize_db_to_string()</patched>
+```
+
+These modifications aim to address the issue by ensuring that when `MIGRATE` is set to `False`, the system still performs a minimal set of migrations necessary for Django's core functionality. This is crucial for tests that rely on models from `auth`, `contenttypes`, and `sessions`. Additionally, it conditionally skips the serialization step when migrations are skipped, preventing errors related to missing tables. This approach maintains the performance benefits of skipping migrations while ensuring the database is in a usable state for tests.

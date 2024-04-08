@@ -1,0 +1,30 @@
+Understanding the feedback, it's clear that the previous patches did not accurately address the issue at hand, particularly concerning how mask propagation is handled when one of the operands does not have a mask. Given the complexity of the issue, a more nuanced approach is required to ensure that mask handling during arithmetic operations behaves as expected, especially under conditions where `handle_mask=np.bitwise_or` is specified and one operand lacks a mask.
+
+Upon reevaluation, the correct approach should not involve artificially creating masks where none exist, as this could lead to incorrect assumptions about the data. Instead, the focus should be on correctly handling the case where one operand's mask is `None` within the arithmetic operation itself, ensuring that the existing mask is propagated or that the operation proceeds without error if a mask is not applicable.
+
+# modification 1
+```python
+<file>astropy/nddata/mixins/ndarithmetic.py</file>
+<original>result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)</original>
+<patched># Modify the handling of the mask during arithmetic operations, especially when 'handle_mask' is involved.
+# Check if 'handle_mask' is specified in kwargs and if it points to np.bitwise_or or a similar function that requires both operands to have masks.
+if 'handle_mask' in kwargs and callable(kwargs['handle_mask']):
+    # Check if either operand does not have a mask, and if so, adjust the handling.
+    mask1 = getattr(operand, 'mask', None)
+    mask2 = getattr(operand2, 'mask', None)
+    
+    if mask1 is None or mask2 is None:
+        # If either mask is None, the operation should not fail. Instead, use the mask that is not None, or default to no mask if both are None.
+        effective_mask = mask1 if mask1 is not None else mask2
+        if effective_mask is None:
+            # If both masks are None, effectively there's no mask to handle.
+            kwargs['handle_mask'] = lambda x, y: None
+        else:
+            # If one mask exists, use it directly without attempting a bitwise operation.
+            kwargs['handle_mask'] = lambda x, y: effective_mask
+
+# Proceed with the arithmetic operation as originally intended.
+result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)</patched>
+```
+
+This modification aims to directly address the issue by adjusting the `handle_mask` function when one of the operands does not have a mask. Instead of attempting to perform a bitwise operation with a `None` mask, which leads to a `TypeError`, this approach checks the masks of both operands before the arithmetic operation. If one mask is `None`, the `handle_mask` function is dynamically adjusted to either use the existing mask directly or default to no mask if both are `None`. This ensures that the arithmetic operation can proceed without encountering errors related to mask handling, specifically addressing the scenario described in the issue.

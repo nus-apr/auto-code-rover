@@ -1,0 +1,51 @@
+Based on the analysis and the issue described, the problem seems to arise from how `ModelMultipleChoiceField`'s `clean` method handles querysets combined using `union()`, especially when no selections are made. The method's current implementation does not account for the possibility that a `union()` queryset might behave differently from regular querysets when it comes to evaluating empty selections.
+
+Here's a proposed patch to address this issue:
+
+# modification 1
+```python
+<file>django/forms/models.py</file>
+<original>    def clean(self, value):
+        value = self.prepare_value(value)
+        if self.required and not value:
+            raise ValidationError(self.error_messages['required'], code='required')
+        elif not self.required and not value:
+            return self.queryset.none()
+        if not isinstance(value, (list, tuple)):
+            raise ValidationError(
+                self.error_messages['invalid_list'],
+                code='invalid_list',
+            )
+        qs = self._check_values(value)
+        # Since this overrides the inherited ModelChoiceField.clean
+        # we run custom validators here
+        self.run_validators(value)
+        return qs
+</original>
+<patched>    def clean(self, value):
+        value = self.prepare_value(value)
+        if self.required and not value:
+            raise ValidationError(self.error_messages['required'], code='required')
+        elif not self.required and not value:
+            # Explicitly handle union() querysets by evaluating them to list
+            # This ensures that an empty form submission results in no objects being added
+            if hasattr(self.queryset, 'union'):
+                return self.queryset.model.objects.none()
+            else:
+                return self.queryset.none()
+        if not isinstance(value, (list, tuple)):
+            raise ValidationError(
+                self.error_messages['invalid_list'],
+                code='invalid_list',
+            )
+        qs = self._check_values(value)
+        # Since this overrides the inherited ModelChoiceField.clean
+        # we run custom validators here
+        self.run_validators(value)
+        return qs
+</patched>
+```
+
+This patch adds a check to handle querysets resulting from `union()` operations differently by ensuring that an empty form submission leads to no objects being added, aligning with the expected behavior. The use of `self.queryset.model.objects.none()` ensures that we return an empty queryset of the appropriate model, even when dealing with combined querysets.
+
+Please note, this patch is hypothetical and should be thoroughly tested in a development environment before being applied to a production system. It's also based on the assumption that the `union()` method affects queryset evaluation in a way that's not fully compatible with `ModelMultipleChoiceField`'s existing logic. Further investigation and testing might reveal additional nuances or alternative approaches to resolving the issue.

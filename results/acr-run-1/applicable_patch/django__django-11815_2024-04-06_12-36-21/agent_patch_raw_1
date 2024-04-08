@@ -1,0 +1,23 @@
+Given the analysis and the identified location of the issue within the Django project, here's a proposed patch for the `EnumSerializer.serialize` method in the `django/db/migrations/serializer.py` file. This patch aims to modify the serialization process to use the Enum member's name instead of its value, addressing the issue described.
+
+# modification 1
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        v_string, v_imports = serializer_factory(self.value.value).serialize()
+        imports = {'import %s' % module, *v_imports}
+        return "%s.%s(%s)" % (module, enum_class.__name__, v_string), imports
+</original>
+<patched>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        # Change from serializing the value to serializing the name of the Enum member
+        member_name = self.value.name
+        imports = {'import %s' % module}
+        return "%s.%s.%s" % (module, enum_class.__name__, member_name), imports
+</patched>
+```
+
+This modification changes the serialization logic within the `EnumSerializer.serialize` method. Instead of serializing the Enum's value (`self.value.value`), it now serializes the Enum member's name (`self.value.name`). This approach ensures that migrations reference the Enum member by name, making the migrations robust against changes in the Enum values due to translations or other modifications.

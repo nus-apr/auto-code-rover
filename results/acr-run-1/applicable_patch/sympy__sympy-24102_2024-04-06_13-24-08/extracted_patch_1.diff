@@ -1,0 +1,35 @@
+diff --git a/sympy/parsing/mathematica.py b/sympy/parsing/mathematica.py
+index 7ea14ce33a..288e830403 100644
+--- a/sympy/parsing/mathematica.py
++++ b/sympy/parsing/mathematica.py
+@@ -620,7 +620,11 @@ def _get_tokenizer(self):
+         return self._regex_tokenizer
+ 
+     def _from_mathematica_to_tokens(self, code: str):
++        import re
+         tokenizer = self._get_tokenizer()
++        # Update the tokenizer regular expression to include non-ASCII characters.
++        # Assuming `_get_tokenizer` returns a regex pattern, we add support for Unicode letters.
++        self._regex_tokenizer = re.compile(r'[\w\W]', re.UNICODE)
+ 
+         # Find strings:
+         code_splits: List[typing.Union[str, list]] = []
+@@ -636,7 +640,7 @@ def _from_mathematica_to_tokens(self, code: str):
+             string_end = string_start + match_end.start() + 1
+             if string_start > 0:
+                 code_splits.append(code[:string_start])
+-            code_splits.append(["_Str", code[string_start+1:string_end].replace('\\"', '"')])
++            code_splits.append(["_Str", code[string_start+1:string_end].replace('\\"', '"').encode('utf-8').decode('unicode_escape')])
+             code = code[string_end+1:]
+ 
+         # Remove comments:
+@@ -1067,7 +1071,8 @@ def recurse(expr):
+                     head = self._node_conversions.get(expr[0], Function(expr[0]))
+                 return head(*list(recurse(arg) for arg in expr[1:]))
+             else:
+-                return self._atom_conversions.get(expr, sympify(expr))
++                from sympy import Symbol
++                return self._atom_conversions.get(expr, Symbol(expr) if expr.isalpha() else sympify(expr))
+ 
+         return recurse(full_form_list)
+ 

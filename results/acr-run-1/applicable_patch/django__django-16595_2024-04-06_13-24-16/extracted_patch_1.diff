@@ -1,0 +1,57 @@
+diff --git a/django/db/migrations/operations/fields.py b/django/db/migrations/operations/fields.py
+index cd3aab43ad..12465411ad 100644
+--- a/django/db/migrations/operations/fields.py
++++ b/django/db/migrations/operations/fields.py
+@@ -247,24 +247,35 @@ class AlterField(FieldOperation):
+         return "alter_%s_%s" % (self.model_name_lower, self.name_lower)
+ 
+     def reduce(self, operation, app_label):
+-        if isinstance(operation, RemoveField) and self.is_same_field_operation(
+-            operation
+-        ):
+-            return [operation]
+-        elif (
+-            isinstance(operation, RenameField)
+-            and self.is_same_field_operation(operation)
+-            and self.field.db_column is None
+-        ):
+-            return [
+-                operation,
+-                AlterField(
++            if isinstance(operation, RemoveField) and self.is_same_field_operation(
++                operation
++            ):
++                return [operation]
++            elif (
++                isinstance(operation, RenameField)
++                and self.is_same_field_operation(operation)
++                and self.field.db_column is None
++            ):
++                return [
++                    operation,
++                    AlterField(
++                        model_name=self.model_name,
++                        name=operation.new_name,
++                        field=self.field,
++                    ),
++                ]
++            # Added logic to handle multiple AlterField operations
++            elif isinstance(operation, AlterField) and self.is_same_field_operation(operation):
++                # Combine the attributes of the two AlterField operations
++                new_attributes = {**self.field.deconstruct()[3], **operation.field.deconstruct()[3]}
++                # Create a new field with combined attributes
++                new_field = self.field.__class__(**new_attributes)
++                return [AlterField(
+                     model_name=self.model_name,
+-                    name=operation.new_name,
+-                    field=self.field,
+-                ),
+-            ]
+-        return super().reduce(operation, app_label)
++                    name=self.name,
++                    field=new_field,
++                )]
++            return super().reduce(operation, app_label)
+ 
+ 
+ class RenameField(FieldOperation):

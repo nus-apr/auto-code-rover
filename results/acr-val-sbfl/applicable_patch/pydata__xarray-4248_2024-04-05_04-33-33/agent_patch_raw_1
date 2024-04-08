@@ -1,0 +1,55 @@
+To address the feature request of showing units in the dataset overview, we need to modify the way datasets and variables are represented. This involves adjusting the `formatting` module to include units from the variable's attributes in its representation and ensuring the dataset's `__repr__` method leverages this new formatting. Since the specific implementation details for incorporating units into the variable's representation are not provided in the retrieved context, the following patch is a conceptual approach based on the understanding of the `xarray` library's structure and the feature request.
+
+# modification 1
+```python
+<file>xarray/core/formatting.py</file>
+<original>def inline_variable_array_repr(var, max_width):
+    """Build a one-line summary of a variable's data."""
+    if var._in_memory:
+        return format_array_flat(var, max_width)
+    elif isinstance(var._data, dask_array_type):
+        return inline_dask_repr(var.data)
+    elif isinstance(var._data, sparse_array_type):
+        return inline_sparse_repr(var.data)
+    elif hasattr(var._data, "__array_function__"):
+        return maybe_truncate(repr(var._data).replace("\n", " "), max_width)
+    else:
+        # internal xarray array type
+        return "..."
+</original>
+<patched>def inline_variable_array_repr(var, max_width):
+    """Build a one-line summary of a variable's data, including units if available."""
+    summary = ""
+    if var._in_memory:
+        summary = format_array_flat(var, max_width)
+    elif isinstance(var._data, dask_array_type):
+        summary = inline_dask_repr(var.data)
+    elif isinstance(var._data, sparse_array_type):
+        summary = inline_sparse_repr(var.data)
+    elif hasattr(var._data, "__array_function__"):
+        summary = maybe_truncate(repr(var._data).replace("\n", " "), max_width)
+    else:
+        # internal xarray array type
+        summary = "..."
+    # Append units to summary if available
+    units = var.attrs.get('units', None)
+    if units:
+        summary += f", in {units}"
+    return summary
+</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/dataset.py</file>
+<original>def __repr__(self) -> str:
+        return formatting.dataset_repr(self)
+</original>
+<patched>def __repr__(self) -> str:
+        # No change in this method itself, but it relies on the updated formatting logic
+        # to include units in the dataset's representation.
+        return formatting.dataset_repr(self)
+</patched>
+```
+
+This patch modifies the `inline_variable_array_repr` function in `formatting.py` to append units to the variable's summary if they are available in the variable's attributes. The `__repr__` method in `Dataset` class does not need modification itself but will benefit from the updated formatting logic to include units in the dataset's representation. This approach assumes that units are stored in the variable's attributes under the key `'units'`, which is a common convention in scientific datasets.

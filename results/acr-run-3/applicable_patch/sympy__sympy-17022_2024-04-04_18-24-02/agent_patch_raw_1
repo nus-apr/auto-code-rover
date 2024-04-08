@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>sympy/printing/pycode.py</file>
+<original>def _print_MatrixBase(self, expr):
+    func = self.known_functions.get(expr.__class__.__name__, None)
+    if func is None:
+        func = self._module_format('numpy.array')
+    return "%s(%s)" % (func, self._print(expr.tolist()))</original>
+<patched>def _print_MatrixBase(self, expr):
+    from sympy.matrices.expressions.identity import Identity
+    if isinstance(expr, Identity):
+        return "{0}.eye({1})".format(self._module_format('numpy'), expr.shape[0])
+    func = self.known_functions.get(expr.__class__.__name__, None)
+    if func is None:
+        func = self._module_format('numpy.array')
+    return "%s(%s)" % (func, self._print(expr.tolist()))</patched>
+```
+
+# modification 2
+```python
+<file>sympy/printing/pycode.py</file>
+<original>def _print_seq(self, seq):
+    "General sequence printer: converts to tuple"
+    # Print tuples here instead of lists because numba supports
+    #     tuples in nopython mode.
+    delimiter=', '
+    return '({},)'.format(delimiter.join(self._print(item) for item in seq))</original>
+<patched>def _print_seq(self, seq):
+    "General sequence printer: converts to tuple"
+    # Print tuples here instead of lists because numba supports
+    #     tuples in nopython mode.
+    from sympy.matrices.expressions.identity import Identity
+    if isinstance(seq, Identity):
+        return "{0}.eye({1})".format(self._module_format('numpy'), seq.shape[0])
+    delimiter=', '
+    return '({},)'.format(delimiter.join(self._print(item) for item in seq))</patched>
+```
+
+This patch addresses the issue by explicitly handling the `Identity` matrix in the `NumPyPrinter` class. When an `Identity` matrix is encountered, it generates the appropriate NumPy code to create an identity matrix using `numpy.eye`. This solution ensures that `Identity` matrices are correctly interpreted and translated into NumPy code, avoiding the misinterpretation as a complex number.

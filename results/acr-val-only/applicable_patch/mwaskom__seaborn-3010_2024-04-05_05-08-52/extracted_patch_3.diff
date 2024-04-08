@@ -1,0 +1,30 @@
+diff --git a/seaborn/_stats/regression.py b/seaborn/_stats/regression.py
+index 7b7ddc8d..b5a2b48d 100644
+--- a/seaborn/_stats/regression.py
++++ b/seaborn/_stats/regression.py
+@@ -20,13 +20,22 @@ class PolyFit(Stat):
+     gridsize: int = 100
+ 
+     def _fit_predict(self, data):
++        import pandas as pd
++        import numpy as np
+ 
+         x = data["x"]
+         y = data["y"]
+-        if x.nunique() <= self.order:
+-            # TODO warn?
+-            xx = yy = []
++        # Filter out rows where either x or y is NaN (which could be the result of None values in the input)
++        valid_data = pd.DataFrame({"x": x, "y": y}).dropna()
++        x = valid_data["x"]
++        y = valid_data["y"]
++
++        if len(x) <= self.order or len(y) <= self.order:
++            # If there are not enough valid data points after filtering, return empty arrays
++            # This also addresses the case where x or y might be empty after filtering
++            xx = yy = np.array([])
+         else:
++            # Proceed with polynomial fitting on cleaned data
+             p = np.polyfit(x, y, self.order)
+             xx = np.linspace(x.min(), x.max(), self.gridsize)
+             yy = np.polyval(p, xx)

@@ -1,0 +1,41 @@
+{
+    "task_id": "django__django-16873",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/django__django/setup_django__django__5.0",
+        "env_name": "setup_django__django__5.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 template_tests.filter_tests.test_join"
+    },
+    "task_info": {
+        "instance_id": "django__django-16873",
+        "base_commit": "fce90950bef348803fa7cc3e6bc65f4bce429b82",
+        "hints_text": "Off-topic: As far as I'm aware it's easier to follow the expected output in assertions instead of a series of function calls, e.g. self.assertEqual(output, \"<p>Hello World!</p><br/>beta & me<br/><script>Hi!</script>\")",
+        "created_at": "2023-05-19T09:38:35Z",
+        "test_patch": "diff --git a/tests/template_tests/filter_tests/test_join.py b/tests/template_tests/filter_tests/test_join.py\n--- a/tests/template_tests/filter_tests/test_join.py\n+++ b/tests/template_tests/filter_tests/test_join.py\n@@ -55,6 +55,22 @@ def test_join08(self):\n         )\n         self.assertEqual(output, \"alpha & beta &amp; me\")\n \n+    @setup(\n+        {\n+            \"join_autoescape_off\": (\n+                \"{% autoescape off %}\"\n+                \"{{ var_list|join:var_joiner }}\"\n+                \"{% endautoescape %}\"\n+            ),\n+        }\n+    )\n+    def test_join_autoescape_off(self):\n+        var_list = [\"<p>Hello World!</p>\", \"beta & me\", \"<script>Hi!</script>\"]\n+        context = {\"var_list\": var_list, \"var_joiner\": \"<br/>\"}\n+        output = self.engine.render_to_string(\"join_autoescape_off\", context)\n+        expected_result = \"<p>Hello World!</p><br/>beta & me<br/><script>Hi!</script>\"\n+        self.assertEqual(output, expected_result)\n+\n \n class FunctionTests(SimpleTestCase):\n     def test_list(self):\n@@ -69,7 +85,7 @@ def test_autoescape(self):\n     def test_autoescape_off(self):\n         self.assertEqual(\n             join([\"<a>\", \"<img>\", \"</a>\"], \"<br>\", autoescape=False),\n-            \"<a>&lt;br&gt;<img>&lt;br&gt;</a>\",\n+            \"<a><br><img><br></a>\",\n         )\n \n     def test_noniterable_arg(self):\n",
+        "repo": "django/django",
+        "problem_statement": "Template filter `join` should not escape the joining string if `autoescape` is `off`\nDescription\n\t\nConsider the following template code snippet:\n{% autoescape off %}\n{{ some_list|join:some_var }}\n{% endautoescape %}\nin this case, the items inside some_list will not be escaped (matching the expected behavior) but some_var will forcibly be escaped. From the docs for autoescape or join I don't think this is expected behavior.\nThe following testcase illustrates what I think is a bug in the join filter (run inside the template_tests/filter_tests folder):\nfrom django.template.defaultfilters import escape\nfrom django.test import SimpleTestCase\nfrom ..utils import setup\nclass RegressionTests(SimpleTestCase):\n\t@setup({\"join01\": '{{ some_list|join:some_var }}'})\n\tdef test_join01(self):\n\t\tsome_list = [\"<p>Hello World!</p>\", \"beta & me\", \"<script>Hi!</script>\"]\n\t\tsome_var = \"<br/>\"\n\t\toutput = self.engine.render_to_string(\"join01\", {\"some_list\": some_list, \"some_var\": some_var})\n\t\tself.assertEqual(output, escape(some_var.join(some_list)))\n\t@setup({\"join02\": '{% autoescape off %}{{ some_list|join:some_var }}{% endautoescape %}'})\n\tdef test_join02(self):\n\t\tsome_list = [\"<p>Hello World!</p>\", \"beta & me\", \"<script>Hi!</script>\"]\n\t\tsome_var = \"<br/>\"\n\t\toutput = self.engine.render_to_string(\"join02\", {\"some_list\": some_list, \"some_var\": some_var})\n\t\tself.assertEqual(output, some_var.join(some_list))\nResult of this run in current main is:\n.F\n======================================================================\nFAIL: test_join02 (template_tests.filter_tests.test_regression.RegressionTests.test_join02)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n File \"/home/nessita/fellowship/django/django/test/utils.py\", line 443, in inner\n\treturn func(*args, **kwargs)\n\t\t ^^^^^^^^^^^^^^^^^^^^^\n File \"/home/nessita/fellowship/django/tests/template_tests/utils.py\", line 58, in inner\n\tfunc(self)\n File \"/home/nessita/fellowship/django/tests/template_tests/filter_tests/test_regression.py\", line 21, in test_join02\n\tself.assertEqual(output, some_var.join(some_list))\nAssertionError: '<p>Hello World!</p>&lt;br/&gt;beta & me&lt;br/&gt;<script>Hi!</script>' != '<p>Hello World!</p><br/>beta & me<br/><script>Hi!</script>'\n----------------------------------------------------------------------\nRan 2 tests in 0.007s\n",
+        "version": "5.0",
+        "FAIL_TO_PASS": [
+            "test_autoescape_off (template_tests.filter_tests.test_join.FunctionTests.test_autoescape_off)",
+            "test_join_autoescape_off (template_tests.filter_tests.test_join.JoinTests.test_join_autoescape_off)"
+        ],
+        "PASS_TO_PASS": [
+            "test_autoescape (template_tests.filter_tests.test_join.FunctionTests.test_autoescape)",
+            "test_join01 (template_tests.filter_tests.test_join.JoinTests.test_join01)",
+            "test_join02 (template_tests.filter_tests.test_join.JoinTests.test_join02)",
+            "test_join03 (template_tests.filter_tests.test_join.JoinTests.test_join03)",
+            "test_join04 (template_tests.filter_tests.test_join.JoinTests.test_join04)",
+            "test_join05 (template_tests.filter_tests.test_join.JoinTests.test_join05)",
+            "test_join06 (template_tests.filter_tests.test_join.JoinTests.test_join06)",
+            "test_join07 (template_tests.filter_tests.test_join.JoinTests.test_join07)",
+            "test_join08 (template_tests.filter_tests.test_join.JoinTests.test_join08)",
+            "test_list (template_tests.filter_tests.test_join.FunctionTests.test_list)",
+            "test_noniterable_arg (template_tests.filter_tests.test_join.FunctionTests.test_noniterable_arg)",
+            "test_noniterable_arg_autoescape_off (template_tests.filter_tests.test_join.FunctionTests.test_noniterable_arg_autoescape_off)"
+        ],
+        "environment_setup_commit": "4a72da71001f154ea60906a2f74898d32b7322a7",
+        "patch": "diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py\n--- a/django/template/defaultfilters.py\n+++ b/django/template/defaultfilters.py\n@@ -586,8 +586,9 @@ def join(value, arg, autoescape=True):\n     \"\"\"Join a list with a string, like Python's ``str.join(list)``.\"\"\"\n     try:\n         if autoescape:\n-            value = [conditional_escape(v) for v in value]\n-        data = conditional_escape(arg).join(value)\n+            data = conditional_escape(arg).join([conditional_escape(v) for v in value])\n+        else:\n+            data = arg.join(value)\n     except TypeError:  # Fail silently if arg isn't iterable.\n         return value\n     return mark_safe(data)\n",
+        "pr_link": "https://github.com/django/django/pull/16873"
+    }
+}

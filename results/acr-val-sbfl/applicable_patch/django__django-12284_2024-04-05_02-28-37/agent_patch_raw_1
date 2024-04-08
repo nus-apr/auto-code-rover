@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def _get_flatchoices(self):
+        """Flattened version of choices tuple."""
+        if self.choices is None:
+            return []
+        flat = []
+        for choice, value in self.choices:
+            if isinstance(value, (list, tuple)):
+                flat.extend(value)
+            else:
+                flat.append((choice, value))
+        return flat</original>
+<patched>    def _get_flatchoices(self):
+        """Flattened version of choices tuple, including handling inherited choices."""
+        if self.choices is None:
+            # Attempt to retrieve inherited choices if direct choices are not defined
+            for base in self.model.__mro__[1:]:
+                base_field = getattr(base, self.name, None)
+                if base_field and getattr(base_field, 'choices', None) is not None:
+                    self.choices = base_field.choices
+                    break
+            if self.choices is None:
+                return []
+
+        flat = []
+        for choice, value in self.choices:
+            if isinstance(value, (list, tuple)):
+                flat.extend(value)
+            else:
+                flat.append((choice, value))
+        return flat</patched>
+```
+
+This patch modifies the `_get_flatchoices` method in the `Field` class to include handling for inherited choices. If the field's `choices` attribute is `None`, it now attempts to find and use choices defined on the same field in any of the base classes (inherited models). This approach leverages the model's method resolution order (`__mro__`) to find inherited choices, ensuring that `flatchoices` reflects all available choices, including those added or overridden in child models.

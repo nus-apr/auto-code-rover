@@ -1,0 +1,32 @@
+Since the issue arises from a naming conflict in the user's model and not from a bug in Django's codebase, the patch would involve changing the user's model definition to avoid using the name `filterable` for a field, as it conflicts with Django's internal mechanism. Here's how the patch for the user's model might look:
+
+# modification 1
+```python
+<file>models.py</file>
+<original>class ProductMetaDataType(models.Model):
+    label = models.CharField(max_length=255, unique=True, blank=False, null=False)
+    filterable = models.BooleanField(default=False, verbose_name=_("filterable"))
+    ...
+</original>
+<patched>class ProductMetaDataType(models.Model):
+    label = models.CharField(max_length=255, unique=True, blank=False, null=False)
+    is_filterable = models.BooleanField(default=False, verbose_name=_("filterable"))
+    ...
+</patched>
+```
+
+This modification renames the `filterable` field to `is_filterable` to avoid the naming conflict with Django's internal `check_filterable` method. This change should be reflected everywhere the `filterable` field is used, including in queries, forms, templates, and possibly migrations if the project is already deployed.
+
+It's important to note that if the project is already deployed, you'll also need to generate a new migration to reflect this change in the database schema. This can be done using Django's migration system with the following commands:
+
+1. Generate a new migration to rename the field:
+   ```shell
+   python manage.py makemigrations --name rename_filterable_field_in_productmetadatatype
+   ```
+
+2. Apply the migration to update the database schema:
+   ```shell
+   python manage.py migrate
+   ```
+
+Remember to update any code that references the `filterable` field to use the new `is_filterable` field name to ensure the application continues to function correctly after this change.

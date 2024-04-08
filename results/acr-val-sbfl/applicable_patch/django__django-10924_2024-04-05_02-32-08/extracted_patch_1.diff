@@ -1,0 +1,39 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 0c64748ccd..21f406f70a 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1663,10 +1663,21 @@ class FilePathField(Field):
+ 
+     def __init__(self, verbose_name=None, name=None, path='', match=None,
+                  recursive=False, allow_files=True, allow_folders=False, **kwargs):
+-        self.path, self.match, self.recursive = path, match, recursive
++        self.match, self.recursive = match, recursive
+         self.allow_files, self.allow_folders = allow_files, allow_folders
+         kwargs.setdefault('max_length', 100)
+         super().__init__(verbose_name, name, **kwargs)
++        self._path = path
++    
++    @property
++    def path(self):
++        if callable(self._path):
++            return self._path()
++        return self._path
++    
++    @path.setter
++    def path(self, value):
++        self._path = value
+ 
+     def check(self, **kwargs):
+         return [
+@@ -1708,8 +1719,10 @@ class FilePathField(Field):
+         return str(value)
+ 
+     def formfield(self, **kwargs):
++        # Ensure the path is resolved if it's callable before passing to formfield
++        resolved_path = self.path() if callable(self.path) else self.path
+         return super().formfield(**{
+-            'path': self.path,
++            'path': resolved_path,
+             'match': self.match,
+             'recursive': self.recursive,
+             'form_class': forms.FilePathField,

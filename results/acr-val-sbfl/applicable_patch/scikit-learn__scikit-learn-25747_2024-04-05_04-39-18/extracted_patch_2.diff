@@ -1,0 +1,29 @@
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..c0719aaf3 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -55,11 +55,22 @@ def _wrap_in_pandas_container(
+     if isinstance(data_to_wrap, pd.DataFrame):
+         if columns is not None:
+             data_to_wrap.columns = columns
+-        if index is not None:
++        # Adjust the index only if its length matches the number of rows in data_to_wrap
++        if index is not None and len(index) == len(data_to_wrap):
+             data_to_wrap.index = index
++        elif index is not None:
++            # Log a warning if the index length does not match, and do not set the index
++            warnings.warn("The provided index does not match the number of rows in the data. The index has not been set.", UserWarning)
+         return data_to_wrap
+ 
+-    return pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    # For ndarray, create a DataFrame. If index is provided and matches the data size, use it; otherwise, default index is used.
++    if index is not None and len(index) == len(data_to_wrap):
++        return pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    else:
++        if index is not None:
++            # Log a warning if the index length does not match, and proceed without setting the index
++            warnings.warn("The provided index does not match the number of rows in the data. A default index will be used.", UserWarning)
++        return pd.DataFrame(data_to_wrap, columns=columns)
+ 
+ 
+ def _get_output_config(method, estimator=None):

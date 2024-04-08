@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>
+    def __invert__(self):
+        clone = self.copy()
+        clone.negated = not self.negated
+        return clone
+</original>
+<patched>
+    def __invert__(self):
+        clone = self.copy()
+        clone.negated = not self.negated
+        return clone
+
+    def __rand__(self, other):
+        from django.db.models.query_utils import Q
+        if not isinstance(other, Q):
+            raise TypeError(f"Cannot combine Exists with {type(other)} using '&'.")
+        return other._combine(self, other.AND)
+</patched>
+```
+
+This patch adds a `__rand__` method to the `Exists` class in `django/db/models/expressions.py`. This method is necessary for handling cases where an `Exists` instance is on the right-hand side of an `&` operation with a `Q` instance. The method checks if the other operand is an instance of `Q` and, if so, delegates the combination operation to the `Q` instance's `_combine` method, ensuring commutativity of the `&` operation between `Q` and `Exists` instances. This solution assumes the presence of a `_combine` method in the `Q` class that can handle an `Exists` instance as the other operand, as indicated by the existing context.

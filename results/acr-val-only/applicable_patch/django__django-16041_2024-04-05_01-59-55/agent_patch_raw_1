@@ -1,0 +1,127 @@
+Given the context and the issue described, the patch will focus on ensuring that `empty_permitted` is either appropriately handled or ignored when initializing the `empty_form` to prevent the `KeyError` during rendering. Since the direct handling of `empty_form` wasn't found in the provided context, we'll focus on a speculative patch that could be applied to the formset initialization process, specifically within the `__init__` and `_construct_form` methods of `BaseModelFormSet`, to ensure `empty_permitted` does not cause issues.
+
+# modification 1
+```python
+<file>django/forms/models.py</file>
+<original>def __init__(
+        self,
+        data=None,
+        files=None,
+        auto_id="id_%s",
+        prefix=None,
+        queryset=None,
+        *,
+        initial=None,
+        **kwargs,
+    ):
+        self.queryset = queryset
+        self.initial_extra = initial
+        super().__init__(
+            **{
+                "data": data,
+                "files": files,
+                "auto_id": auto_id,
+                "prefix": prefix,
+                **kwargs,
+            }
+        )</original>
+<patched>def __init__(
+        self,
+        data=None,
+        files=None,
+        auto_id="id_%s",
+        prefix=None,
+        queryset=None,
+        *,
+        initial=None,
+        **kwargs,
+    ):
+        self.queryset = queryset
+        self.initial_extra = initial
+        # Remove 'empty_permitted' from kwargs if present before passing to super
+        kwargs.pop('empty_permitted', None)
+        super().__init__(
+            **{
+                "data": data,
+                "files": files,
+                "auto_id": auto_id,
+                "prefix": prefix,
+                **kwargs,
+            }
+        )</patched>
+```
+
+# modification 2
+```python
+<file>django/forms/models.py</file>
+<original>def _construct_form(self, i, **kwargs):
+        pk_required = i < self.initial_form_count()
+        if pk_required:
+            if self.is_bound:
+                pk_key = "%s-%s" % (self.add_prefix(i), self.model._meta.pk.name)
+                try:
+                    pk = self.data[pk_key]
+                except KeyError:
+                    # The primary key is missing. The user may have tampered
+                    # with POST data.
+                    pass
+                else:
+                    to_python = self._get_to_python(self.model._meta.pk)
+                    try:
+                        pk = to_python(pk)
+                    except ValidationError:
+                        # The primary key exists but is an invalid value. The
+                        # user may have tampered with POST data.
+                        pass
+                    else:
+                        kwargs["instance"] = self._existing_object(pk)
+            else:
+                kwargs["instance"] = self.get_queryset()[i]
+        elif self.initial_extra:
+            # Set initial values for extra forms
+            try:
+                kwargs["initial"] = self.initial_extra[i - self.initial_form_count()]
+            except IndexError:
+                pass
+        form = super()._construct_form(i, **kwargs)
+        if pk_required:
+            form.fields[self.model._meta.pk.name].required = True
+        return form</original>
+<patched>def _construct_form(self, i, **kwargs):
+        pk_required = i < self.initial_form_count()
+        if pk_required:
+            if self.is_bound:
+                pk_key = "%s-%s" % (self.add_prefix(i), self.model._meta.pk.name)
+                try:
+                    pk = self.data[pk_key]
+                except KeyError:
+                    # The primary key is missing. The user may have tampered
+                    # with POST data.
+                    pass
+                else:
+                    to_python = self._get_to_python(self.model._meta.pk)
+                    try:
+                        pk = to_python(pk)
+                    except ValidationError:
+                        # The primary key exists but is an invalid value. The
+                        # user may have tampered with POST data.
+                        pass
+                    else:
+                        kwargs["instance"] = self._existing_object(pk)
+            else:
+                kwargs["instance"] = self.get_queryset()[i]
+        elif self.initial_extra:
+            # Set initial values for extra forms
+            try:
+                kwargs["initial"] = self.initial_extra[i - self.initial_form_count()]
+            except IndexError:
+                pass
+        # Ensure 'empty_permitted' is not passed to individual form constructors
+        kwargs.pop('empty_permitted', None)
+        form = super()._construct_form(i, **kwargs)
+        if pk_required:
+            form.fields[self.model._meta.pk.name].required = True
+        return form</patched>
+```
+
+These modifications aim to prevent `empty_permitted` from causing issues by removing it from the keyword arguments (`kwargs`) before they are used in contexts where it might not be applicable or could cause errors, such as in the initialization of `empty_form`. This approach assumes that `empty_permitted` is not necessary for the correct functioning of `empty_form` and

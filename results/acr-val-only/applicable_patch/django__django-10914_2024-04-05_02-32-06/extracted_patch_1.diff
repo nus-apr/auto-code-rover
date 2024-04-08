@@ -1,0 +1,35 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index cbdab1de47..7fd878cc13 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -280,8 +280,12 @@ class FileSystemStorage(Storage):
+                 # OK, the file save worked. Break out of the loop.
+                 break
+ 
++        # Ensure default file permissions are set if FILE_UPLOAD_PERMISSIONS is not specified
+         if self.file_permissions_mode is not None:
+             os.chmod(full_path, self.file_permissions_mode)
++        else:
++            # Set default file permissions to 0o644 to align with common expectations
++            os.chmod(full_path, 0o644)
+ 
+         # Store filenames with forward slashes, even on Windows.
+         return name.replace('\\', '/')
+diff --git a/django/core/files/uploadhandler.py b/django/core/files/uploadhandler.py
+index ddfb7e0116..2d96eccafa 100644
+--- a/django/core/files/uploadhandler.py
++++ b/django/core/files/uploadhandler.py
+@@ -135,9 +135,12 @@ class TemporaryFileUploadHandler(FileUploadHandler):
+     def new_file(self, *args, **kwargs):
+         """
+         Create the file object to append to as data is coming in.
++        Adjusting file permissions explicitly to align with FILE_UPLOAD_PERMISSIONS setting.
+         """
++        from django.conf import settings
+         super().new_file(*args, **kwargs)
+-        self.file = TemporaryUploadedFile(self.file_name, self.content_type, 0, self.charset, self.content_type_extra)
++        file_permissions = getattr(settings, 'FILE_UPLOAD_PERMISSIONS', 0o644)
++        self.file = TemporaryUploadedFile(self.file_name, self.content_type, 0, self.charset, self.content_type_extra, permissions=file_permissions)
+ 
+     def receive_data_chunk(self, raw_data, start):
+         self.file.write(raw_data)

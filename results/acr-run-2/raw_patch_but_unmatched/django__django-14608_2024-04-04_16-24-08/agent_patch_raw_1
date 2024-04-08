@@ -1,0 +1,67 @@
+Given the constraints and the nature of the task, I'll provide a hypothetical patch based on the Django framework's typical structure and the details provided in the issue description. This patch aims to add a `nonform` CSS class to non-form errors in FormSets, similar to how non-field errors are handled in forms with the `nonfield` CSS class.
+
+Please note, the actual implementation might vary based on the current version of Django and its internal structure. This patch is conceptual and should be tested and adjusted as necessary.
+
+# modification 1
+```python
+<file>django/forms/formsets.py</file>
+<original>
+class BaseFormSet:
+    def non_form_errors(self):
+        # This method returns the formset's non-form errors.
+        return self.errors.get('__all__', [])
+</original>
+<patched>
+class BaseFormSet:
+    def non_form_errors(self):
+        # This method returns the formset's non-form errors.
+        # Modified to wrap non-form errors with the 'nonform' CSS class.
+        errors = self.errors.get('__all__', [])
+        if errors:
+            return ErrorList(errors, error_class='nonform')
+        return errors
+</patched>
+```
+
+# modification 2
+```python
+<file>django/forms/utils.py</file>
+<original>
+class ErrorList(UserList, list):
+    def __init__(self, initlist=None, error_class='errorlist'):
+        super().__init__(initlist)
+</original>
+<patched>
+class ErrorList(UserList, list):
+    def __init__(self, initlist=None, error_class='errorlist'):
+        # Allow initialization with a custom error_class for styling.
+        super().__init__(initlist)
+        self.error_class = error_class  # Store the error class for use in rendering methods.
+</patched>
+```
+
+# modification 3
+```python
+<file>django/forms/templates/django/forms/formsets/non_form_errors.html</file>
+<original>
+{% if formset.non_form_errors %}
+    <ul class="errorlist">
+        {% for error in formset.non_form_errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+</original>
+<patched>
+{% if formset.non_form_errors %}
+    <!-- Updated to use the dynamic error_class from the ErrorList instance -->
+    <ul class="{{ formset.non_form_errors.error_class }}">
+        {% for error in formset.non_form_errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+</patched>
+```
+
+These modifications aim to introduce a mechanism for handling non-form errors in FormSets with a specific CSS class (`nonform`), making it consistent with the handling of non-field errors in forms. The patch assumes the existence of certain methods and structures within Django's form and formset handling system, which may need to be verified or adjusted according to the specific Django version and project structure.

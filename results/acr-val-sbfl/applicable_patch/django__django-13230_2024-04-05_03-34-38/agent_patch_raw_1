@@ -1,0 +1,70 @@
+To address the issue of adding support for `item_comments` directly in the syndication framework, we will make modifications to the `Feed` class in `django/contrib/syndication/views.py`. The goal is to allow the `comments` argument to be passed to the `add_item` method of the feed generator, enabling direct definition of `item_comments` without having to use `item_extra_kwargs`.
+
+# modification 1
+```python
+<file>django/contrib/syndication/views.py</file>
+<original>    def item_extra_kwargs(self, item):
+        """
+        Return an extra keyword arguments dictionary that is used with
+        the `add_item` call of the feed generator.
+        """
+        return {}</original>
+<patched>    def item_extra_kwargs(self, item):
+        """
+        Return an extra keyword arguments dictionary that is used with
+        the `add_item` call of the feed generator.
+        """
+        return {'comments': self.item_comments(item)}
+
+    def item_comments(self, item):
+        """
+        Define this method to return the comments URL for an item.
+        """
+        return ""</patched>
+```
+
+This modification introduces a new method `item_comments` in the `Feed` class, which is intended to be overridden by subclasses to return the comments URL or data for each item. The `item_extra_kwargs` method is updated to include the `comments` key by default, utilizing the `item_comments` method to populate its value. This approach allows for direct support of `item_comments` without altering the core logic of how extra kwargs are handled in `add_item`.
+
+# modification 2
+```python
+<file>django/contrib/syndication/views.py</file>
+<original>            feed.add_item(
+                title=title,
+                link=link,
+                description=description,
+                unique_id=self._get_dynamic_attr('item_guid', item, link),
+                unique_id_is_permalink=self._get_dynamic_attr(
+                    'item_guid_is_permalink', item),
+                enclosures=enclosures,
+                pubdate=pubdate,
+                updateddate=updateddate,
+                author_name=author_name,
+                author_email=author_email,
+                author_link=author_link,
+                categories=self._get_dynamic_attr('item_categories', item),
+                item_copyright=self._get_dynamic_attr('item_copyright', item),
+                **self.item_extra_kwargs(item)
+            )</original>
+<patched>            feed.add_item(
+                title=title,
+                link=link,
+                description=description,
+                unique_id=self._get_dynamic_attr('item_guid', item, link),
+                unique_id_is_permalink=self._get_dynamic_attr(
+                    'item_guid_is_permalink', item),
+                enclosures=enclosures,
+                pubdate=pubdate,
+                updateddate=updateddate,
+                author_name=author_name,
+                author_email=author_email,
+                author_link=author_link,
+                categories=self._get_dynamic_attr('item_categories', item),
+                item_copyright=self._get_dynamic_attr('item_copyright', item),
+                comments=self.item_comments(item),  # Directly pass comments without using item_extra_kwargs
+                **self.item_extra_kwargs(item)
+            )</patched>
+```
+
+In this second modification, the `feed.add_item` call within the `get_feed` method is updated to explicitly include the `comments` parameter, directly calling the newly introduced `item_comments` method. This ensures that comments are handled as a first-class parameter in the feed generation process, aligning with the issue's request for direct support of `item_comments`.
+
+These modifications collectively address the issue by enhancing the syndication framework's capability to include comments directly in feed items, improving flexibility and usability for developers using Django's syndication features.

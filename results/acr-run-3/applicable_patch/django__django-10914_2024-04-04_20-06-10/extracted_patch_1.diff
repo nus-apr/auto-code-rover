@@ -1,0 +1,28 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index cbdab1de47..cebd0f3812 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -214,7 +214,9 @@ class FileSystemStorage(Storage):
+ 
+     @cached_property
+     def file_permissions_mode(self):
+-        return self._value_or_setting(self._file_permissions_mode, settings.FILE_UPLOAD_PERMISSIONS)
++        # Set a default permission mode if FILE_UPLOAD_PERMISSIONS is not explicitly configured
++        default_permissions = 0o644
++        return self._value_or_setting(self._file_permissions_mode, getattr(settings, 'FILE_UPLOAD_PERMISSIONS', default_permissions))
+ 
+     @cached_property
+     def directory_permissions_mode(self):
+@@ -280,8 +282,12 @@ class FileSystemStorage(Storage):
+                 # OK, the file save worked. Break out of the loop.
+                 break
+ 
++        # Ensure a default file permission if FILE_UPLOAD_PERMISSIONS is not set
+         if self.file_permissions_mode is not None:
+             os.chmod(full_path, self.file_permissions_mode)
++        else:
++            # Set default file permissions to 0o644 to address inconsistency
++            os.chmod(full_path, 0o644)
+ 
+         # Store filenames with forward slashes, even on Windows.
+         return name.replace('\\', '/')

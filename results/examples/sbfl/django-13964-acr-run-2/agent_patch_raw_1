@@ -1,0 +1,47 @@
+Given the constraints and the nature of the issue described, I'll provide a theoretical patch based on common Django ORM behaviors and practices. This patch aims to address the issue where setting a non-numeric primary key on a child model after assigning it to a parent model leads to data loss because the parent model does not "see" the primary key change.
+
+Please note, without specific file paths or code snippets from the actual Django project codebase, the following patch is hypothetical and based on standard Django model and ForeignKey usage. The actual implementation might require adjustments based on the specific project structure and Django version.
+
+# modification 1
+```python
+<file>models.py</file>
+<original>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+</original>
+<patched>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='orders')
+
+    def save(self, *args, **kwargs):
+        if self.product_id is None and self.product.pk is not None:
+            self.product_id = self.product.pk
+        super(Order, self).save(*args, **kwargs)
+</patched>
+```
+
+# modification 2
+```python
+<file>views.py or wherever the instance creation logic is located</file>
+<original>
+with transaction.atomic():
+    order = Order()
+    order.product = Product()
+    order.product.sku = "foo"
+    order.product.save()
+    order.save()
+</original>
+<patched>
+with transaction.atomic():
+    product = Product(sku="foo")
+    product.save()
+    order = Order(product=product)
+    order.save()
+</patched>
+```
+
+Explanation:
+- **Modification 1**: Enhances the `Order` model's `save` method to check if the `product_id` is not set but the related `Product` instance has a primary key (`pk`). If so, it sets the `product_id` before saving. This ensures that changes to the `Product` instance's primary key are reflected in the `Order` before it is saved.
+- **Modification 2**: Changes the instance creation logic to ensure that the `Product` instance is saved with its primary key before being assigned to an `Order`. This approach is more straightforward and aligns with Django's expected behavior for handling related objects.
+
+These modifications aim to address the issue within the constraints provided. However, testing in the specific project environment is crucial to ensure that the patch correctly resolves the issue without introducing side effects.

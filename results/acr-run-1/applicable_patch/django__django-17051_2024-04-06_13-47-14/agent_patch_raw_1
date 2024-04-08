@@ -1,0 +1,84 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>            else:
+                self._insert(
+                    item,
+                    fields=fields,
+                    using=self.db,
+                    on_conflict=on_conflict,
+                    update_fields=update_fields,
+                    unique_fields=unique_fields,
+                )</original>
+<patched>            else:
+                inserted_ids = self._insert(
+                    item,
+                    fields=fields,
+                    using=self.db,
+                    on_conflict=on_conflict,
+                    update_fields=update_fields,
+                    unique_fields=unique_fields,
+                    returning_fields=self.model._meta.db_returning_fields if on_conflict else None,
+                )
+                if inserted_ids:
+                    inserted_rows.extend(inserted_ids)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>        can_bulk = (
+            not self.returning_fields and self.connection.features.has_bulk_insert
+        )</original>
+<patched>        can_bulk = (
+            not (self.returning_fields and self.query.on_conflict) and self.connection.features.has_bulk_insert
+        )</patched>
+```
+
+# modification 3
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>        if (
+            self.returning_fields
+            and self.connection.features.can_return_columns_from_insert
+        ):
+            if self.connection.features.can_return_rows_from_bulk_insert:
+                result.append(
+                    self.connection.ops.bulk_insert_sql(fields, placeholder_rows)
+                )
+                params = param_rows
+            else:
+                result.append("VALUES (%s)" % ", ".join(placeholder_rows[0]))
+                params = [param_rows[0]]
+            if on_conflict_suffix_sql:
+                result.append(on_conflict_suffix_sql)
+            r_sql, self.returning_params = self.connection.ops.return_insert_columns(
+                self.returning_fields
+            )
+            if r_sql:
+                result.append(r_sql)
+                params += [self.returning_params]
+            return [(" ".join(result), tuple(chain.from_iterable(params)))]</original>
+<patched>        if self.returning_fields:
+            if (
+                self.connection.features.can_return_columns_from_insert and
+                (self.connection.features.can_return_rows_from_bulk_insert or len(self.query.objs) == 1)
+            ):
+                result.append(
+                    self.connection.ops.bulk_insert_sql(fields, placeholder_rows) if self.connection.features.can_return_rows_from_bulk_insert else "VALUES (%s)" % ", ".join(placeholder_rows[0])
+                )
+                params = param_rows if self.connection.features.can_return_rows_from_bulk_insert else [param_rows[0]]
+                if on_conflict_suffix_sql:
+                    result.append(on_conflict_suffix_sql)
+                r_sql, self.returning_params = self.connection.ops.return_insert_columns(
+                    self.returning_fields
+                )
+                if r_sql:
+                    result.append(r_sql)
+                    params += [self.returning_params]
+                return [(" ".join(result), tuple(chain.from_iterable(params)))]
+            else:
+                raise ValueError("Returning fields is specified, but the database does not support returning rows from bulk insert or returning columns from insert.")</patched>
+```
+
+These modifications aim to address the issue by ensuring that when `update_conflicts` is true, the `returning_fields` are properly handled in the `_batched_insert` method in `django/db/models/query.py`, and that the SQL compiler in `django/db/models/sql/compiler.py` correctly constructs the `RETURNING` clause in SQL queries for bulk inserts with conflict handling.

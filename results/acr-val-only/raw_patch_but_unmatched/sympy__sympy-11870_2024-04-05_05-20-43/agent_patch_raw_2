@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>sympy/simplify/trigsimp.py</file>
+<original>def trigsimp(expr, **opts):
+    ...
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x,
+                               polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+                   }[method]
+
+    return trigsimpfunc(expr)</original>
+<patched>from sympy import I, exp, sin, sinc, sympify
+
+def trigsimp(expr, **opts):
+    ...
+    # Attempt to simplify expressions involving exponentials to trigonometric or sinc functions
+    def custom_simplify(ex):
+        from sympy import sin, sinc
+        ex = ex.rewrite(exp, sin)
+        ex = ex.replace(lambda expr: expr.is_Mul and I*exp(I*expr.free_symbols.pop()) in expr, lambda expr: 2*sin(expr.free_symbols.pop()))
+        ex = ex.replace(lambda expr: expr.is_Mul and expr.free_symbols and 1/expr.free_symbols.pop()*(-I*exp(I*expr.free_symbols.pop()) + I*exp(-I*expr.free_symbols.pop())) in expr, lambda expr: sinc(expr.free_symbols.pop()))
+        return ex
+
+    expr = sympify(expr)
+    expr = custom_simplify(expr)  # Apply custom simplification
+
+    trigsimpfunc = {
+        'fu': (lambda x: fu(x, **opts)),
+        'matching': (lambda x: futrig(x)),
+        'groebner': (lambda x: groebnersimp(x, **opts)),
+        'combined': (lambda x: futrig(groebnersimp(x, polynomial=True, hints=[2, tan]))),
+        'old': lambda x: trigsimp_old(x, **opts),
+    }[method]
+
+    return trigsimpfunc(expr)</patched>
+```

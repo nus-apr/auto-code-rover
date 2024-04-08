@@ -1,0 +1,55 @@
+diff --git a/pylint/checkers/imports.py b/pylint/checkers/imports.py
+index 7cab78586..40d4ca5fe 100644
+--- a/pylint/checkers/imports.py
++++ b/pylint/checkers/imports.py
+@@ -979,9 +979,9 @@ class ImportsChecker(DeprecatedMixin, BaseChecker):
+     def _check_wildcard_imports(
+         self, node: nodes.ImportFrom, imported_module: nodes.Module | None
+     ) -> None:
+-        if node.root().package:
+-            # Skip the check if in __init__.py issue #2026
+-            return
++        if node.root().package and os.path.basename(node.root().file) == "__init__.py":
++                    # More explicitly check if the current file is __init__.py to decide on skipping
++                    return
+ 
+         wildcard_import_is_allowed = self._wildcard_import_is_allowed(imported_module)
+         for name, _ in node.names:
+diff --git a/pylint/lint/expand_modules.py b/pylint/lint/expand_modules.py
+index 289e1afce..b45066f48 100644
+--- a/pylint/lint/expand_modules.py
++++ b/pylint/lint/expand_modules.py
+@@ -24,16 +24,13 @@ def _modpath_from_file(filename: str, is_namespace: bool, path: list[str]) -> li
+ 
+ 
+ def get_python_path(filepath: str) -> str:
+-    """TODO This get the python path with the (bad) assumption that there is always
+-    an __init__.py.
+-
+-    This is not true since python 3.3 and is causing problem.
+-    """
++    """Updated to reflect Python 3.3+ behavior where __init__.py is not required for packages."""
+     dirname = os.path.realpath(os.path.expanduser(filepath))
+     if not os.path.isdir(dirname):
+         dirname = os.path.dirname(dirname)
+     while True:
+-        if not os.path.exists(os.path.join(dirname, "__init__.py")):
++        # Check for a py.typed file as well, which indicates a PEP 561 typed package
++        if not (os.path.exists(os.path.join(dirname, "__init__.py")) or os.path.exists(os.path.join(dirname, "py.typed"))):
+             return dirname
+         old_dirname = dirname
+         dirname = os.path.dirname(dirname)
+@@ -91,7 +88,12 @@ def expand_modules(
+             except ImportError:
+                 modname = os.path.splitext(basename)[0]
+             if os.path.isdir(something):
+-                filepath = os.path.join(something, "__init__.py")
++                # Check for __init__.py or py.typed to support PEP 561 typed packages
++                if os.path.exists(os.path.join(something, "__init__.py")) or os.path.exists(os.path.join(something, "py.typed")):
++                    filepath = something
++                else:
++                    # Treat as a regular directory if neither file is present
++                    filepath = os.path.join(something, "__init__.py")
+             else:
+                 filepath = something
+         else:

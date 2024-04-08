@@ -1,0 +1,52 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..7f0abf0c9c 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -437,25 +437,30 @@ def _partition_args(self, args):
+         return py_returns, py_args, py_locals, py_inferred
+ 
+     def _prototype_arg(self, arg):
+-        mat_dec = "np.ndarray[{mtype}, ndim={ndim}] {name}"
+-        np_types = {'double': 'np.double_t',
+-                    'int': 'np.int_t'}
+-        t = arg.get_datatype('c')
+-        if arg.dimensions:
+-            self._need_numpy = True
+-            ndim = len(arg.dimensions)
+-            mtype = np_types[t]
+-            return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
+-        else:
+-            return "%s %s" % (t, self._string_var(arg.name))
++            mat_dec = "np.ndarray[{mtype}, ndim={ndim}, mode='c'] {name}"
++            np_types = {'double': 'np.double_t',
++                        'int': 'np.int_t'}
++            t = arg.get_datatype('c')
++            if arg.dimensions:
++                self._need_numpy = True
++                ndim = len(arg.dimensions)
++                mtype = np_types[t]
++                # Ensure mode='c' is specified for ndarray to improve compatibility
++                return mat_dec.format(mtype=mtype, ndim=ndim, name=self._string_var(arg.name))
++            else:
++                # Handle scalar and array arguments consistently
++                return "np.ndarray[{mtype}, ndim=0, mode='c'] {name}" if t in np_types else "%s %s" % (t, self._string_var(arg.name))
+ 
+     def _declare_arg(self, arg):
+-        proto = self._prototype_arg(arg)
+-        if arg.dimensions:
+-            shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
+-            return proto + " = np.empty({shape})".format(shape=shape)
+-        else:
+-            return proto + " = 0"
++            proto = self._prototype_arg(arg)
++            # Adjust declaration to ensure proper initialization for unused array arguments
++            if arg.dimensions:
++                shape = '(' + ','.join(self._string_var(i[1] + 1) for i in arg.dimensions) + ')'
++                # Ensure arrays are initialized with the correct shape and data type
++                return proto + " = np.empty({shape}, dtype={dtype})".format(shape=shape, dtype=arg.get_datatype('numpy'))
++            else:
++                # Initialize scalar arguments as None to avoid unnecessary default values
++                return proto + " = None"
+ 
+     def _call_arg(self, arg):
+         if arg.dimensions:

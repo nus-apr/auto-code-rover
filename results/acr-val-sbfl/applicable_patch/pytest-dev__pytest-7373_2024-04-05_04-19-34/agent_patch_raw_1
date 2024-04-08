@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>src/_pytest/mark/evaluate.py</file>
+<original>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    default = {}  # type: Dict[str, object]
+    evalcache = config._store.setdefault(evalcache_key, default)
+    try:
+        return evalcache[expr]
+    except KeyError:
+        import _pytest._code
+
+        exprcode = _pytest._code.compile(expr, mode="eval")
+        evalcache[expr] = x = eval(exprcode, d)
+        return x
+</original>
+<patched>def cached_eval(config: Config, expr: str, d: Dict[str, object]) -> Any:
+    default = {}  # type: Dict[str, object]
+    evalcache = config._store.setdefault(evalcache_key, default)
+    # Generate a unique key based on the expression and the globals dict
+    import hashlib
+    d_hash = hashlib.md5(str(sorted(d.items())).encode()).hexdigest()
+    cache_key = f"{expr}:{d_hash}"
+    try:
+        return evalcache[cache_key]
+    except KeyError:
+        import _pytest._code
+
+        exprcode = _pytest._code.compile(expr, mode="eval")
+        evalcache[cache_key] = x = eval(exprcode, d)
+        return x
+</patched>
+```
+
+This modification addresses the issue by incorporating the globals dictionary (`d`) into the caching mechanism. It does so by creating a unique `cache_key` that combines the expression string and a hash of the sorted items of the globals dictionary. This ensures that the cache takes into account both the condition expression and the context in which it is evaluated, thus preventing incorrect caching across different test environments.

@@ -1,0 +1,21 @@
+```python
+<file>sklearn/utils/validation.py</file>
+<original>if warn_on_dtype and dtype_orig is not None and array.dtype != dtype_orig:
+    msg = ("Data with input dtype %s was converted to %s%s."
+           % (dtype_orig, array.dtype, context))
+    warnings.warn(msg, DataConversionWarning)</original>
+<patched># Before checking for dtype changes, ensure dtype_orig reflects the original DataFrame dtypes if applicable
+from pandas import DataFrame
+if isinstance(array_orig, DataFrame):
+    # When the original array is a DataFrame, check for any dtype change in the resulting numpy array
+    if any(dtype.name == "object" for dtype in array_orig.dtypes) and array.dtype != np.object_:
+        dtype_orig = np.object_
+if warn_on_dtype and dtype_orig is not None and array.dtype != dtype_orig:
+    msg = ("Data with input dtype %s was converted to %s%s."
+           % (dtype_orig, array.dtype, context))
+    warnings.warn(msg, DataConversionWarning)</patched>
+```
+
+**Explanation**: The patch addresses the issue where `warn_on_dtype=True` does not trigger a warning when a pandas DataFrame with `dtype=object` is passed to `check_array` and converted to `float64`. The problem arises because the original data type (`dtype_orig`) is not correctly identified for DataFrames, leading to the condition for raising the warning not being met.
+
+The proposed solution first checks if the original input (`array_orig`) is a pandas DataFrame. If so, it then checks if any column in the DataFrame has `dtype=object`. If this condition is true and the resulting numpy array's dtype is not `np.object_`, it sets `dtype_orig` to `np.object_` to accurately reflect the original DataFrame's dtype. This adjustment ensures that the subsequent condition checking for a dtype change (and potentially raising a `DataConversionWarning`) correctly identifies when a dtype conversion has occurred from `object` to another dtype, such as `float64`, thereby addressing the reported issue.

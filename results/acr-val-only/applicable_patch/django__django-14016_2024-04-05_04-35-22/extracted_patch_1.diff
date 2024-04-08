@@ -1,0 +1,36 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c2623f099f..4f98e2f08b 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -44,17 +44,29 @@ class Q(tree.Node):
+         if not isinstance(other, Q):
+             raise TypeError(other)
+ 
++        # Convert non-pickleable objects in conditions to pickleable
++        def make_pickleable(value):
++            if isinstance(value, dict_keys):
++                return list(value)
++            return value
++
+         # If the other Q() is empty, ignore it and just use `self`.
+         if not other:
+-            return copy.deepcopy(self)
++            self_clone = copy.deepcopy(self)
++            self_clone.children = [(key, make_pickleable(value)) for key, value in self_clone.children]
++            return self_clone
+         # Or if this Q is empty, ignore it and just use `other`.
+         elif not self:
+-            return copy.deepcopy(other)
++            other_clone = copy.deepcopy(other)
++            other_clone.children = [(key, make_pickleable(value)) for key, value in other_clone.children]
++            return other_clone
+ 
+         obj = type(self)()
+         obj.connector = conn
+         obj.add(self, conn)
+         obj.add(other, conn)
++        # Ensure all conditions are pickleable
++        obj.children = [(key, make_pickleable(value)) for key, value in obj.children]
+         return obj
+ 
+     def __or__(self, other):

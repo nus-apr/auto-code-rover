@@ -1,0 +1,16 @@
+To address the issue with Sphinx 3.2 complaining about the `option::` directive syntax that earlier versions accepted, we need to modify the regular expression `option_desc_re` to be more inclusive of different option syntaxes, such as `[enable=]PATTERN`. The goal is to adjust the validation logic to prevent the generation of a warning for valid option formats that do not strictly match the existing pattern.
+
+Given the context and the specific location of the bug, here is a proposed patch:
+
+# modification 1
+```python
+<file>sphinx/domains/std.py</file>
+<original># RE for option descriptions
+option_desc_re = re.compile(r'((?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')</original>
+<patched># RE for option descriptions, updated to include optional parts like [enable=]
+option_desc_re = re.compile(r'((?:\[.*?\])?(?:/|--|-|\+)?[^\s=[]+)(=?\s*.*)')</patched>
+```
+
+This modification updates the regular expression `option_desc_re` by adding `(?:\[.*?\])?` at the beginning of the pattern. This non-capturing group matches an optional part that starts with `[`, followed by any characters non-greedily (`.*?`), and then a closing `]`. The `?` after the group makes it optional, allowing for option descriptions that include optional parts before the main option pattern, such as `[enable=]PATTERN`.
+
+This change aims to make the validation logic more accommodating to different option syntaxes without compromising the validation of option descriptions that were already accepted. It's important to thoroughly test this modification to ensure it does not introduce regressions or allow invalid option descriptions that could affect the quality of the generated documentation.

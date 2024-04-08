@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if has_dups(temp):
+            if is_cycle:
+                raise ValueError('there were repeated elements; to resolve '
+                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+            else:
+                raise ValueError('there were repeated elements.')</original>
+<patched># Removed the check for duplicates in the case of cycles to allow non-disjoint cycles
+        if has_dups(temp) and not is_cycle:
+            raise ValueError('there were repeated elements.')</patched>
+```
+
+# modification 2
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if is_cycle:
+            # it's not necessarily canonical so we won't store
+            # it -- use the array form instead
+            c = Cycle()
+            for ci in args:
+                c = c(*ci)
+            aform = c.list()</original>
+<patched>if is_cycle:
+            # Apply non-disjoint cycles in left-to-right order
+            from sympy.combinatorics.perm_groups import PermutationGroup
+            from sympy.combinatorics import Permutation as SymPermutation
+            cycles = [SymPermutation(c) for c in args]
+            perm_group = PermutationGroup(*cycles)
+            aform = perm_group.identity().array_form</patched>
+```
+
+Note: The second modification assumes the existence of `PermutationGroup` and `Permutation` in `sympy.combinatorics.perm_groups` and `sympy.combinatorics`, respectively, to handle the application of non-disjoint cycles in left-to-right order. This approach constructs a permutation group from the given cycles and then retrieves the identity permutation of the group, which effectively applies the cycles in the desired order. This solution might require additional imports or adjustments based on the actual structure and capabilities of the SymPy library.

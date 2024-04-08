@@ -1,0 +1,31 @@
+diff --git a/lib/matplotlib/backends/backend_macosx.py b/lib/matplotlib/backends/backend_macosx.py
+index 700d1d4c58..26a98a6f6a 100644
+--- a/lib/matplotlib/backends/backend_macosx.py
++++ b/lib/matplotlib/backends/backend_macosx.py
+@@ -94,7 +94,10 @@ class FigureCanvasMac(FigureCanvasAgg, _macosx.FigureCanvas, FigureCanvasBase):
+ 
+     def resize(self, width, height):
+         # Size from macOS is logical pixels, dpi is physical.
+-        scale = self.figure.dpi / self.device_pixel_ratio
++        # Ensure that DPI scaling is applied only once to avoid doubling.
++        if not hasattr(self, '_initial_dpi'):
++            self._initial_dpi = self.figure.dpi
++        scale = self._initial_dpi / self.device_pixel_ratio
+         width /= scale
+         height /= scale
+         self.figure.set_size_inches(width, height, forward=False)
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index c55864243a..9a24404891 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -3044,7 +3044,10 @@ class Figure(FigureBase):
+         self.__dict__ = state
+ 
+         # re-initialise some of the unstored state information
++        # Ensure DPI is not altered during the canvas re-initialization
++        original_dpi = self.dpi
+         FigureCanvasBase(self)  # Set self.canvas.
++        self.dpi = original_dpi
+ 
+         if restore_to_pylab:
+             # lazy import to avoid circularity

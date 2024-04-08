@@ -1,0 +1,77 @@
+# modification 1
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        state.pop("canvas")</original>
+<patched>        # state.pop("canvas")
+        # Instead of removing canvas, replace it with None to maintain the structure
+        state["canvas"] = None</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        FigureCanvasBase(self)  # Set self.canvas.</original>
+<patched>        # FigureCanvasBase(self)  # Set self.canvas.
+        # Reattach the canvas if it was previously detached
+        if "canvas" in state and state["canvas"] is None:
+            from matplotlib.backends.backend_agg import FigureCanvasAgg
+            self.canvas = FigureCanvasAgg(self)</patched>
+```
+
+# modification 3
+```python
+<file>lib/matplotlib/legend.py</file>
+<original>class DraggableLegend(DraggableOffsetBox):
+    def __init__(self, legend, use_blit=False, update="loc"):</original>
+<patched>class DraggableLegend(DraggableOffsetBox):
+    def __init__(self, legend, use_blit=False, update="loc"):
+        # Add an attribute to track draggable state
+        self._is_draggable = True</patched>
+```
+
+# modification 4
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        # add version information to the state
+        state['__mpl_version__'] = mpl.__version__</original>
+<patched>        # add version information to the state
+        state['__mpl_version__'] = mpl.__version__
+        
+        # Serialize draggable legends by storing their state
+        draggable_legends = [leg for leg in self.legends if getattr(leg, '_is_draggable', False)]
+        if draggable_legends:
+            state['_draggable_legends_state'] = [leg.__getstate__() for leg in draggable_legends]</patched>
+```
+
+# modification 5
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            backend = plt._get_backend_mod()
+            mgr = backend.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()</original>
+<patched>        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            backend = plt._get_backend_mod()
+            mgr = backend.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()
+        
+        # Restore draggable legends if they were serialized
+        if '_draggable_legends_state' in state:
+            for legend_state in state.pop('_draggable_legends_state'):
+                legend = self.legend()
+                legend.__setstate__(legend_state)</patched>
+```
+
+These modifications aim to address the issue of being unable to pickle a figure with a draggable legend in Matplotlib. The approach involves maintaining the structure of the figure's state during serialization, including handling of the canvas and draggable legends, and ensuring that these components are appropriately restored during deserialization.

@@ -1,0 +1,49 @@
+To address the issue of password reset tokens not being invalidated when a user's email changes, we need to modify the `_make_hash_value` method in the `PasswordResetTokenGenerator` class to include the user's email address in the hash calculation. This ensures that any change to the email address invalidates previously issued tokens. Below is the proposed patch:
+
+# modification 1
+```python
+<file>django/contrib/auth/tokens.py</file>
+<original>    def _make_hash_value(self, user, timestamp):
+        """
+        Hash the user's primary key and some user state that's sure to change
+        after a password reset to produce a token that invalidated when it's
+        used:
+        1. The password field will change upon a password reset (even if the
+           same password is chosen, due to password salting).
+        2. The last_login field will usually be updated very shortly after
+           a password reset.
+        Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+        invalidates the token.
+
+        Running this data through salted_hmac() prevents password cracking
+        attempts using the reset token, provided the secret isn't compromised.
+        """
+        # Truncate microseconds so that tokens are consistent even if the
+        # database doesn't support microseconds.
+        login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)</original>
+<patched>    def _make_hash_value(self, user, timestamp):
+        """
+        Hash the user's primary key, email, and some user state that's sure to change
+        after a password reset to produce a token that invalidated when it's
+        used:
+        1. The email field is included to ensure the token is invalidated if the email changes.
+        2. The password field will change upon a password reset (even if the
+           same password is chosen, due to password salting).
+        3. The last_login field will usually be updated very shortly after
+           a password reset.
+        Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
+        invalidates the token.
+
+        Running this data through salted_hmac() prevents password cracking
+        attempts using the reset token, provided the secret isn't compromised.
+        """
+        # Truncate microseconds so that tokens are consistent even if the
+        # database doesn't support microseconds.
+        login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+        email_field_name = user.get_email_field_name()  # Assuming AbstractUser or a similar method exists
+        user_email = getattr(user, email_field_name, '')
+        return str(user.pk) + user.password + user_email + str(login_timestamp) + str(timestamp)</patched>
+```
+
+This modification includes the user's email in the hash value calculation by first determining the name of the email field using `user.get_email_field_name()`, a method that should be present or implemented in the user model to return the name of the email field. Then, it retrieves the email value using `getattr` and includes it in the hash. This approach ensures that the patch is flexible and can handle custom user models that may not use the standard `email` field name.

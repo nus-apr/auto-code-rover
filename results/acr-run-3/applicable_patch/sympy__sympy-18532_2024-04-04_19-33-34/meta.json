@@ -1,0 +1,57 @@
+{
+    "task_id": "sympy__sympy-18532",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.6",
+        "env_name": "setup_sympy__sympy__1.6",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/codegen/tests/test_cnodes.py sympy/core/tests/test_basic.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-18532",
+        "base_commit": "74227f900b05009d4eed62e34a166228788a32ca",
+        "hints_text": "The docstring should also be updated. \n\nHi, can i work on this?\n\nSure. Did you read https://github.com/sympy/sympy/wiki/Introduction-to-contributing? \n\nHow should I remove .args? Should I try to remove ._args from object instance or add a new attribute to class Atom(), is_leave. Which when assigned as false, will raise attribute error on .args. Or if creating a new object, what attributes should it have?\n\nI think you're misunderstanding the issue. The issue is not to remove .args. Indeed, every SymPy object should have .args in order to be valid. \n\nThe issue is that the `atoms()` method currently uses `x.is_Atom` to check for \"atomic\" expressions (expressions with no subexpressions), but it really should be checking `not x.args`. It should be a simple one-line fix to the `atoms` function definition, but a new test should be added, and the full test suite run to make sure it doesn't break anything (`./bin/test` from the sympy directory). \n\nOkay. But, Basic() also return .args to be null. So will not that also appear in the result of .atoms()?\n\nYes, that's an example of an object with no args but that isn't a subclass of Atom. `atoms` should return that, because it's a leaf in the expression tree. \n\nOkay, but if I am understanding you correct, won't this test fail?\nhttps://github.com/sympy/sympy/blob/master/sympy/core/tests/test_basic.py#L73\n\nYes, it would need to be changed. This is a slight redefinition of what `atoms` means (although hopefully not enough of a breaking behavior to require deprecation). \n\nCan you look over it once and look if it is okay?\nhttps://github.com/sympy/sympy/pull/10246\n\n@asmeurer \nWhen I ran the full suite of tests, sympy/vector/tests/test_field_functions.py failed on all the tests. \n\n```\n     Original-\n            if not (types or expr.args):\n                result.add(expr)\n\n     Case 1-     \n            if not types:\n                if isinstance(expr, Atom):\n                    result.add(expr)\n\n     Case 2-\n            if not (types or expr.args):\n                if isinstance(expr, Atom):\n                    result.add(expr)\n```\n\nI saw that fails even on the second case. Then I saw the items that case1 had but case2 did not. Which were all either `C.z <class 'sympy.vector.scalar.BaseScalar'>` or `C.k <class 'sympy.vector.vector.BaseVector'>`. \n\nElements of the class sympy.vector.scaler.BaseScalar or class sympy.vector.vector.BaseVector were earlier considered but not now, as they were Atom but had arguments. So what should we do?\n\nI want to fix this if no one is working on it.\n\nI am unable to figure out why 'Atom' has been assigned to 'types' . We can add the result while checking for the types and if there are no types then we can simply add x.args to the result. That way it will return null and we will not be having subclasses of Atom.\n\nping @asmeurer \n\n@darkcoderrises I have some fixes at https://github.com/sympy/sympy/pull/10084 which might make your issues go away. Once that is merged you should try merging your branch into master and see if it fixes the problems. \n\nok\n\nI merged the pull requests, and now the tests are passing. What should be my next step.\nhttps://github.com/sympy/sympy/pull/10246\n\nI am working on this issue",
+        "created_at": "2020-02-01T17:26:30Z",
+        "test_patch": "diff --git a/sympy/codegen/tests/test_cnodes.py b/sympy/codegen/tests/test_cnodes.py\n--- a/sympy/codegen/tests/test_cnodes.py\n+++ b/sympy/codegen/tests/test_cnodes.py\n@@ -1,6 +1,6 @@\n from sympy.core.symbol import symbols\n from sympy.printing.ccode import ccode\n-from sympy.codegen.ast import Declaration, Variable, float64, int64\n+from sympy.codegen.ast import Declaration, Variable, float64, int64, String\n from sympy.codegen.cnodes import (\n     alignof, CommaOperator, goto, Label, PreDecrement, PostDecrement, PreIncrement, PostIncrement,\n     sizeof, union, struct\n@@ -66,7 +66,7 @@ def test_sizeof():\n     assert ccode(sz) == 'sizeof(%s)' % typename\n     assert sz.func(*sz.args) == sz\n     assert not sz.is_Atom\n-    assert all(atom == typename for atom in sz.atoms())\n+    assert sz.atoms() == {String('unsigned int'), String('sizeof')}\n \n \n def test_struct():\ndiff --git a/sympy/core/tests/test_basic.py b/sympy/core/tests/test_basic.py\n--- a/sympy/core/tests/test_basic.py\n+++ b/sympy/core/tests/test_basic.py\n@@ -137,7 +137,7 @@ def test_subs_with_unicode_symbols():\n \n \n def test_atoms():\n-    assert b21.atoms() == set()\n+    assert b21.atoms() == set([Basic()])\n \n \n def test_free_symbols_empty():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "expr.atoms() should return objects with no args instead of subclasses of Atom\n`expr.atoms()` with no arguments returns subclasses of `Atom` in `expr`. But the correct definition of a leaf node should be that it has no `.args`. \n\nThis should be easy to fix, but one needs to check that this doesn't affect the performance. \n\n",
+        "version": "1.6",
+        "FAIL_TO_PASS": [
+            "test_atoms",
+            "test_sizeof"
+        ],
+        "PASS_TO_PASS": [
+            "test_CommaOperator",
+            "test_PostDecrement",
+            "test_PostIncrement",
+            "test_PreDecrement",
+            "test_PreIncrement",
+            "test_S",
+            "test__aresame",
+            "test_alignof",
+            "test_as_Basic",
+            "test_as_dummy",
+            "test_atomic",
+            "test_call",
+            "test_canonical_variables",
+            "test_doit",
+            "test_equality",
+            "test_free_symbols_empty",
+            "test_goto_Label",
+            "test_has",
+            "test_literal_evalf_is_number_is_zero_is_comparable",
+            "test_matches_basic",
+            "test_preorder_traversal",
+            "test_rewrite",
+            "test_sorted_args",
+            "test_struct",
+            "test_structure",
+            "test_subs",
+            "test_subs_with_unicode_symbols",
+            "test_xreplace"
+        ],
+        "environment_setup_commit": "28b41c73c12b70d6ad9f6e45109a80649c4456da",
+        "patch": "diff --git a/sympy/core/basic.py b/sympy/core/basic.py\n--- a/sympy/core/basic.py\n+++ b/sympy/core/basic.py\n@@ -503,12 +503,11 @@ def atoms(self, *types):\n         if types:\n             types = tuple(\n                 [t if isinstance(t, type) else type(t) for t in types])\n+        nodes = preorder_traversal(self)\n+        if types:\n+            result = {node for node in nodes if isinstance(node, types)}\n         else:\n-            types = (Atom,)\n-        result = set()\n-        for expr in preorder_traversal(self):\n-            if isinstance(expr, types):\n-                result.add(expr)\n+            result = {node for node in nodes if not node.args}\n         return result\n \n     @property\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/18532"
+    }
+}

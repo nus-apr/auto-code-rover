@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>seaborn/_stats/regression.py</file>
+<original>    def _fit_predict(self, data):
+
+        x = data["x"]
+        y = data["y"]
+        if x.nunique() <= self.order:
+            # TODO warn?
+            xx = yy = []
+        else:
+            p = np.polyfit(x, y, self.order)
+            xx = np.linspace(x.min(), x.max(), self.gridsize)
+            yy = np.polyval(p, xx)
+
+        return pd.DataFrame(dict(x=xx, y=yy))
+</original>
+<patched>    def _fit_predict(self, data):
+        import pandas as pd
+        import numpy as np
+
+        x = data["x"].dropna()
+        y = data["y"].dropna()
+        # Ensure x and y are of the same length after dropping NA values
+        common_indices = x.index.intersection(y.index)
+        x = x.loc[common_indices]
+        y = y.loc[common_indices]
+
+        if len(x) <= self.order:
+            # Log a warning if there are not enough data points
+            import warnings
+            warnings.warn("Not enough data points to fit the polynomial of the specified order.")
+            xx = yy = np.array([])
+        else:
+            p = np.polyfit(x, y, self.order)
+            xx = np.linspace(x.min(), x.max(), self.gridsize)
+            yy = np.polyval(p, xx)
+
+        return pd.DataFrame(dict(x=xx, y=yy))
+</patched>
+```

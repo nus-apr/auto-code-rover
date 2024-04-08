@@ -1,0 +1,16 @@
+# modification 1
+```python
+<file>xarray/core/dataarray.py</file>
+<original>        data_dict = {}
+        for k in variables:
+            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)</original>
+<patched>        data_dict = {}
+        for k in variables:
+            # Ensure that the selection does not drop dimensions that were originally single-dimensioned in the dataset
+            selection = self.sel({variable_dim: k})
+            dims_to_keep = [dim for dim in self.dims if dim not in selection.dims]
+            data_dict[k] = selection.squeeze(drop=True).set_dims(dims_to_keep)</patched>
+```
+
+Explanation:
+The patch addresses the issue where unstacking a stacked `DataArray` could lead to a `MergeError` due to dimensionality conflicts, especially when the original variables had a single dimension. The original code simply selected the variable and squeezed it, potentially dropping dimensions that were originally present. The patched version ensures that dimensions that were originally single-dimensioned are retained in the dataset after unstacking. This is achieved by keeping track of the dimensions that are not present in the selection but were part of the original `DataArray`'s dimensions, and explicitly setting these dimensions on the squeezed selection. This approach should help maintain the original structure of the dataset, avoiding conflicts during the merge operation that creates the unstacked `Dataset`.

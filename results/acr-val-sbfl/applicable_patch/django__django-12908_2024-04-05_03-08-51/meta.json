@@ -1,0 +1,54 @@
+{
+    "task_id": "django__django-12908",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__3.2",
+        "env_name": "setup_django__django__3.2",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 queries.test_qs_combinators"
+    },
+    "task_info": {
+        "instance_id": "django__django-12908",
+        "base_commit": "49ae7ce50a874f8a04cd910882fb9571ff3a0d7a",
+        "hints_text": "distinct() is not supported but doesn't raise an error yet. As \u200b\u200bper the documentation, \"only LIMIT, OFFSET, COUNT(*), ORDER BY, and specifying columns (i.e. slicing, count(), order_by(), and values()/values_list()) are allowed on the resulting QuerySet.\". Follow up to #27995.",
+        "created_at": "2020-05-13T11:36:48Z",
+        "test_patch": "diff --git a/tests/queries/test_qs_combinators.py b/tests/queries/test_qs_combinators.py\n--- a/tests/queries/test_qs_combinators.py\n+++ b/tests/queries/test_qs_combinators.py\n@@ -272,6 +272,7 @@ def test_unsupported_operations_on_combined_qs(self):\n                 'annotate',\n                 'defer',\n                 'delete',\n+                'distinct',\n                 'exclude',\n                 'extra',\n                 'filter',\n",
+        "repo": "django/django",
+        "problem_statement": "Union queryset should raise on distinct().\nDescription\n\t \n\t\t(last modified by Sielc Technologies)\n\t \nAfter using\n.annotate() on 2 different querysets\nand then .union()\n.distinct() will not affect the queryset\n\tdef setUp(self) -> None:\n\t\tuser = self.get_or_create_admin_user()\n\t\tSample.h.create(user, name=\"Sam1\")\n\t\tSample.h.create(user, name=\"Sam2 acid\")\n\t\tSample.h.create(user, name=\"Sam3\")\n\t\tSample.h.create(user, name=\"Sam4 acid\")\n\t\tSample.h.create(user, name=\"Dub\")\n\t\tSample.h.create(user, name=\"Dub\")\n\t\tSample.h.create(user, name=\"Dub\")\n\t\tself.user = user\n\tdef test_union_annotated_diff_distinct(self):\n\t\tqs = Sample.objects.filter(user=self.user)\n\t\tqs1 = qs.filter(name='Dub').annotate(rank=Value(0, IntegerField()))\n\t\tqs2 = qs.filter(name='Sam1').annotate(rank=Value(1, IntegerField()))\n\t\tqs = qs1.union(qs2)\n\t\tqs = qs.order_by('name').distinct('name') # THIS DISTINCT DOESN'T WORK\n\t\tself.assertEqual(qs.count(), 2)\nexpected to get wrapped union\n\tSELECT DISTINCT ON (siebox_sample.name) * FROM (SELECT ... UNION SELECT ...) AS siebox_sample\n",
+        "version": "3.2",
+        "FAIL_TO_PASS": [
+            "test_unsupported_operations_on_combined_qs (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_unsupported_ordering_slicing_raises_db_error (queries.test_qs_combinators.QuerySetSetOperationTests)"
+        ],
+        "PASS_TO_PASS": [
+            "test_combining_multiple_models (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_count_difference (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_count_intersection (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_count_union (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_count_union_empty_result (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_difference_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_difference_with_values (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_intersection_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_intersection_with_values (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_limits (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_order_by_same_type (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_order_raises_on_non_selected_column (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_ordering (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_ordering_by_f_expression (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_qs_with_subcompound_qs (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_simple_difference (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_simple_intersection (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_simple_union (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_distinct (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_extra_and_values_list (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_two_annotated_values_list (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_values (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_values_list_and_order (queries.test_qs_combinators.QuerySetSetOperationTests)",
+            "test_union_with_values_list_on_annotated_and_unannotated (queries.test_qs_combinators.QuerySetSetOperationTests)"
+        ],
+        "environment_setup_commit": "65dfb06a1ab56c238cc80f5e1c31f61210c4577d",
+        "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -1138,6 +1138,7 @@ def distinct(self, *field_names):\n         \"\"\"\n         Return a new QuerySet instance that will select only distinct results.\n         \"\"\"\n+        self._not_support_combined_queries('distinct')\n         assert not self.query.is_sliced, \\\n             \"Cannot create distinct fields once a slice has been taken.\"\n         obj = self._chain()\n",
+        "pr_link": "https://github.com/django/django/pull/12908"
+    }
+}

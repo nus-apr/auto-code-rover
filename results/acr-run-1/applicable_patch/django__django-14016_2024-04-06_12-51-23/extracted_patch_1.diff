@@ -1,0 +1,31 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c2623f099f..d9c8732e83 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -44,15 +44,26 @@ class Q(tree.Node):
+         if not isinstance(other, Q):
+             raise TypeError(other)
+ 
++        # Convert non-pickleable types in kwargs to pickleable types.
++        def convert_to_pickleable(kwargs):
++            for key, value in kwargs.items():
++                if isinstance(value, dict_keys):
++                    kwargs[key] = list(value)
++            return kwargs
++
+         # If the other Q() is empty, ignore it and just use `self`.
+         if not other:
++            self.kwargs = convert_to_pickleable(self.kwargs)
+             return copy.deepcopy(self)
+         # Or if this Q is empty, ignore it and just use `other`.
+         elif not self:
++            other.kwargs = convert_to_pickleable(other.kwargs)
+             return copy.deepcopy(other)
+ 
+         obj = type(self)()
+         obj.connector = conn
++        self.kwargs = convert_to_pickleable(self.kwargs)
++        other.kwargs = convert_to_pickleable(other.kwargs)
+         obj.add(self, conn)
+         obj.add(other, conn)
+         return obj

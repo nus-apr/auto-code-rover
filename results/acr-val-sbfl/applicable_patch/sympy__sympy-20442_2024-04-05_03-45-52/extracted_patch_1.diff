@@ -1,0 +1,29 @@
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..438a0058e5 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -102,11 +102,23 @@ def get_total_scale_factor(expr):
+         return expr
+ 
+     depmat = _get_conversion_matrix_for_expr(expr, target_units, unit_system)
++    # Check if the conversion matrix is None and if the expression involves powers that might not have been handled correctly.
+     if depmat is None:
++        # Attempt a more direct conversion if possible when the matrix is not applicable.
++        if isinstance(expr, Pow) and isinstance(expr.base, Quantity):
++            base_unit = unit_system.get_dimensional_expr(expr.base)
++            if base_unit in target_units:
++                # Adjust the expression to directly convert the base unit and apply the exponent afterwards.
++                converted_base = expr.base.convert_to(target_units, unit_system)
++                return Pow(converted_base, expr.exp)
+         return expr
+ 
++    # Adjust the calculation of the expression scale factor to handle complex unit expressions more accurately.
+     expr_scale_factor = get_total_scale_factor(expr)
+-    return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))
++    # Ensure that the multiplication respects the original unit proportions and exponents.
++    patched_expr = Mul.fromiter((expr_scale_factor/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))
++    # Simplify the resulting expression to ensure any redundant units or factors are properly reduced.
++    return simplify(patched_expr)
+ 
+ 
+ def quantity_simplify(expr):

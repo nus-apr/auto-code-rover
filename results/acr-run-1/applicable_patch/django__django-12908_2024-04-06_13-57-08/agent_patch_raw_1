@@ -1,0 +1,53 @@
+Given the context and the issue at hand, the problem seems to be that the `distinct` method's behavior when applied after a `union` operation, especially with field names specified, does not work as expected. The expected behavior, based on the issue description, is to apply `DISTINCT ON (field)` to the combined queryset resulting from the `union`. However, the current implementation does not seem to support this directly.
+
+To address this issue, we can enhance the `union` method to ensure that it correctly handles the scenario where `distinct` with specific field names is called on the result of a `union`. This involves modifying the `_combinator_query` method used by `union` to preserve information about distinct fields so that it can be applied correctly.
+
+Please note, this patch is conceptual and might require adjustments based on the full context of the Django ORM's internal workings and compatibility considerations.
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>def union(self, *other_qs, all=False):
+    # If the query is an EmptyQuerySet, combine all nonempty querysets.
+    if isinstance(self, EmptyQuerySet):
+        qs = [q for q in other_qs if not isinstance(q, EmptyQuerySet)]
+        return qs[0]._combinator_query('union', *qs[1:], all=all) if qs else self
+    return self._combinator_query('union', *other_qs, all=all)</original>
+<patched>def union(self, *other_qs, all=False, _preserve_distinct_fields=False):
+    # If the query is an EmptyQuerySet, combine all nonempty querysets.
+    if isinstance(self, EmptyQuerySet):
+        qs = [q for q in other_qs if not isinstance(q, EmptyQuerySet)]
+        combined = qs[0]._combinator_query('union', *qs[1:], all=all) if qs else self
+    else:
+        combined = self._combinator_query('union', *other_qs, all=all)
+    if _preserve_distinct_fields:
+        combined.query.add_distinct_fields(*self.query.distinct_fields)
+    return combined</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>def distinct(self, *field_names):
+    """
+    Return a new QuerySet instance that will select only distinct results.
+    """
+    assert not self.query.is_sliced, \
+        "Cannot create distinct fields once a slice has been taken."
+    obj = self._chain()
+    obj.query.add_distinct_fields(*field_names)
+    return obj</original>
+<patched>def distinct(self, *field_names):
+    """
+    Return a new QuerySet instance that will select only distinct results.
+    """
+    assert not self.query.is_sliced, \
+        "Cannot create distinct fields once a slice has been taken."
+    obj = self._chain()
+    obj.query.add_distinct_fields(*field_names)
+    # Mark the queryset to preserve distinct fields after union
+    obj._preserve_distinct_fields = True
+    return obj</patched>
+```
+
+This patch attempts to address the issue by marking the queryset to preserve distinct fields when `distinct` is called, and modifying the `union` method to respect this marking. It's a conceptual solution and would need thorough testing, especially for edge cases and to ensure it doesn't introduce regressions or performance issues.

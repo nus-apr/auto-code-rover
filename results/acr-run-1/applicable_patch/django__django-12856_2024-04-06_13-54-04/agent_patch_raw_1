@@ -1,0 +1,79 @@
+# modification 1
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>def generate_created_models(self):
+    ...
+    if unique_together:
+        self.add_operation(
+            app_label,
+            operations.AlterUniqueTogether(
+                name=model_name,
+                unique_together=unique_together,
+            ),
+            dependencies=related_dependencies
+        )
+    if index_together:
+        self.add_operation(
+            app_label,
+            operations.AlterIndexTogether(
+                name=model_name,
+                index_together=index_together,
+            ),
+            dependencies=related_dependencies
+        )
+    ...
+</original>
+<patched>def generate_created_models(self):
+    ...
+    # Validate unique constraints fields exist
+    def validate_unique_constraints(model_state):
+        for constraint in model_state.options.get('constraints', []):
+            if isinstance(constraint, models.UniqueConstraint):
+                for field in constraint.fields:
+                    if field not in model_state.fields:
+                        raise ValueError(f"Field '{field}' used in a UniqueConstraint for model '{model_state.name}' does not exist.")
+    validate_unique_constraints(model_state)
+
+    if unique_together:
+        self.add_operation(
+            app_label,
+            operations.AlterUniqueTogether(
+                name=model_name,
+                unique_together=unique_together,
+            ),
+            dependencies=related_dependencies
+        )
+    if index_together:
+        self.add_operation(
+            app_label,
+            operations.AlterIndexTogether(
+                name=model_name,
+                index_together=index_together,
+            ),
+            dependencies=related_dependencies
+        )
+    ...
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/autodetector.py</file>
+<original>def generate_altered_unique_together(self):
+    self._generate_altered_foo_together(operations.AlterUniqueTogether)
+</original>
+<patched>def generate_altered_unique_together(self):
+    # Added validation for unique constraints fields existence
+    def validate_unique_constraints_changes(app_label, model_name, unique_together):
+        model_state = self.to_state.models[app_label, model_name]
+        for constraint in model_state.options.get('constraints', []):
+            if isinstance(constraint, models.UniqueConstraint):
+                for field in constraint.fields:
+                    if field not in model_state.fields:
+                        raise ValueError(f"Field '{field}' used in a UniqueConstraint for model '{model_state.name}' does not exist.")
+        # Original functionality
+        self._generate_altered_foo_together(operations.AlterUniqueTogether, validate_unique_constraints_changes)
+</patched>
+```
+
+**Note**: The modifications above are conceptual and aim to demonstrate how one might approach adding validation for `UniqueConstraint` fields within the Django migration autodetector system. The actual implementation may require adjustments based on the full context of the Django codebase and existing conventions. Additionally, the `validate_unique_constraints` and `validate_unique_constraints_changes` functions are illustrative; their integration into the Django migration system would need to be carefully designed to align with Django's error handling and user feedback mechanisms.

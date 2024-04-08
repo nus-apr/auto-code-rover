@@ -1,0 +1,37 @@
+{
+    "task_id": "sympy__sympy-21847",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.9",
+        "env_name": "setup_sympy__sympy__1.9",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/polys/tests/test_monomials.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-21847",
+        "base_commit": "d9b18c518d64d0ebe8e35a98c2fb519938b9b151",
+        "hints_text": "Doesn't look like the `min_degrees` argument is actually used anywhere in the codebase. Also there don't seem to be any nontrivial tests for passing `min_degrees` as an integer.\r\n\r\nThe issue would be fixed with this diff and some tests in `test_monomials.py`:\r\n```diff\r\ndiff --git a/sympy/polys/monomials.py b/sympy/polys/monomials.py\r\nindex 0e84403307..d2cd3451e5 100644\r\n--- a/sympy/polys/monomials.py\r\n+++ b/sympy/polys/monomials.py\r\n@@ -127,7 +127,7 @@ def itermonomials(variables, max_degrees, min_degrees=None):\r\n                 for variable in item:\r\n                     if variable != 1:\r\n                         powers[variable] += 1\r\n-                if max(powers.values()) >= min_degree:\r\n+                if sum(powers.values()) >= min_degree:\r\n                     monomials_list_comm.append(Mul(*item))\r\n             yield from set(monomials_list_comm)\r\n         else:\r\n@@ -139,7 +139,7 @@ def itermonomials(variables, max_degrees, min_degrees=None):\r\n                 for variable in item:\r\n                     if variable != 1:\r\n                         powers[variable] += 1\r\n-                if max(powers.values()) >= min_degree:\r\n+                if sum(powers.values()) >= min_degree:\r\n                     monomials_list_non_comm.append(Mul(*item))\r\n             yield from set(monomials_list_non_comm)\r\n     else:\r\n```\r\n",
+        "created_at": "2021-08-10T17:41:59Z",
+        "test_patch": "diff --git a/sympy/polys/tests/test_monomials.py b/sympy/polys/tests/test_monomials.py\n--- a/sympy/polys/tests/test_monomials.py\n+++ b/sympy/polys/tests/test_monomials.py\n@@ -15,7 +15,6 @@\n from sympy.core import S, symbols\n from sympy.testing.pytest import raises\n \n-\n def test_monomials():\n \n     # total_degree tests\n@@ -114,6 +113,9 @@ def test_monomials():\n     assert set(itermonomials([x], [3], [1])) == {x, x**3, x**2}\n     assert set(itermonomials([x], [3], [2])) == {x**3, x**2}\n \n+    assert set(itermonomials([x, y], 3, 3)) == {x**3, x**2*y, x*y**2, y**3}\n+    assert set(itermonomials([x, y], 3, 2)) == {x**2, x*y, y**2, x**3, x**2*y, x*y**2, y**3}\n+\n     assert set(itermonomials([x, y], [0, 0])) == {S.One}\n     assert set(itermonomials([x, y], [0, 1])) == {S.One, y}\n     assert set(itermonomials([x, y], [0, 2])) == {S.One, y, y**2}\n@@ -132,6 +134,15 @@ def test_monomials():\n             {S.One, y**2, x*y**2, x, x*y, x**2, x**2*y**2, y, x**2*y}\n \n     i, j, k = symbols('i j k', commutative=False)\n+    assert set(itermonomials([i, j, k], 2, 2)) == \\\n+            {k*i, i**2, i*j, j*k, j*i, k**2, j**2, k*j, i*k}\n+    assert set(itermonomials([i, j, k], 3, 2)) == \\\n+            {j*k**2, i*k**2, k*i*j, k*i**2, k**2, j*k*j, k*j**2, i*k*i, i*j,\n+                    j**2*k, i**2*j, j*i*k, j**3, i**3, k*j*i, j*k*i, j*i,\n+                    k**2*j, j*i**2, k*j, k*j*k, i*j*i, j*i*j, i*j**2, j**2,\n+                    k*i*k, i**2, j*k, i*k, i*k*j, k**3, i**2*k, j**2*i, k**2*i,\n+                    i*j*k, k*i\n+            }\n     assert set(itermonomials([i, j, k], [0, 0, 0])) == {S.One}\n     assert set(itermonomials([i, j, k], [0, 0, 1])) == {1, k}\n     assert set(itermonomials([i, j, k], [0, 1, 0])) == {1, j}\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "itermonomials returns incorrect monomials when using min_degrees argument\n`itermonomials` returns incorrect monomials when using optional `min_degrees` argument\r\n\r\nFor example, the following code introduces three symbolic variables and generates monomials with max and min degree of 3:\r\n\r\n\r\n```\r\nimport sympy as sp\r\nfrom sympy.polys.orderings import monomial_key\r\n\r\nx1, x2, x3 = sp.symbols('x1, x2, x3')\r\nstates = [x1, x2, x3]\r\nmax_degrees = 3\r\nmin_degrees = 3\r\nmonomials = sorted(sp.itermonomials(states, max_degrees, min_degrees=min_degrees), \r\n                   key=monomial_key('grlex', states))\r\nprint(monomials)\r\n```\r\nThe code returns `[x3**3, x2**3, x1**3]`, when it _should_ also return monomials such as `x1*x2**2, x2*x3**2, etc...` that also have total degree of 3. This behaviour is inconsistent with the documentation that states that \r\n\r\n> A generator of all monomials `monom` is returned, such that either `min_degree <= total_degree(monom) <= max_degree`...\r\n\r\nThe monomials are also missing when `max_degrees` is increased above `min_degrees`.\n",
+        "version": "1.9",
+        "FAIL_TO_PASS": [
+            "test_monomials"
+        ],
+        "PASS_TO_PASS": [
+            "test_monomial_count",
+            "test_monomial_div",
+            "test_monomial_divides",
+            "test_monomial_gcd",
+            "test_monomial_lcm",
+            "test_monomial_max",
+            "test_monomial_min",
+            "test_monomial_mul",
+            "test_monomial_pow"
+        ],
+        "environment_setup_commit": "f9a6f50ec0c74d935c50a6e9c9b2cb0469570d91",
+        "patch": "diff --git a/sympy/polys/monomials.py b/sympy/polys/monomials.py\n--- a/sympy/polys/monomials.py\n+++ b/sympy/polys/monomials.py\n@@ -127,7 +127,7 @@ def itermonomials(variables, max_degrees, min_degrees=None):\n                 for variable in item:\n                     if variable != 1:\n                         powers[variable] += 1\n-                if max(powers.values()) >= min_degree:\n+                if sum(powers.values()) >= min_degree:\n                     monomials_list_comm.append(Mul(*item))\n             yield from set(monomials_list_comm)\n         else:\n@@ -139,7 +139,7 @@ def itermonomials(variables, max_degrees, min_degrees=None):\n                 for variable in item:\n                     if variable != 1:\n                         powers[variable] += 1\n-                if max(powers.values()) >= min_degree:\n+                if sum(powers.values()) >= min_degree:\n                     monomials_list_non_comm.append(Mul(*item))\n             yield from set(monomials_list_non_comm)\n     else:\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/21847"
+    }
+}

@@ -1,0 +1,22 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index e19c881cda..b47bf753f9 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -277,11 +277,15 @@ class TypeSerializer(BaseSerializer):
+             (type(None), 'type(None)', []),
+         ]
+         for case, string, imports in special_cases:
+-            if case is self.value:
++            if isinstance(self.value, case):
+                 return string, set(imports)
+         if hasattr(self.value, "__module__"):
+             module = self.value.__module__
+-            if module == builtins.__name__:
++            # Check if the module is part of django.db.models, indicating a custom model field or mixin
++            if 'django.db.models' in module:
++                # Ensure the 'from django.db import models' import is included
++                return "%s.%s" % (module, self.value.__qualname__), {"from django.db import models"}
++            elif module == builtins.__name__:
+                 return self.value.__name__, set()
+             else:
+                 return "%s.%s" % (module, self.value.__qualname__), {"import %s" % module}

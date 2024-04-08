@@ -1,0 +1,30 @@
+Given the feedback, it seems the initial approach to directly modify the `__str__` method to include the full exception message might not align well with pytest's design or could have unintended side effects. A more nuanced approach is required, considering the original functionality and the need for consistency across different uses of `ExceptionInfo`.
+
+The issue stems from the expectation that `str(e)` within a `pytest.raises` block should behave similarly to `str(e)` in a `try-except` block, directly providing the exception message. However, `ExceptionInfo.__str__` is designed to return a location-based representation. To address the issue without breaking existing functionality or expectations, we might consider adding a method or property to `ExceptionInfo` that explicitly provides the full exception message, making it clear that this is a different representation from the default `__str__`.
+
+This approach avoids altering the behavior of `__str__`, which might be relied upon in its current form for other purposes, and instead provides a clear, intentional way to access the full exception message.
+
+# modification 1
+```python
+<file>src/_pytest/_code/code.py</file>
+<original>    def __str__(self):
+        if self._excinfo is None:
+            return repr(self)
+        entry = self.traceback[-1]
+        loc = ReprFileLocation(entry.path, entry.lineno + 1, self.exconly())
+        return str(loc)</original>
+<patched>    def __str__(self):
+        if self._excinfo is None:
+            return repr(self)
+        entry = self.traceback[-1]
+        loc = ReprFileLocation(entry.path, entry.lineno + 1, self.exconly())
+        return str(loc)
+
+    def full_exception_message(self):
+        """Return the full exception message."""
+        if self._excinfo is None:
+            return ""
+        return "\n".join([str(line) for line in self.traceback]) + "\n" + str(self.value)</patched>
+```
+
+This patch introduces a new method `full_exception_message` to the `ExceptionInfo` class, which concatenates the traceback and the exception's value to provide the full exception message. This method can be used explicitly when the full exception message is desired, such as in debugging or logging, without altering the behavior of `__str__`. This approach maintains backward compatibility and adheres to the principle of least surprise, providing a clear and intentional way to access the full exception message.

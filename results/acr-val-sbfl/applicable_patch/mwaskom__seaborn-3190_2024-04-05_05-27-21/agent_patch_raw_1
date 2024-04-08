@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>seaborn/_core/scales.py</file>
+<original>            vmin, vmax = axis.convert_units((vmin, vmax))
+            a = forward(vmin)
+            b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                return (x - a) / b</original>
+<patched>            # Check if data is boolean and handle accordingly
+            if data.dtype == bool:
+                # Map True to 1 and False to 0 for normalization
+                vmin, vmax = 0, 1
+                a = forward(vmin)
+                b = forward(vmax) - forward(vmin)
+            else:
+                vmin, vmax = axis.convert_units((vmin, vmax))
+                a = forward(vmin)
+                b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                # Ensure boolean data is converted to integers for normalization
+                if data.dtype == bool:
+                    x = x.astype(int)
+                return (x - a) / b</patched>
+```
+
+This patch addresses the issue by adding a check for boolean data types in the `_setup` method of the `ContinuousBase` class. If the data is boolean, it explicitly sets `vmin` to 0 and `vmax` to 1, which are the numeric representations of `False` and `True`, respectively. This approach avoids the subtraction operation on boolean values that caused the original error. Additionally, it ensures that boolean data is converted to integers before normalization, allowing the normalization process to proceed without issues.

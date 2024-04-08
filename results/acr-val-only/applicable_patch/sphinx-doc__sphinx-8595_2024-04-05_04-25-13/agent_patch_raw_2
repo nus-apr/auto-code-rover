@@ -1,0 +1,34 @@
+Given the feedback that the initial patch did not resolve the issue and some tests have failed, let's revise the approach. The goal remains to ensure that an empty `__all__` attribute results in no members being documented. It seems the modifications need to be more focused on how the `__all__` attribute is interpreted during the documentation process, particularly in the `ModuleDocumenter` class where module members are determined for documentation.
+
+Upon reevaluation, it appears the initial approach might not have fully addressed the core issue of how members are selected for documentation based on the `__all__` attribute. Let's adjust the strategy to more directly influence this selection process.
+
+# Revised modification
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if want_all:
+            if not self.__all__:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())
+            else:
+                for member in members.values():
+                    if member.__name__ not in self.__all__:
+                        member.skipped = True
+
+                return False, list(members.values())</original>
+<patched>if want_all:
+            if hasattr(self, '__all__') and self.__all__ is not None:
+                if not self.__all__:
+                    # If __all__ is explicitly empty, consider no members for documentation
+                    return False, []
+                else:
+                    # Filter members based on __all__
+                    filtered_members = [member for member in members.values() if member.__name__ in self.__all__]
+                    return False, filtered_members
+            else:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())</patched>
+```
+
+This revised modification explicitly checks if `__all__` is defined and not `None` before proceeding with the member filtering logic. If `__all__` is present and empty, it returns an empty list of members, effectively documenting no members. This approach directly addresses the issue of an empty `__all__` being ignored and ensures that the documentation process respects the explicit intention to document no members.

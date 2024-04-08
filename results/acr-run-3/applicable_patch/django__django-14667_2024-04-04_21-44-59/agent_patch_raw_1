@@ -1,0 +1,53 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            clone.query.add_deferred_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            # Before adding fields to deferred loading, remove them from immediate loading if present
+            immediate_fields = set(clone.query.immediate_loading)
+            deferred_fields = set(fields)
+            remaining_immediate_fields = immediate_fields - deferred_fields
+            clone.query.set_immediate_loading(list(remaining_immediate_fields))
+            clone.query.add_deferred_loading(fields)
+        return clone</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        if fields == (None,):
+            # Can only pass None to defer(), not only(), as the rest option.
+            # That won't stop people trying to do this, so let's be explicit.
+            raise TypeError("Cannot pass None as an argument to only().")
+        for field in fields:
+            field = field.split(LOOKUP_SEP, 1)[0]
+            if field in self.query._filtered_relations:
+                raise ValueError('only() is not supported with FilteredRelation.')
+        clone.query.add_immediate_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        if fields == (None,):
+            # Can only pass None to defer(), not only(), as the rest option.
+            # That won't stop people trying to do this, so let's be explicit.
+            raise TypeError("Cannot pass None as an argument to only().")
+        for field in fields:
+            field = field.split(LOOKUP_SEP, 1)[0]
+            if field in self.query._filtered_relations:
+                raise ValueError('only() is not supported with FilteredRelation.')
+            # Before adding fields to immediate loading, remove them from deferred loading if present
+            if field in clone.query.deferred_loading[0]:
+                clone.query.deferred_loading[0].remove(field)
+        clone.query.add_immediate_loading(fields)
+        return clone</patched>
+```
+
+**Explanation**: The modifications aim to address the issue where chaining `defer` and `only` methods does not behave as expected. The first modification ensures that when fields are deferred, they are also removed from the set of fields marked for immediate loading if they were previously added by an `only` call. The second modification ensures that when fields are specified for immediate loading via `only`, they are removed from the set of deferred fields if they were previously deferred. This approach maintains the integrity of the queryset's intended behavior, ensuring that fields are either marked for immediate loading or deferred, but not both.

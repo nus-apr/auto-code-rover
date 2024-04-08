@@ -1,0 +1,38 @@
+# modification 1
+```python
+<file>requests/models.py</file>
+<original>            except AttributeError:
+                # Standard file-like object.
+                while True:
+                    chunk = self.raw.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk</original>
+<patched>            except AttributeError:
+                # Standard file-like object.
+                while True:
+                    chunk = self.raw.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            except socket.error as e:
+                raise requests.exceptions.ConnectionError(e)</patched>
+```
+
+# modification 2
+```python
+<file>requests/adapters.py</file>
+<original>        response = Response()
+
+        # Fallback to None if there's no status_code, for whatever reason.
+        response.status_code = getattr(resp, 'status', None)</original>
+<patched>        try:
+            response = Response()
+
+            # Fallback to None if there's no status_code, for whatever reason.
+            response.status_code = getattr(resp, 'status', None)
+        except socket.error as e:
+            raise requests.exceptions.ConnectionError(e)</patched>
+```
+
+These modifications aim to catch `socket.error` exceptions and wrap them as `requests.exceptions.ConnectionError` within the `iter_content` method of `requests/models.py` and the `build_response` method of `requests/adapters.py`. This ensures that users of the `requests` library will encounter consistent exception types that are more informative and easier to handle within the context of HTTP requests.

@@ -1,0 +1,51 @@
+diff --git a/sklearn/metrics/cluster/_supervised.py b/sklearn/metrics/cluster/_supervised.py
+index 4bddae35c..dab0438d7 100644
+--- a/sklearn/metrics/cluster/_supervised.py
++++ b/sklearn/metrics/cluster/_supervised.py
+@@ -216,7 +216,7 @@ def adjusted_rand_score(labels_true, labels_pred):
+     adjusted_mutual_info_score: Adjusted Mutual Information
+ 
+     """
+-    labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
++    labels_true, labels_pred = check_clusterings(labels_true.astype(str), labels_pred.astype(str))
+     n_samples = labels_true.shape[0]
+     n_classes = np.unique(labels_true).shape[0]
+     n_clusters = np.unique(labels_pred).shape[0]
+@@ -623,12 +623,10 @@ def mutual_info_score(labels_true, labels_pred, contingency=None):
+                                   accept_sparse=['csr', 'csc', 'coo'],
+                                   dtype=[int, np.int32, np.int64])
+ 
+-    if isinstance(contingency, np.ndarray):
+-        # For an array
+-        nzx, nzy = np.nonzero(contingency)
+-        nz_val = contingency[nzx, nzy]
+-    elif sp.issparse(contingency):
+-        # For a sparse matrix
++    if isinstance(contingency, np.ndarray) or sp.issparse(contingency):
++        # Convert contingency to a sparse format if it's not already, to handle both cases uniformly
++        if not sp.issparse(contingency):
++            contingency = sp.coo_matrix(contingency)
+         nzx, nzy, nz_val = sp.find(contingency)
+     else:
+         raise ValueError("Unsupported type for 'contingency': %s" %
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index dad56850f..b9759de3c 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -458,11 +458,11 @@ def check_array(array, accept_sparse=False, accept_large_sparse=True,
+             dtype_orig = np.result_type(*array.dtypes)
+ 
+     if dtype_numeric:
+-        if dtype_orig is not None and dtype_orig.kind == "O":
+-            # if input is object, convert to float.
+-            dtype = np.float64
+-        else:
+-            dtype = None
++            if dtype_orig is not None and dtype_orig.kind == "O":
++                # if input is object, keep as object to allow string processing.
++                dtype = object
++            else:
++                dtype = None
+ 
+     if isinstance(dtype, (list, tuple)):
+         if dtype_orig is not None and dtype_orig in dtype:

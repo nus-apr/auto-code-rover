@@ -1,0 +1,28 @@
+Given the feedback and the need to address the issue without introducing new configuration options or changing the behavior significantly, a more straightforward approach is needed. The goal is to prevent the overescaping of trailing underscores in attribute names without affecting other necessary escaping functionalities. Here's an adjusted patch that directly addresses the issue without adding new configuration options:
+
+# modification 1
+```python
+<file>sphinx/ext/napoleon/docstring.py</file>
+<original>    def _escape_args_and_kwargs(self, name: str) -> str:
+        if name.endswith('_'):
+            name = name[:-1] + r'\_'
+
+        if name[:2] == '**':
+            return r'\*\*' + name[2:]
+        elif name[:1] == '*':
+            return r'\*' + name[1:]
+        else:
+            return name
+</original>
+<patched>    def _escape_args_and_kwargs(self, name: str) -> str:
+        # Only escape asterisks, leave trailing underscores as they are
+        if name[:2] == '**':
+            return r'\*\*' + name[2:]
+        elif name[:1] == '*':
+            return r'\*' + name[1:]
+        else:
+            return name
+</patched>
+```
+
+This modification removes the specific handling that adds an escape character to trailing underscores. The rationale behind this change is that Sphinx and related tooling should correctly handle trailing underscores without the need for escaping in most contexts. This change focuses on maintaining the original intention of escaping asterisks that denote special argument types (e.g., `*args` and `**kwargs`) while leaving trailing underscores unaffected. This approach should resolve the issue with overescaped trailing underscores in attribute names without introducing new bugs or requiring additional configuration options.

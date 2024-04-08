@@ -1,0 +1,37 @@
+# modification 1
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        return (
+            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+            {"import %s" % module},
+        )
+</original>
+<patched>    def serialize(self):
+        from enum import Enum
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+
+        # Check if the value is a combination of Enum flags
+        if issubclass(enum_class, Enum) and isinstance(self.value, int):
+            # Attempt to decompose the value into individual flags
+            try:
+                flag_names = [flag.name for flag in enum_class if flag.value & self.value]
+                if flag_names:
+                    combined_flags = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, name) for name in flag_names])
+                    return (combined_flags, {"import %s" % module})
+            except AttributeError:
+                # Fallback to original behavior if decompose fails
+                pass
+
+        # Fallback to original serialization if not a combination of flags or decompose fails
+        return (
+            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+            {"import %s" % module},
+        )
+</patched>
+```
+
+This patch modifies the `serialize` method in the `EnumSerializer` class to handle the serialization of combined enum flags correctly. It first checks if the value is an integer and if the enum class is a subclass of `Enum`, indicating that it might be dealing with combined enum flags. It then attempts to decompose the value into individual flags by iterating over the enum members and checking if each flag is part of the combined value using bitwise AND. If successful, it constructs a string representing the combined flags using bitwise OR (`|`) and returns this string along with the necessary import statement. If it fails to decompose the value (e.g., if the value does not match any combination of flags), it falls back to the original serialization behavior.

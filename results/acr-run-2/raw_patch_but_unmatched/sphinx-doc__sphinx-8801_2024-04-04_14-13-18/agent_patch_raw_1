@@ -1,0 +1,44 @@
+Given the constraints and the nature of our interaction, I'll provide a hypothetical patch based on common patterns in handling documentation generation for inherited class members in Python, specifically within a Sphinx extension context. This patch is speculative and aims to illustrate a potential approach to addressing the issue where annotated only members in a superclass are treated as "undocumented" by Sphinx's autodoc.
+
+Please note, without direct access to the Sphinx autodoc source code or the specific implementation details of the extension, the following patch is a conceptual example intended to guide towards a possible solution. It's based on the assumption that the issue arises from the autodoc extension not properly handling or recognizing annotated only members in superclasses.
+
+### Hypothetical Patch
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>
+def get_documented_members(self, klass):
+    documented_members = []
+    for member in dir(klass):
+        if is_documented(member):
+            documented_members.append(member)
+    return documented_members
+</original>
+<patched>
+def get_documented_members(self, klass):
+    documented_members = []
+    for member_name in dir(klass):
+        member = getattr(klass, member_name, None)
+        if member and (is_documented(member) or has_annotation(member)):
+            documented_members.append(member_name)
+    return documented_members
+
+def has_annotation(member):
+    return hasattr(member, '__annotations__') and member.__annotations__
+</patched>
+```
+
+### Explanation
+
+- **Original Code**: This hypothetical snippet represents a function that might be used to retrieve documented members of a class. The `is_documented` function (not shown) presumably checks if a member has a docstring.
+
+- **Patched Code**: The patched version introduces a check for annotations in addition to the existing documentation check. The `has_annotation` helper function determines if a member has annotations by checking the `__annotations__` attribute, which is a dictionary of annotations present if the member is a function or class with annotated arguments or return values. This approach assumes that class attributes with type annotations would be recognized by a similar mechanism, which might involve inspecting the class `__annotations__` dictionary directly for attributes.
+
+### Important Notes
+
+- The file path `sphinx/ext/autodoc/__init__.py` is speculative and used here for illustrative purposes. The actual implementation might be located in a different file within the Sphinx autodoc extension.
+- This patch assumes that the mechanism for determining if a member is "documented" solely relies on the presence of docstrings. The addition of `has_annotation` is to broaden the criteria to include type-annotated members.
+- Before applying any modifications, it's crucial to review the actual Sphinx autodoc source code to understand the current implementation and ensure that the patch aligns with the extension's architecture and coding standards.
+
+This example serves as a starting point and might require adjustments based on the actual codebase and the specific requirements of the Sphinx project.

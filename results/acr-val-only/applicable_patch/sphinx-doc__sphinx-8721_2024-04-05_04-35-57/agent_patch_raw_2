@@ -1,0 +1,21 @@
+Given the issue and the context provided, the problem seems to be that the `viewcode` extension is incorrectly generating pages for the ePub format even when the `viewcode_enable_epub` configuration is explicitly set to `False`. The existing condition in the `doctree_read` function appears to be correctly designed to prevent this from happening, but since the issue persists, it suggests that the condition might not be applied under certain circumstances, such as when building multiple formats simultaneously.
+
+A more targeted approach to resolving this issue would involve ensuring that the `viewcode_enable_epub` configuration is respected under all circumstances, including when multiple build targets are specified. Since the direct approach in the `doctree_read` function does not seem to have an obvious flaw, the issue might be related to the timing or the order in which configurations are applied or checked during the build process.
+
+However, without further context on how configurations are handled for multiple build targets or additional insights into the build process itself, proposing a specific code change to fix the issue is challenging. Given the limitations, a hypothetical patch could involve adding a more explicit check or a workaround to ensure that the `viewcode` pages are not generated for ePub when `viewcode_enable_epub` is set to `False`, but without a clear understanding of the root cause, this approach might not address the underlying issue.
+
+Given the provided context and the limitations, here's an alternative approach to ensure that the configuration is respected, by adding a more explicit condition earlier in the process:
+
+# modification 1
+```python
+<file>sphinx/ext/viewcode.py</file>
+<original>if app.builder.name.startswith("epub") and not env.config.viewcode_enable_epub:
+    return</original>
+<patched>if "epub" in app.builder.format and not env.config.viewcode_enable_epub:
+    app.builder.warn('viewcode generation for ePub is disabled by viewcode_enable_epub configuration.')
+    return</patched>
+```
+
+This modification attempts to address the issue by changing the condition to check for the `format` attribute of the builder, which might provide a more reliable way to determine if the current build target includes ePub, and then explicitly logs a warning if the `viewcode` generation is skipped due to the configuration. This change assumes that the builder object has a `format` attribute that accurately reflects the current build target(s) and that the issue might be related to how the builder's name is set or checked.
+
+Please note, this patch is speculative and based on the assumption that the issue might be related to the identification of the build target. Without a deeper understanding of the Sphinx build process and how it handles configurations for multiple targets, it's difficult to provide a definitive solution. Further investigation into the Sphinx build process and how the `viewcode_enable_epub` configuration is applied during multi-format builds would be necessary for a more accurate fix.

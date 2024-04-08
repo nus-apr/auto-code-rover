@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def resolve_lookup_value(self, value, can_reuse, allow_joins):
+        if hasattr(value, 'resolve_expression'):
+            value = value.resolve_expression(
+                self, reuse=can_reuse, allow_joins=allow_joins,
+            )
+        elif isinstance(value, (list, tuple)):
+            # The items of the iterable may be expressions and therefore need
+            # to be resolved independently.
+            return type(value)(
+                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
+                for sub_value in value
+            )
+        return value
+</original>
+<patched>    def resolve_lookup_value(self, value, can_reuse, allow_joins):
+        if hasattr(value, 'resolve_expression'):
+            value = value.resolve_expression(
+                self, reuse=can_reuse, allow_joins=allow_joins,
+            )
+        elif isinstance(value, (list, tuple)):
+            # The items of the iterable may be expressions and therefore need
+            # to be resolved independently.
+            resolved_values = (
+                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
+                for sub_value in value
+            )
+            if hasattr(value, '_fields'):  # This checks if it's a named tuple
+                return type(value)(*resolved_values)
+            else:
+                return type(value)(resolved_values)
+        return value
+</patched>
+```

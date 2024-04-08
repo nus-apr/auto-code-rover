@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def colblocksizes(self):
+        return [self.blocks[0, i].cols for i in range(self.blockshape[1])]
+</original>
+<patched>    def colblocksizes(self):
+        from sympy.matrices.expressions.matexpr import ZeroMatrix
+        return [self.blocks[0, i].cols if not isinstance(self.blocks[0, i], ZeroMatrix) else 0 for i in range(self.blockshape[1])]
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def _blockmul(self, other):
+        if (isinstance(other, BlockMatrix) and
+                self.colblocksizes == other.rowblocksizes):
+            return BlockMatrix(self.blocks*other.blocks)
+
+        return self * other
+</original>
+<patched>    def _blockmul(self, other):
+        from sympy.matrices.expressions.matexpr import ZeroMatrix
+        if (isinstance(other, BlockMatrix) and
+                self.colblocksizes == other.rowblocksizes):
+            new_blocks = [[self.blocks[i, j] * other.blocks[j, i] if not (isinstance(self.blocks[i, j], ZeroMatrix) or isinstance(other.blocks[j, i], ZeroMatrix)) else ZeroMatrix(self.blocks[i, j].rows, other.blocks[j, i].cols) for j in range(other.blockshape[0])] for i in range(self.blockshape[0])]
+            return BlockMatrix(new_blocks)
+
+        return self * other
+</patched>
+```
+
+These modifications aim to address the issue by ensuring that operations involving `ZeroMatrix` and `Zero` objects are handled correctly in the context of block matrix multiplication. The first modification ensures that the `colblocksizes` method can handle `ZeroMatrix` objects by explicitly checking for them and returning 0 for their column sizes. The second modification updates the `_blockmul` method to correctly handle multiplication involving `ZeroMatrix` objects, ensuring that the result of multiplying a `ZeroMatrix` with any matrix is a `ZeroMatrix` of appropriate dimensions, thus preventing the simplification to `Zero` objects that lack the necessary attributes for subsequent operations.

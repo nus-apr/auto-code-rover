@@ -1,0 +1,21 @@
+# modification 1
+```python
+<file>django/db/migrations/writer.py</file>
+<original>        # django.db.migrations is always used, but models import may not be.
+        if "from django.db import models" in imports:
+            imports.discard("from django.db import models")
+            imports.add("from django.db import migrations, models")
+        else:
+            imports.add("from django.db import migrations")</original>
+<patched>        # django.db.migrations is always used, and models import is checked for necessity.
+        # Check if any operation or dependency explicitly requires 'models'.
+        models_import_needed = "from django.db import models" in imports or any(
+            "models." in op for op in operations) or any("models." in dep for dep in dependencies)
+        if models_import_needed:
+            imports.discard("from django.db import models")
+            imports.add("from django.db import migrations, models")
+        else:
+            imports.add("from django.db import migrations")</patched>
+```
+
+This modification ensures that the `models` import is included in the generated migration file not only when it's explicitly found in the imports set but also when any operation or dependency string contains a reference to `models.`. This approach aims to cover cases where the necessity of the `models` module might not be directly declared in the imports set but is implied through the usage in operations or dependencies.

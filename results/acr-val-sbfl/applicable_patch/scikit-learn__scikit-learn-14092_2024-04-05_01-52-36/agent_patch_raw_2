@@ -1,0 +1,38 @@
+Given the feedback, let's refine the approach to address the issue more directly and ensure compatibility with the existing codebase and its expectations. The goal is to maintain strict type checking for safety while increasing flexibility for practical use cases, such as those encountered with `GridSearchCV`.
+
+# modification 1
+```python
+<file>sklearn/utils/validation.py</file>
+<original>if not isinstance(x, target_type):
+    raise TypeError('`{}` must be an instance of {}, not {}.'
+                    .format(name, target_type, type(x)))</original>
+<patched>acceptable_types = target_type if isinstance(target_type, tuple) else (target_type,)
+if not isinstance(x, acceptable_types + (np.number,)):
+    try:
+        x = target_type(x)
+    except (ValueError, TypeError):
+        raise TypeError('`{}` must be an instance of {}, not {}.'
+                        .format(name, target_type, type(x)))</patched>
+```
+
+This modification in `check_scalar` function allows for a broader range of numeric types by including `numpy`'s generic number type `np.number` in the type check. If the initial type check fails, it attempts to cast the value to the target type, maintaining the original strictness if casting is not possible.
+
+# modification 2
+```python
+<file>sklearn/neighbors/nca.py</file>
+<original>check_scalar(self.n_components, 'n_components', int, 1)</original>
+<patched>check_scalar(self.n_components, 'n_components', (int, np.integer), 1)</patched>
+```
+
+This modification remains the same as previously suggested, explicitly allowing `numpy` integer types for `n_components` in `NeighborhoodComponentsAnalysis`.
+
+# modification 3
+```python
+<file>sklearn/neighbors/nca.py</file>
+<original>check_scalar(self.tol, 'tol', float, 0.)</original>
+<patched>check_scalar(self.tol, 'tol', (float, np.floating), 0.)</patched>
+```
+
+Similarly, this modification remains as previously suggested, explicitly allowing `numpy` floating types for `tol` in `NeighborhoodComponentsAnalysis`.
+
+These adjustments aim to strike a balance between maintaining the integrity of type checks and providing the necessary flexibility for practical scenarios, such as parameter tuning with `GridSearchCV`.

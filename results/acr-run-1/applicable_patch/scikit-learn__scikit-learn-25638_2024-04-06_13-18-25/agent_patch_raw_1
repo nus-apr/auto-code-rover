@@ -1,0 +1,42 @@
+# modification 1
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>ys_types = set(type_of_target(x) for x in ys)
+if ys_types == {"binary", "multiclass"}:
+    ys_types = {"multiclass"}
+
+if len(ys_types) > 1:
+    raise ValueError("Mix type of y not allowed, got types %s" % ys_types)</original>
+<patched>ys_types = set()
+for x in ys:
+    # Convert pandas series with nullable types to their numpy counterparts
+    if hasattr(x, "dtype") and pd.api.types.is_extension_array_dtype(x.dtype):
+        x = x.to_numpy(dtype="float" if "Float" in str(x.dtype) else "int", na_value=np.nan if "Float" in str(x.dtype) else -1)
+    ys_types.add(type_of_target(x))
+
+if ys_types == {"binary", "multiclass"}:
+    ys_types = {"multiclass"}
+
+if len(ys_types) > 1:
+    raise ValueError("Mix type of y not allowed, got types %s" % ys_types)</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if is_array_api:
+    # array_api does not allow for mixed dtypes
+    unique_ys = xp.concat([_unique_labels(y) for y in ys])
+    return xp.unique_values(unique_ys)</original>
+<patched>if is_array_api:
+    # Handle nullable pandas dtypes by converting them to their numpy counterparts
+    ys_converted = []
+    for y in ys:
+        if hasattr(y, "dtype") and pd.api.types.is_extension_array_dtype(y.dtype):
+            y = y.to_numpy(dtype="float" if "Float" in str(y.dtype) else "int", na_value=np.nan if "Float" in str(y.dtype) else -1)
+        ys_converted.append(y)
+    unique_ys = xp.concat([_unique_labels(y) for y in ys_converted])
+    return xp.unique_values(unique_ys)</patched>
+```
+
+**Note**: This patch assumes the presence of necessary imports such as `numpy as np` and `pandas as pd`. If these imports are not already in the file, they should be added at the beginning of the file. The patch aims to handle nullable pandas dtypes by converting them to their numpy counterparts before processing. This approach should resolve the issue without significantly altering the existing logic of the `unique_labels` function.

@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>sklearn/mixture/base.py</file>
+<original>        return log_resp.argmax(axis=1)</original>
+<patched>        labels = log_resp.argmax(axis=1)
+        self.labels_ = labels
+        return labels</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/mixture/base.py</file>
+<original>        return self._estimate_weighted_log_prob(X).argmax(axis=1)</original>
+<patched>        if hasattr(self, 'labels_') and self.converged_:
+            return self.labels_
+        else:
+            return self._estimate_weighted_log_prob(X).argmax(axis=1)</patched>
+```
+
+### Explanation:
+
+The issue arises because the `fit_predict` method in `GaussianMixture` (and by extension, in `BaseMixture`) calculates labels and does not ensure that these labels are consistent between `fit_predict` and subsequent calls to `predict`. The discrepancy occurs particularly when `n_init` is greater than 1, as multiple initializations can lead to different models being selected based on their likelihood or lower bound, but without ensuring that the labels predicted by `fit_predict` are used by `predict`.
+
+**Modification 1** ensures that the labels calculated by `fit_predict` are stored in the model instance. This is done by adding a line to store the labels as an attribute of the model (`self.labels_`) after they are computed in `fit_predict`.
+
+**Modification 2** modifies the `predict` method to check if the model has converged and if the `labels_` attribute is present. If both conditions are met, it returns the stored `labels_` instead of recalculating them. This ensures consistency between `fit_predict` and `predict` outputs after the model has been fitted. If the model has not converged or if `labels_` is not present (which could be the case if `predict` is called without first calling `fit_predict`), it falls back to the original behavior of calculating labels based on the current model parameters.
+
+These modifications address the issue by ensuring that once `fit_predict` has been called, the labels it computes are reused by `predict`, thus resolving the inconsistency observed when `n_init` is greater than 1.

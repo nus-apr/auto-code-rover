@@ -1,0 +1,64 @@
+# modification 1
+```python
+<file>sklearn/pipeline.py</file>
+<original>    def transform(self, X):
+        """Transform X separately by each transformer, concatenate results.
+
+        Parameters
+        ----------
+        X : iterable or array-like, depending on transformers
+            Input data to be transformed.
+
+        Returns
+        -------
+        X_t : array-like or sparse matrix of \
+                shape (n_samples, sum_n_components)
+            The `hstack` of results of transformers. `sum_n_components` is the
+            sum of `n_components` (output dimension) over transformers.
+        """
+        Xs = Parallel(n_jobs=self.n_jobs)(
+            delayed(_transform_one)(trans, X, None, weight)
+            for name, trans, weight in self._iter()
+        )
+        if not Xs:
+            # All transformers are None
+            return np.zeros((X.shape[0], 0))
+
+        return self._hstack(Xs)</original>
+<patched>    def transform(self, X):
+        """Transform X separately by each transformer, concatenate results.
+
+        Parameters
+        ----------
+        X : iterable or array-like, depending on transformers
+            Input data to be transformed.
+
+        Returns
+        -------
+        X_t : array-like, sparse matrix, or pandas DataFrame of \
+                shape (n_samples, sum_n_components)
+            The `hstack` of results of transformers. `sum_n_components` is the
+            sum of `n_components` (output dimension) over transformers.
+        """
+        from sklearn.utils import _get_threadlocal_config
+        config = _get_threadlocal_config()
+        transform_output = config.get('transform_output', 'default')
+
+        Xs = Parallel(n_jobs=self.n_jobs)(
+            delayed(_transform_one)(trans, X, None, weight)
+            for name, trans, weight in self._iter()
+        )
+        if not Xs:
+            # All transformers are None
+            return np.zeros((X.shape[0], 0))
+
+        if transform_output == 'pandas':
+            import pandas as pd
+            # Ensure all transformer outputs are DataFrames to concatenate them.
+            Xs = [pd.DataFrame(X) if not isinstance(X, pd.DataFrame) else X for X in Xs]
+            return pd.concat(Xs, axis=1)
+        else:
+            return self._hstack(Xs)</patched>
+```
+
+This patch modifies the `transform` method of the `FeatureUnion` class to handle the case when `transform_output` is set to "pandas". It checks the global configuration for `transform_output` and, if set to "pandas", ensures that all transformer outputs are pandas DataFrames before concatenating them. This approach should resolve the issue where the output format was not correctly handled when set to "pandas", leading to the observed error.

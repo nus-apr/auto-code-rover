@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>seaborn/_core/scales.py</file>
+<original>            a = forward(vmin)
+            b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                return (x - a) / b</original>
+<patched>            # Handle boolean data by converting True/False to 1/0 for continuous scales
+            if isinstance(vmin, bool) or isinstance(vmax, bool):
+                vmin, vmax = int(vmin), int(vmax)
+            a = forward(vmin)
+            b = forward(vmax) - forward(vmin)
+
+            def normalize(x):
+                return (x - a) / b</patched>
+```
+
+# modification 2
+```python
+<file>seaborn/_core/plot.py</file>
+<original>                try:
+                    self._scales[var] = scale._setup(var_df[var], prop)
+                except Exception as err:
+                    raise PlotSpecError._during("Scale setup", var) from err</original>
+<patched>                try:
+                    # Convert boolean data to integers before scale setup
+                    if var_df[var].dtype == bool:
+                        var_df[var] = var_df[var].astype(int)
+                    self._scales[var] = scale._setup(var_df[var], prop)
+                except Exception as err:
+                    raise PlotSpecError._during("Scale setup", var) from err</patched>
+```
+
+These modifications address the issue by ensuring that boolean data is appropriately converted to a numerical format before being processed by the continuous scale setup. The first modification directly handles boolean values in the `ContinuousBase._setup` method by converting `True` and `False` to `1` and `0`, respectively. The second modification ensures that boolean data is converted to integers before attempting to set up the scale in the `Plotter._setup_scales` method, thus preventing the error from occurring.

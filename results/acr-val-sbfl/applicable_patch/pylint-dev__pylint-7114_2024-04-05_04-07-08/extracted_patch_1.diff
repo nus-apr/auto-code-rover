@@ -1,0 +1,45 @@
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index bc227d2c4..04751e36b 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -717,7 +717,12 @@ class PyLinter(
+         :param FileItem file: data about the file
+         :raises AstroidError: for any failures stemming from astroid
+         """
+-        self.set_current_module(file.name, file.filepath)
++        # Check if a directory and a file have the same name in the same path
++        import os
++        if os.path.isdir(file.filepath) and os.path.exists(file.filepath + ".py"):
++            self.add_message('same-name-module-directory', args=(file.name,), line=0)
++        else:
++            self.set_current_module(file.name, file.filepath)
+         # get the module representation
+         ast_node = get_ast(file.filepath, file.name)
+         if ast_node is None:
+@@ -911,6 +916,12 @@ class PyLinter(
+         """
+         try:
+             if data is None:
++                # Adjust filepath for modules with a directory and file of the same name
++                import os
++                if os.path.isdir(filepath) and not filepath.endswith('__init__.py'):
++                    adjusted_filepath = os.path.join(filepath, '__init__.py')
++                    if os.path.exists(adjusted_filepath):
++                        filepath = adjusted_filepath
+                 return MANAGER.ast_from_file(filepath, modname, source=True)
+             return astroid.builder.AstroidBuilder(MANAGER).string_build(
+                 data, modname, filepath
+@@ -924,7 +935,12 @@ class PyLinter(
+                 confidence=HIGH,
+             )
+         except astroid.AstroidBuildingError as ex:
+-            self.add_message("parse-error", args=ex)
++            # Provide more detailed error message for module-directory name conflicts
++            if "No such file or directory" in str(ex):
++                self.add_message("parse-error", args=("Failed to load module due to a naming conflict. " +
++                                                      "Ensure there is no directory and file with the same name: " + str(ex),))
++            else:
++                self.add_message("parse-error", args=ex)
+         except Exception as ex:
+             traceback.print_exc()
+             # We raise BuildingError here as this is essentially an astroid issue

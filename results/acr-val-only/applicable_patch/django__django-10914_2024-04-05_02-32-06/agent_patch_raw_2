@@ -1,0 +1,14 @@
+Given the feedback that the initial patch did not resolve the issue and caused some tests to fail, let's revise the approach focusing solely on ensuring consistency in file permissions as files are saved, without altering global settings or handler implementations directly. This approach minimizes potential side effects and focuses on the core issue of inconsistent file permissions.
+
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>if self.file_permissions_mode is not None:
+    os.chmod(full_path, self.file_permissions_mode)</original>
+<patched>from django.conf import settings
+# Use FILE_UPLOAD_PERMISSIONS setting as the default if file_permissions_mode is not explicitly set
+file_permissions = self.file_permissions_mode or getattr(settings, 'FILE_UPLOAD_PERMISSIONS', 0o644)
+os.chmod(full_path, file_permissions)</patched>
+```
+
+This modification ensures that the `FileSystemStorage._save` method uses the `FILE_UPLOAD_PERMISSIONS` setting as a fallback if `file_permissions_mode` is not explicitly set, applying a consistent permission set to all files saved through this method. This approach directly addresses the inconsistency in file permissions without requiring changes to the global settings or the upload handlers, thereby reducing the risk of introducing new issues or failing tests.

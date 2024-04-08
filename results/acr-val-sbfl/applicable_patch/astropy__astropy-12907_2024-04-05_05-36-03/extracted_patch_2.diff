@@ -1,0 +1,27 @@
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e2729..9e04baf0d 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -304,9 +304,19 @@ def _separable(transform):
+     if (transform_matrix := transform._calculate_separability_matrix()) is not NotImplemented:
+         return transform_matrix
+     elif isinstance(transform, CompoundModel):
+-        sepleft = _separable(transform.left)
+-        sepright = _separable(transform.right)
+-        return _operators[transform.op](sepleft, sepright)
++            # Improved handling for nested CompoundModels
++            sepleft = _separable(transform.left)
++            sepright = _separable(transform.right)
++            if transform.op == '&':
++                # For '&' operation, ensure correct handling of nested models by combining matrices directly
++                combined_separability = np.logical_and(sepleft, sepright)
++            elif transform.op == '|':
++                # For '|' operation, the separability should consider the union of separable outputs
++                combined_separability = np.logical_or(sepleft, sepright)
++            else:
++                # Placeholder for additional compound operations handling
++                combined_separability = _operators[transform.op](sepleft, sepright)
++            return combined_separability
+     elif isinstance(transform, Model):
+         return _coord_matrix(transform, 'left', transform.n_outputs)
+ 

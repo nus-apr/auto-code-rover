@@ -1,0 +1,43 @@
+diff --git a/sklearn/metrics/cluster/_supervised.py b/sklearn/metrics/cluster/_supervised.py
+index 4bddae35c..b18961103 100644
+--- a/sklearn/metrics/cluster/_supervised.py
++++ b/sklearn/metrics/cluster/_supervised.py
+@@ -617,6 +617,10 @@ def mutual_info_score(labels_true, labels_pred, contingency=None):
+     """
+     if contingency is None:
+         labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
++        # Ensure labels are not of object type to avoid conversion issues in check_array
++        if labels_true.dtype.kind == 'O' or labels_pred.dtype.kind == 'O':
++            labels_true = labels_true.astype('U')
++            labels_pred = labels_pred.astype('U')
+         contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+     else:
+         contingency = check_array(contingency,
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index dad56850f..84728e99c 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -458,11 +458,18 @@ def check_array(array, accept_sparse=False, accept_large_sparse=True,
+             dtype_orig = np.result_type(*array.dtypes)
+ 
+     if dtype_numeric:
+-        if dtype_orig is not None and dtype_orig.kind == "O":
+-            # if input is object, convert to float.
+-            dtype = np.float64
+-        else:
+-            dtype = None
++            if dtype_orig is not None and dtype_orig.kind == "O":
++                # Check if conversion to float is possible
++                try:
++                    np.asarray(array, dtype=np.float64)
++                except ValueError:
++                    # Conversion to float is not possible, keep dtype as object
++                    dtype = object
++                else:
++                    # Conversion to float is possible
++                    dtype = np.float64
++            else:
++                dtype = None
+ 
+     if isinstance(dtype, (list, tuple)):
+         if dtype_orig is not None and dtype_orig in dtype:

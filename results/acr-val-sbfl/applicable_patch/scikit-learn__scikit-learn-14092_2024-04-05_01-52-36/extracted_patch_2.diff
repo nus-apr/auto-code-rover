@@ -1,0 +1,43 @@
+diff --git a/sklearn/neighbors/nca.py b/sklearn/neighbors/nca.py
+index 1d278b6e1..7f221eab5 100644
+--- a/sklearn/neighbors/nca.py
++++ b/sklearn/neighbors/nca.py
+@@ -299,7 +299,7 @@ class NeighborhoodComponentsAnalysis(BaseEstimator, TransformerMixin):
+ 
+         # Check the preferred dimensionality of the projected space
+         if self.n_components is not None:
+-            check_scalar(self.n_components, 'n_components', int, 1)
++            check_scalar(self.n_components, 'n_components', (int, np.integer), 1)
+ 
+             if self.n_components > X.shape[1]:
+                 raise ValueError('The preferred dimensionality of the '
+@@ -319,7 +319,7 @@ class NeighborhoodComponentsAnalysis(BaseEstimator, TransformerMixin):
+                                          self.components_.shape[1]))
+ 
+         check_scalar(self.max_iter, 'max_iter', int, 1)
+-        check_scalar(self.tol, 'tol', float, 0.)
++        check_scalar(self.tol, 'tol', (float, np.floating), 0.)
+         check_scalar(self.verbose, 'verbose', int, 0)
+ 
+         if self.callback is not None:
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index 8747844e5..c2ae135bb 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -972,9 +972,13 @@ def check_scalar(x, name, target_type, min_val=None, max_val=None):
+         If the parameter's value violates the given bounds.
+     """
+ 
+-    if not isinstance(x, target_type):
+-        raise TypeError('`{}` must be an instance of {}, not {}.'
+-                        .format(name, target_type, type(x)))
++    acceptable_types = target_type if isinstance(target_type, tuple) else (target_type,)
++    if not isinstance(x, acceptable_types + (np.number,)):
++        try:
++            x = target_type(x)
++        except (ValueError, TypeError):
++            raise TypeError('`{}` must be an instance of {}, not {}.'
++                            .format(name, target_type, type(x)))
+ 
+     if min_val is not None and x < min_val:
+         raise ValueError('`{}`= {}, must be >= {}.'.format(name, x, min_val))

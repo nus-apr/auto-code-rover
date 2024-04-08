@@ -1,0 +1,36 @@
+Given the nature of the issue described, which involves unexpected behavior with Django's ORM when ordering by a self-referencing foreign key, a hypothetical patch could involve modifying the ORM's logic to correctly handle `order_by` clauses that reference self-referencing foreign keys. This would likely involve changes to how Django constructs the SQL query for such cases, ensuring that the specified ordering is respected without being overridden by the model's default ordering.
+
+Please note, the following patch is conceptual and based on the understanding of the issue as described. Actual implementation may vary based on the Django version and the specific details of the ORM's internal workings.
+
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>
+if self.query.standard_ordering:
+    ordering = self.query.get_meta().ordering
+</original>
+<patched>
+if self.query.standard_ordering:
+    # Check if the ordering is overridden in the query
+    if not self.query.order_by:
+        ordering = self.query.get_meta().ordering
+    else:
+        ordering = self.query.order_by
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>
+qs = qs.order_by("record__root_id")
+</original>
+<patched>
+# Explicitly clear default ordering to respect the specified order_by clause
+qs = qs.order_by("record__root_id").order_by()
+</patched>
+```
+
+This hypothetical patch aims to address the issue by ensuring that when an `order_by` clause is explicitly specified in a queryset, it takes precedence over the default model ordering, particularly in scenarios involving self-referencing foreign keys. The first modification ensures that the ORM respects the `order_by` clause specified in the queryset without automatically applying the model's default ordering. The second modification provides a workaround that can be used in specific querysets to explicitly clear any default ordering and apply only the specified `order_by` clause.
+
+It's important to test these changes thoroughly in a development environment to ensure they do not introduce regressions or unexpected behavior in other parts of the application. Additionally, contributing such changes back to the Django project would involve following Django's contribution guidelines, including writing tests and documentation for the changes.

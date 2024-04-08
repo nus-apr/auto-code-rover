@@ -1,0 +1,40 @@
+{
+    "task_id": "astropy__astropy-6938",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/astropy__astropy/setup_astropy__astropy__1.3",
+        "env_name": "setup_astropy__astropy__1.3",
+        "pre_install": [],
+        "install": "python -m pip install -e .[test]",
+        "test_cmd": "pytest --no-header -rA --tb=no -p no:cacheprovider astropy/io/fits/tests/test_checksum.py astropy/io/fits/tests/test_table.py"
+    },
+    "task_info": {
+        "instance_id": "astropy__astropy-6938",
+        "base_commit": "c76af9ed6bb89bfba45b9f5bc1e635188278e2fa",
+        "hints_text": "It is tested with `astropy/io/fits/tests/test_checksum.py:test_ascii_table_data` but indeed the operation is not inplace and it does not fail. Using 'D' is probably better, but since #5362 (I had vague memory about something like this ^^, see also #5353) anyway 'D' and 'E' are read as double, so I think there is not difference on Astropy side.",
+        "created_at": "2017-12-07T00:01:14Z",
+        "test_patch": "diff --git a/astropy/io/fits/tests/test_checksum.py b/astropy/io/fits/tests/test_checksum.py\n--- a/astropy/io/fits/tests/test_checksum.py\n+++ b/astropy/io/fits/tests/test_checksum.py\n@@ -205,9 +205,9 @@ def test_ascii_table_data(self):\n                 # The checksum ends up being different on Windows, possibly due\n                 # to slight floating point differences\n                 assert 'CHECKSUM' in hdul[1].header\n-                assert hdul[1].header['CHECKSUM'] == '51IDA1G981GCA1G9'\n+                assert hdul[1].header['CHECKSUM'] == '3rKFAoI94oICAoI9'\n                 assert 'DATASUM' in hdul[1].header\n-                assert hdul[1].header['DATASUM'] == '1948208413'\n+                assert hdul[1].header['DATASUM'] == '1914653725'\n \n     def test_compressed_image_data(self):\n         with fits.open(self.data('comp.fits')) as h1:\ndiff --git a/astropy/io/fits/tests/test_table.py b/astropy/io/fits/tests/test_table.py\n--- a/astropy/io/fits/tests/test_table.py\n+++ b/astropy/io/fits/tests/test_table.py\n@@ -298,6 +298,19 @@ def test_ascii_table(self):\n         hdul = fits.open(self.temp('toto.fits'))\n         assert comparerecords(hdu.data, hdul[1].data)\n         hdul.close()\n+\n+        # Test Scaling\n+\n+        r1 = np.array([11., 12.])\n+        c2 = fits.Column(name='def', format='D', array=r1, bscale=2.3,\n+                         bzero=0.6)\n+        hdu = fits.TableHDU.from_columns([c2])\n+        hdu.writeto(self.temp('toto.fits'), overwrite=True)\n+        with open(self.temp('toto.fits')) as f:\n+            assert '4.95652173913043548D+00' in f.read()\n+        with fits.open(self.temp('toto.fits')) as hdul:\n+            assert comparerecords(hdu.data, hdul[1].data)\n+\n         a.close()\n \n     def test_endianness(self):\n",
+        "repo": "astropy/astropy",
+        "problem_statement": "Possible bug in io.fits related to D exponents\nI came across the following code in ``fitsrec.py``:\r\n\r\n```python\r\n        # Replace exponent separator in floating point numbers\r\n        if 'D' in format:\r\n            output_field.replace(encode_ascii('E'), encode_ascii('D'))\r\n```\r\n\r\nI think this may be incorrect because as far as I can tell ``replace`` is not an in-place operation for ``chararray`` (it returns a copy). Commenting out this code doesn't cause any tests to fail so I think this code isn't being tested anyway.\n",
+        "version": "1.3",
+        "FAIL_TO_PASS": [
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_ascii_table_data",
+            "astropy/io/fits/tests/test_table.py::TestTableFunctions::test_ascii_table"
+        ],
+        "PASS_TO_PASS": [
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_datasum_only",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_groups_hdu_data",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_hdu_writeto",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_image_create",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_open_with_no_keywords",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_sample_file",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_scaled_data",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_scaled_data_auto_rescale",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_uint16_data",
+            "astropy/io/fits/tests/test_checksum.py::TestChecksumFunctions::test_writeto_convenience",
+            "astropy/io/fits/tests/test_table.py::test_regression_scalar_indexing"
+        ],
+        "environment_setup_commit": "848c8fa21332abd66b44efe3cb48b72377fb32cc",
+        "patch": "diff --git a/astropy/io/fits/fitsrec.py b/astropy/io/fits/fitsrec.py\n--- a/astropy/io/fits/fitsrec.py\n+++ b/astropy/io/fits/fitsrec.py\n@@ -1261,7 +1261,7 @@ def _scale_back_ascii(self, col_idx, input_field, output_field):\n \n         # Replace exponent separator in floating point numbers\n         if 'D' in format:\n-            output_field.replace(encode_ascii('E'), encode_ascii('D'))\n+            output_field[:] = output_field.replace(b'E', b'D')\n \n \n def _get_recarray_field(array, key):\n",
+        "pr_link": "https://github.com/astropy/astropy/pull/6938"
+    }
+}

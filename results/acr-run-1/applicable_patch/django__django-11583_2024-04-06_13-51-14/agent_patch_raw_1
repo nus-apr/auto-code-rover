@@ -1,0 +1,65 @@
+Given the nature of the issue, which involves intermittent failures due to an "embedded null byte" error potentially when resolving file paths, a direct patch might involve adding a safeguard in the methods that handle file paths. Since the issue seems to stem from the interaction with Python's `pathlib` and the auto-reloading mechanism, we can attempt to sanitize the paths or handle the specific `ValueError` to prevent the auto-reloader from crashing.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>    def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs.
+        """
+        yield from iter_all_python_module_files()
+        yield from self.extra_files
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from directory.glob(pattern)</original>
+<patched>    def watched_files(self, include_globs=True):
+        """
+        Yield all files that need to be watched, including module files and
+        files within globs. Paths with null bytes are ignored to prevent errors.
+        """
+        yield from iter_all_python_module_files()
+        yield from (f for f in self.extra_files if '\x00' not in str(f))
+        if include_globs:
+            for directory, patterns in self.directory_globs.items():
+                for pattern in patterns:
+                    yield from (f for f in directory.glob(pattern) if '\x00' not in str(f))</patched>
+```
+
+# modification 2
+```python
+<file>django/utils/autoreload.py</file>
+<original>    def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except OSError:
+                # This is thrown when the file does not exist.
+                continue
+            seen_files.add(file)
+            yield file, mtime</original>
+<patched>    def snapshot_files(self):
+        # watched_files may produce duplicate paths if globs overlap.
+        # Added handling for ValueError to catch 'embedded null byte' errors.
+        seen_files = set()
+        for file in self.watched_files():
+            if file in seen_files:
+                continue
+            try:
+                mtime = file.stat().st_mtime
+            except (OSError, ValueError) as e:
+                # This handles cases where the file does not exist or a 'embedded null byte' is encountered.
+                if isinstance(e, ValueError) and 'embedded null byte' in str(e):
+                    continue
+                else:
+                    continue
+            seen_files.add(file)
+            yield file, mtime</patched>
+```
+
+These modifications aim to address the issue by filtering out paths that contain null bytes before they can cause errors and by explicitly handling the `ValueError` related to "embedded null byte" in the `snapshot_files` method. This approach should mitigate the issue without requiring significant changes to the underlying logic of file monitoring and auto-reloading.

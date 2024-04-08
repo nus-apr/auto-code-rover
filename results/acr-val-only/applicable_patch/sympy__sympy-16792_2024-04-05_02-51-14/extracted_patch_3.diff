@@ -1,0 +1,35 @@
+diff --git a/sympy/utilities/autowrap.py b/sympy/utilities/autowrap.py
+index bd6afb12d1..5b545537a6 100644
+--- a/sympy/utilities/autowrap.py
++++ b/sympy/utilities/autowrap.py
+@@ -458,8 +458,10 @@ def _declare_arg(self, arg):
+             return proto + " = 0"
+ 
+     def _call_arg(self, arg):
+-        if arg.dimensions:
++        if arg.dimensions or isinstance(arg, MatrixSymbol):
+             t = arg.get_datatype('c')
++            # Ensure we treat MatrixSymbol as an array, defaulting to double* for simplicity
++            t = "double" if isinstance(arg, MatrixSymbol) else t
+             return "<{0}*> {1}.data".format(t, self._string_var(arg.name))
+         elif isinstance(arg, ResultBase):
+             return "&{0}".format(self._string_var(arg.name))
+diff --git a/sympy/utilities/codegen.py b/sympy/utilities/codegen.py
+index f0befb2bd7..78d3a6b675 100644
+--- a/sympy/utilities/codegen.py
++++ b/sympy/utilities/codegen.py
+@@ -702,9 +702,12 @@ def routine(self, name, expr, argument_sequence=None, global_vars=None):
+             array_symbols[array] = array
+ 
+         for symbol in sorted(symbols, key=str):
+-            if symbol in array_symbols:
++            if symbol in array_symbols or isinstance(symbol, MatrixSymbol):
+                 dims = []
+-                array = array_symbols[symbol]
++                if isinstance(symbol, MatrixSymbol):
++                    array = symbol
++                else:
++                    array = array_symbols[symbol]
+                 for dim in array.shape:
+                     dims.append((S.Zero, dim - 1))
+                 metadata = {'dimensions': dims}

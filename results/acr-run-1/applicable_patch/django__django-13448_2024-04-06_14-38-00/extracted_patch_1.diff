@@ -1,0 +1,45 @@
+diff --git a/django/db/backends/base/creation.py b/django/db/backends/base/creation.py
+index 503f7f56fd..45eda1d7a9 100644
+--- a/django/db/backends/base/creation.py
++++ b/django/db/backends/base/creation.py
+@@ -58,7 +58,8 @@ class BaseDatabaseCreation:
+         settings.DATABASES[self.connection.alias]["NAME"] = test_database_name
+         self.connection.settings_dict["NAME"] = test_database_name
+ 
+-        if self.connection.settings_dict['TEST']['MIGRATE']:
++        # Check if 'MIGRATE' is in the 'TEST' settings and only then decide to migrate or not.
++        if self.connection.settings_dict['TEST'].get('MIGRATE', True):
+             # We report migrate messages at one level lower than that
+             # requested. This ensures we don't get flooded with messages during
+             # testing (unless you really ask to be flooded).
+@@ -74,7 +75,8 @@ class BaseDatabaseCreation:
+         # and store it on the connection. This slightly horrific process is so people
+         # who are testing on databases without transactions or who are using
+         # a TransactionTestCase still get a clean database on every test run.
+-        if serialize:
++        # Before serializing, check if 'MIGRATE' is False, and if so, skip serialization to avoid errors with missing tables.
++        if serialize and self.connection.settings_dict['TEST'].get('MIGRATE', True):
+             self.connection._test_serialized_contents = self.serialize_db_to_string()
+ 
+         call_command('createcachetable', database=self.connection.alias)
+diff --git a/django/test/utils.py b/django/test/utils.py
+index 4f4ce99967..2756042bce 100644
+--- a/django/test/utils.py
++++ b/django/test/utils.py
+@@ -176,11 +176,15 @@ def setup_databases(verbosity, interactive, *, time_keeper=None, keepdb=False, d
+             if first_alias is None:
+                 first_alias = alias
+                 with time_keeper.timed("  Creating '%s'" % alias):
++                    # Add a check to ensure that if 'MIGRATE' is False, 'SERIALIZE' is also set to False to avoid attempting to serialize a potentially incomplete database schema.
++                    serialize_option = connection.settings_dict['TEST'].get('SERIALIZE', True)
++                    if not connection.settings_dict['TEST'].get('MIGRATE', True):
++                        serialize_option = False
+                     connection.creation.create_test_db(
+                         verbosity=verbosity,
+                         autoclobber=not interactive,
+                         keepdb=keepdb,
+-                        serialize=connection.settings_dict['TEST'].get('SERIALIZE', True),
++                        serialize=serialize_option,
+                     )
+                 if parallel > 1:
+                     for index in range(parallel):

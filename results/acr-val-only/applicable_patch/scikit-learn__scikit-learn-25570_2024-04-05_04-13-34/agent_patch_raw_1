@@ -1,0 +1,74 @@
+# modification 1
+```python
+<file>sklearn/compose/_column_transformer.py</file>
+<original>if not self.verbose_feature_names_out:
+                    return output
+
+                transformer_names = [
+                    t[0] for t in self._iter(fitted=True, replace_strings=True)
+                ]
+                feature_names_outs = [X.columns for X in Xs]
+                names_out = self._add_prefix_for_feature_names_out(
+                    list(zip(transformer_names, feature_names_outs))
+                )
+                output.columns = names_out
+                return output</original>
+<patched>if not self.verbose_feature_names_out:
+                    return output
+
+                transformer_names = [
+                    t[0] for t in self._iter(fitted=True, replace_strings=True)
+                ]
+                feature_names_outs = [X.columns for X in Xs]
+                # Ensure we only include transformers that had features to transform
+                valid_transformers_and_features = [
+                    (name, features) for name, features in zip(transformer_names, feature_names_outs) if len(features) > 0
+                ]
+                if not valid_transformers_and_features:
+                    # If no transformers had features to transform, return the output as is
+                    return output
+                names_out = self._add_prefix_for_feature_names_out(valid_transformers_and_features)
+                output.columns = names_out
+                return output</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/compose/_column_transformer.py</file>
+<original>if top_6_overlap:
+            if len(top_6_overlap) == 6:
+                # There are more than 5 overlapping names, we only show the 5
+                # of the feature names
+                names_repr = str(top_6_overlap[:5])[:-1] + ", ...]"
+            else:
+                names_repr = str(top_6_overlap)
+            raise ValueError(
+                f"Output feature names: {names_repr} are not unique. Please set "
+                "verbose_feature_names_out=True to add prefixes to feature names"
+            )
+
+        return np.concatenate(
+            [name for _, name in transformer_with_feature_names_out],
+        )</original>
+<patched>if top_6_overlap:
+            if len(top_6_overlap) == 6:
+                # There are more than 5 overlapping names, we only show the 5
+                # of the feature names
+                names_repr = str(top_6_overlap[:5])[:-1] + ", ...]"
+            else:
+                names_repr = str(top_6_overlap)
+            raise ValueError(
+                f"Output feature names: {names_repr} are not unique. Please set "
+                "verbose_feature_names_out=True to add prefixes to feature names"
+            )
+
+        # Ensure concatenation only occurs if there are names to concatenate
+        if transformer_with_feature_names_out:
+            return np.concatenate(
+                [name for _, name in transformer_with_feature_names_out if name],
+            )
+        else:
+            return np.array([], dtype=object)</patched>
+```
+
+These modifications aim to address the issue by ensuring that transformers with no features to transform are handled correctly when setting the output column names for pandas DataFrames. The first modification filters out transformers that did not have any features to transform before attempting to set column names, preventing the "Length mismatch" error. The second modification adds a check to ensure that concatenation only occurs if there are names to concatenate, providing a fallback to an empty array if no transformers had features to transform. This approach maintains the intended functionality while ensuring robustness when dealing with edge cases.

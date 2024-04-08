@@ -1,0 +1,31 @@
+diff --git a/seaborn/axisgrid.py b/seaborn/axisgrid.py
+index 75349099..8fe85037 100644
+--- a/seaborn/axisgrid.py
++++ b/seaborn/axisgrid.py
+@@ -1487,7 +1487,15 @@ class PairGrid(Grid):
+             else:
+                 plt.sca(ax)
+ 
+-            vector = self.data[var]
++            # Handle MultiIndex columns by flattening them if necessary
++            if isinstance(self.data.columns, pd.MultiIndex):
++                flattened_columns = ['_'.join(col).strip() for col in self.data.columns.values]
++                if var in flattened_columns:
++                    vector = self.data['_'.join(var).strip()]
++                else:
++                    raise KeyError(f"Variable {var} not found in DataFrame columns.")
++            else:
++                vector = self.data[var]
+             if self._hue_var is not None:
+                 hue = self.data[self._hue_var]
+             else:
+@@ -2097,6 +2105,9 @@ def pairplot(
+     if not isinstance(data, pd.DataFrame):
+         raise TypeError(
+             f"'data' must be pandas DataFrame object, not: {type(data)}")
++    # Flatten MultiIndex columns if present to avoid KeyError
++    if isinstance(data.columns, pd.MultiIndex):
++        data.columns = ['_'.join(col).strip() for col in data.columns.values]
+ 
+     plot_kws = {} if plot_kws is None else plot_kws.copy()
+     diag_kws = {} if diag_kws is None else diag_kws.copy()

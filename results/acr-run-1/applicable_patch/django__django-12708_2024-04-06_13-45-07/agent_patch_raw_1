@@ -1,0 +1,47 @@
+# modification 1
+```python
+<file>django/db/backends/base/schema.py</file>
+<original>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        if len(constraint_names) != 1:
+            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                len(constraint_names),
+                model._meta.db_table,
+                ", ".join(columns),
+            ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+</original>
+<patched>    def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
+        meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+        meta_index_names = {constraint.name for constraint in model._meta.indexes}
+        columns = [model._meta.get_field(field).column for field in fields]
+        constraint_names = self._constraint_names(
+            model, columns, exclude=meta_constraint_names | meta_index_names,
+            **constraint_kwargs
+        )
+        # Allow deletion if there's exactly one index and one unique constraint on the same fields
+        if len(constraint_names) > 1:
+            unique_constraints = self._constraint_names(
+                model, columns, type="UNIQUE", exclude=meta_constraint_names | meta_index_names,
+                **constraint_kwargs
+            )
+            if len(unique_constraints) == 1 and (len(constraint_names) - len(unique_constraints)) == 1:
+                # Assuming the other constraint is the index to be deleted
+                constraint_names = list(set(constraint_names) - set(unique_constraints))
+            else:
+                raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+                    len(constraint_names),
+                    model._meta.db_table,
+                    ", ".join(columns),
+                ))
+        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+</patched>
+```
+
+This patch modifies the `_delete_composed_index` method in `django/db/backends/base/schema.py` to handle the case where there is exactly one unique constraint and one index on the same fields. Instead of raising a `ValueError` when more than one constraint is found, it now checks if there is exactly one unique constraint and one other constraint (presumably the index to be deleted). If this condition is met, it proceeds with deleting the index, otherwise, it raises the original `ValueError`. This approach aims to resolve the issue without affecting the existing logic for other scenarios.

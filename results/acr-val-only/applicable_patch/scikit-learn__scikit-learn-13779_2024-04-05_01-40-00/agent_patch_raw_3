@@ -1,0 +1,25 @@
+Given the feedback and the need to revise the approach, let's consider a more integrated solution within the `fit` method of the `VotingClassifier` class. The goal is to ensure that the method gracefully handles cases where one or more of the estimators are set to `None`, especially when `sample_weight` is passed. This requires checking the estimators before proceeding with the fitting process.
+
+# modification 1
+```python
+<file>sklearn/ensemble/voting.py</file>
+<original>        self.le_ = LabelEncoder().fit(y)
+        self.classes_ = self.le_.classes_
+        transformed_y = self.le_.transform(y)
+
+        return super().fit(X, transformed_y, sample_weight)</original>
+<patched>        self.le_ = LabelEncoder().fit(y)
+        self.classes_ = self.le_.classes_
+        transformed_y = self.le_.transform(y)
+
+        # Ensure that none of the estimators are None before fitting
+        valid_estimators = [(name, est) for name, est in self.estimators if est is not None]
+        if not valid_estimators:
+            raise ValueError("All estimators cannot be None.")
+        else:
+            self.estimators = valid_estimators
+
+        return super().fit(X, transformed_y, sample_weight)</patched>
+```
+
+This modification ensures that before proceeding with the `fit` method, the `VotingClassifier` checks for any `None` estimators and filters them out. This prevents the `AttributeError` when attempting to fit a `None` estimator. It also raises a `ValueError` if all estimators are filtered out, ensuring that there is at least one valid estimator to fit. This approach maintains the integrity of the fitting process while addressing the issue described.

@@ -1,0 +1,28 @@
+{
+    "task_id": "sympy__sympy-24102",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.12",
+        "env_name": "setup_sympy__sympy__1.12",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/parsing/tests/test_mathematica.py sympy/testing/quality_unicode.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-24102",
+        "base_commit": "58598660a3f6ab3d918781c4988c2e4b2bdd9297",
+        "hints_text": "\n",
+        "created_at": "2022-10-01T18:41:32Z",
+        "test_patch": "diff --git a/sympy/parsing/tests/test_mathematica.py b/sympy/parsing/tests/test_mathematica.py\n--- a/sympy/parsing/tests/test_mathematica.py\n+++ b/sympy/parsing/tests/test_mathematica.py\n@@ -15,6 +15,7 @@ def test_mathematica():\n         'x+y': 'x+y',\n         '355/113': '355/113',\n         '2.718281828': '2.718281828',\n+        'Cos(1/2 * \u03c0)': 'Cos(\u03c0/2)',\n         'Sin[12]': 'sin(12)',\n         'Exp[Log[4]]': 'exp(log(4))',\n         '(x+1)(x+3)': '(x+1)*(x+3)',\n@@ -94,6 +95,7 @@ def test_parser_mathematica_tokenizer():\n     assert chain(\"+x\") == \"x\"\n     assert chain(\"-1\") == \"-1\"\n     assert chain(\"- 3\") == \"-3\"\n+    assert chain(\"\u03b1\") == \"\u03b1\"\n     assert chain(\"+Sin[x]\") == [\"Sin\", \"x\"]\n     assert chain(\"-Sin[x]\") == [\"Times\", \"-1\", [\"Sin\", \"x\"]]\n     assert chain(\"x(a+1)\") == [\"Times\", \"x\", [\"Plus\", \"a\", \"1\"]]\ndiff --git a/sympy/testing/quality_unicode.py b/sympy/testing/quality_unicode.py\n--- a/sympy/testing/quality_unicode.py\n+++ b/sympy/testing/quality_unicode.py\n@@ -48,6 +48,8 @@\n \n unicode_strict_whitelist = [\n     r'*/sympy/parsing/latex/_antlr/__init__.py',\n+    # test_mathematica.py uses some unicode for testing Greek characters are working #24055\n+    r'*/sympy/parsing/tests/test_mathematica.py',\n ]\n \n \n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Cannot parse Greek characters (and possibly others) in parse_mathematica\nThe old Mathematica parser `mathematica` in the package `sympy.parsing.mathematica` was able to parse e.g. Greek characters. Hence the following example works fine:\r\n```\r\nfrom sympy.parsing.mathematica import mathematica\r\nmathematica('\u03bb')\r\nOut[]: \r\n\u03bb\r\n```\r\n\r\nAs of SymPy v. 1.11, the `mathematica` function is deprecated, and is replaced by `parse_mathematica`. This function, however, seems unable to handle the simple example above:\r\n```\r\nfrom sympy.parsing.mathematica import parse_mathematica\r\nparse_mathematica('\u03bb')\r\nTraceback (most recent call last):\r\n...\r\nFile \"<string>\", line unknown\r\nSyntaxError: unable to create a single AST for the expression\r\n```\r\n\r\nThis appears to be due to a bug in `parse_mathematica`, which is why I have opened this issue.\r\n\r\nThanks in advance!\nCannot parse Greek characters (and possibly others) in parse_mathematica\nThe old Mathematica parser `mathematica` in the package `sympy.parsing.mathematica` was able to parse e.g. Greek characters. Hence the following example works fine:\r\n```\r\nfrom sympy.parsing.mathematica import mathematica\r\nmathematica('\u03bb')\r\nOut[]: \r\n\u03bb\r\n```\r\n\r\nAs of SymPy v. 1.11, the `mathematica` function is deprecated, and is replaced by `parse_mathematica`. This function, however, seems unable to handle the simple example above:\r\n```\r\nfrom sympy.parsing.mathematica import parse_mathematica\r\nparse_mathematica('\u03bb')\r\nTraceback (most recent call last):\r\n...\r\nFile \"<string>\", line unknown\r\nSyntaxError: unable to create a single AST for the expression\r\n```\r\n\r\nThis appears to be due to a bug in `parse_mathematica`, which is why I have opened this issue.\r\n\r\nThanks in advance!\n",
+        "version": "1.12",
+        "FAIL_TO_PASS": [
+            "test_mathematica",
+            "test_parser_mathematica_tokenizer"
+        ],
+        "PASS_TO_PASS": [],
+        "environment_setup_commit": "c6cb7c5602fa48034ab1bd43c2347a7e8488f12e",
+        "patch": "diff --git a/sympy/parsing/mathematica.py b/sympy/parsing/mathematica.py\n--- a/sympy/parsing/mathematica.py\n+++ b/sympy/parsing/mathematica.py\n@@ -654,7 +654,7 @@ def _from_mathematica_to_tokens(self, code: str):\n             code_splits[i] = code_split\n \n         # Tokenize the input strings with a regular expression:\n-        token_lists = [tokenizer.findall(i) if isinstance(i, str) else [i] for i in code_splits]\n+        token_lists = [tokenizer.findall(i) if isinstance(i, str) and i.isascii() else [i] for i in code_splits]\n         tokens = [j for i in token_lists for j in i]\n \n         # Remove newlines at the beginning\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/24102"
+    }
+}

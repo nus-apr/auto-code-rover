@@ -1,0 +1,57 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index b0df8749..b0341a15 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -1952,8 +1952,10 @@ class DataArray(AbstractArray, DataWithCoords):
+ 
+         idx = self.indexes[dim]
+         if not isinstance(idx, pd.MultiIndex):
+-            raise ValueError(f"'{dim}' is not a stacked coordinate")
+-
++            # If 'dim' is not a MultiIndex, it implies that there's only a single variable.
++            # In such cases, directly construct the dataset from the DataArray without unstacking.
++            return Dataset({self.name: self})
++        
+         level_number = idx._get_level_number(level)
+         variables = idx.levels[level_number]
+         variable_dim = idx.names[level_number]
+@@ -1961,7 +1963,9 @@ class DataArray(AbstractArray, DataWithCoords):
+         # pull variables out of datarray
+         data_dict = {}
+         for k in variables:
+-            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)
++            # Ensure that the selection does not drop dimensions unintentionally
++            # by using drop=False in .sel() and avoiding .squeeze() which might drop dimensions.
++            data_dict[k] = self.sel({variable_dim: k}, drop=False)
+ 
+         # unstacked dataset
+         return Dataset(data_dict)
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index a024324b..13281a28 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3472,15 +3472,16 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         stackable_vars = [ensure_stackable(self[key]) for key in self.data_vars]
+         data_array = xr.concat(stackable_vars, dim=new_dim)
+ 
+-        # coerce the levels of the MultiIndex to have the same type as the
+-        # input dimensions. This code is messy, so it might be better to just
+-        # input a dummy value for the singleton dimension.
++        # Adjust the handling of MultiIndex levels to ensure compatibility
++        # with variables of single dimensions by checking if a level adjustment is necessary.
+         idx = data_array.indexes[new_dim]
+-        levels = [idx.levels[0]] + [
+-            level.astype(self[level.name].dtype) for level in idx.levels[1:]
+-        ]
+-        new_idx = idx.set_levels(levels)
+-        data_array[new_dim] = IndexVariable(new_dim, new_idx)
++        if any(len(level) > 1 for level in idx.levels):  # Check if any level adjustment is needed
++            levels = [idx.levels[0]] + [
++                level.astype(self[level.name].dtype, copy=False) for level in idx.levels[1:]
++            ]
++            new_idx = idx.set_levels(levels)
++            data_array[new_dim] = IndexVariable(new_dim, new_idx)
++        # If no level adjustment is needed, proceed without altering the MultiIndex
+ 
+         if name is not None:
+             data_array.name = name

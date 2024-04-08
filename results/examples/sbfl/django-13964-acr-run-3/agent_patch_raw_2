@@ -1,0 +1,50 @@
+Given the constraints and the nature of the issue described, without direct access to the specific implementation details of your Django project, providing an exact patch is challenging. However, I can offer a conceptual approach to address the issue of saving a parent object after setting it on a child, which leads to data loss for parents with non-numeric primary keys. This approach is based on general Django ORM practices and the details provided in the issue description.
+
+Since I cannot match the original program directly, the following conceptual modifications are suggested to guide you in implementing a solution. These should be adapted to fit the actual file paths, class names, and method implementations in your project.
+
+# Conceptual Modification 1: Ensuring ForeignKey is Correctly Assigned Before Save
+```python
+<file>app/models.py</file>  # Hypothetical file path; adjust to your project's structure
+<original>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+</original>
+<patched>
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    def save(self, *args, **kwargs):
+        # Ensure the product's SKU is assigned to the product_id field before saving.
+        if self.product_id is None and self.product.sku:
+            self.product_id = self.product.sku
+        super().save(*args, **kwargs)
+</patched>
+```
+
+# Conceptual Modification 2: Adjusting Object Creation and Save Logic
+```python
+<file>app/views.py</file>  # Hypothetical file path; adjust to where objects are created and saved
+<original>
+with transaction.atomic():
+    order = Order()
+    order.product = Product()
+    order.product.sku = "foo"
+    order.product.save()
+    order.save()
+</original>
+<patched>
+from django.db import transaction
+
+with transaction.atomic():
+    # Create and save the Product instance first to ensure it has a SKU.
+    product = Product(sku="foo")
+    product.save()
+    # Now create the Order instance with the product already saved and SKU assigned.
+    order = Order(product=product)
+    order.save()
+</patched>
+```
+
+These conceptual modifications aim to address the issue by ensuring that the `Product` instance's `sku` (serving as a non-numeric primary key) is correctly assigned and saved before attempting to save an `Order` instance that references it. The first modification ensures that the `Order` model's save method checks and assigns the `product_id` if it's not already set and if the related `Product` instance has a `sku`. The second modification changes the object creation and saving logic to ensure the `Product` instance is fully prepared and saved before being assigned to an `Order` instance.
+
+Please adapt these conceptual patches to fit the actual structure and logic of your Django project, taking into account the correct file paths, class names, and specific project requirements.

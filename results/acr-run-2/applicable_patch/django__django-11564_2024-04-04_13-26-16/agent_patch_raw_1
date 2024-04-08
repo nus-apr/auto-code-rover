@@ -1,0 +1,26 @@
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>    def url(self, name):
+        if self.base_url is None:
+            raise ValueError("This file is not accessible via a URL.")
+        url = filepath_to_uri(name)
+        if url is not None:
+            url = url.lstrip('/')
+        return urljoin(self.base_url, url)
+</original>
+<patched>    def url(self, name):
+        from django.conf import settings
+        if self.base_url is None:
+            raise ValueError("This file is not accessible via a URL.")
+        url = filepath_to_uri(name)
+        if url is not None:
+            url = url.lstrip('/')
+        # Prepend SCRIPT_NAME if present
+        script_name = settings.FORCE_SCRIPT_NAME if hasattr(settings, 'FORCE_SCRIPT_NAME') else ''
+        base_url = urljoin(script_name, self.base_url)
+        return urljoin(base_url, url)
+</patched>
+```
+
+This patch modifies the `url` method in the `FileSystemStorage` class to prepend the `SCRIPT_NAME` to the `base_url` if it is set in the Django settings (`FORCE_SCRIPT_NAME`). This approach assumes the introduction of a new setting `FORCE_SCRIPT_NAME` that can be used to dynamically set the `SCRIPT_NAME` value. If `FORCE_SCRIPT_NAME` is not set, it defaults to an empty string, preserving the original behavior. This solution allows for dynamic handling of `SCRIPT_NAME` without requiring changes to the WSGI environment or middleware, making it a straightforward solution for the issue described.

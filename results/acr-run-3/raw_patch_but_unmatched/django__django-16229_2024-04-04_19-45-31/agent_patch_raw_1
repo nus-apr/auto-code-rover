@@ -1,0 +1,50 @@
+Given the context of the issue related to Django's admin interface, specifically with handling `ModelForm` fields, callable defaults, and the peculiar behavior of `ArrayField` in inline forms, let's propose a patch. This patch aims to address the problem where validation errors are bypassed upon resubmitting a form without modifications, particularly in the scenario involving `ArrayField` and custom form validation logic.
+
+Since the exact file paths and original code snippets were not provided, I'll create a hypothetical patch based on standard Django patterns and the issue description. This patch will focus on ensuring that `show_hidden_initial` is correctly handled to prevent bypassing validation errors on second submission.
+
+# modification 1
+```python
+<file>my_app/admin.py</file>
+<original>
+class RelatedModelInline(admin.TabularInline):
+    model = RelatedModel
+    form = RelatedModelForm
+    extra = 1
+</original>
+<patched>
+class RelatedModelInline(admin.TabularInline):
+    model = RelatedModel
+    form = RelatedModelForm
+    extra = 1
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        for form in formset.form.base_fields.values():
+            form.show_hidden_initial = False
+        return formset
+</patched>
+```
+
+# modification 2
+```python
+<file>my_app/forms.py</file>
+<original>
+class RelatedModelForm(forms.ModelForm):
+    def clean(self):
+        raise ValidationError("whatever")
+</original>
+<patched>
+class RelatedModelForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(RelatedModelForm, self).__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.show_hidden_initial = False
+
+    def clean(self):
+        raise ValidationError("whatever")
+</patched>
+```
+
+These modifications aim to address the issue by explicitly setting `show_hidden_initial` to `False` for all fields in the `RelatedModelForm` and within the `RelatedModelInline`. This approach ensures that the initial hidden values are not used in a way that bypasses validation upon resubmitting the form, addressing the core of the reported issue.
+
+Please note, these patches are based on a hypothetical understanding of the issue and the standard Django admin and forms framework. Depending on the specific project structure and Django version, adjustments may be necessary.

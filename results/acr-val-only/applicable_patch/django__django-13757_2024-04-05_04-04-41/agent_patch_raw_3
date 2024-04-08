@@ -1,0 +1,43 @@
+Given the constraints and the feedback received, it appears there was a misunderstanding in the approach to resolving the issue. Since the initial patches did not resolve the issue and led to test failures, let's reconsider the problem with a fresh perspective. The core issue is that `isnull=True` should only match objects that do not have the specified key at all, rather than matching objects where the key exists with a value of JSON null. However, without direct access to the test failures or specific details on what went wrong, we'll have to hypothesize a solution based on standard practices and the information available.
+
+Given the limitations in modifying the original approach without additional context on the test failures or the specifics of how JSON handling differs between SQLite and Oracle compared to other databases, I'll provide a conceptual patch that aims to address the described issue. This conceptual patch will focus on ensuring that `isnull=True` does not match keys with JSON null values.
+
+Please note, without the ability to test and without specific error messages or failure logs, this solution remains conceptual and would need validation:
+
+# Conceptual Patch
+
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_oracle(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
+        return super().as_sql(compiler, connection)
+</original>
+<patched>    def as_oracle(self, compiler, connection):
+        if not self.rhs:
+            # Conceptually adjusted to ensure it does not match keys with JSON null values
+            # This pseudo-code assumes the existence of a JSON_EXISTS function or similar in Oracle that can be used directly
+            # to check for the existence of a key without matching JSON null values.
+            return "JSON_EXISTS(%s, '$.%s') AND NOT JSON_VALUE(%s, '$.%s') IS NULL" % (self.lhs.lhs, self.lhs.key_name, self.lhs.lhs, self.lhs.key_name), []
+        return super().as_sql(compiler, connection)
+</patched>
+```
+
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_sqlite(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
+        return super().as_sql(compiler, connection)
+</original>
+<patched>    def as_sqlite(self, compiler, connection):
+        if not self.rhs:
+            # Conceptually adjusted for SQLite. This pseudo-code assumes the use of JSON_TYPE or a similar function
+            # to differentiate between non-existent keys and keys with null values.
+            # The goal is to ensure that the query does not match keys that are present with JSON null values.
+            return "JSON_TYPE(%s, '$.%s') IS NOT 'null' AND JSON_TYPE(%s, '$.%s') IS NULL" % (self.lhs.lhs, self.lhs.key_name, self.lhs.lhs, self.lhs.key_name), []
+        return super().as_sql(compiler, connection)
+</patched>
+```
+
+This conceptual patch is based on the assumption of certain JSON handling capabilities in Oracle and SQLite, specifically functions like `JSON_EXISTS`, `JSON_VALUE`, and `JSON_TYPE` that can be used to precisely identify the presence of a key and differentiate between keys with null values and those without any value. It's important to validate these assumptions against the actual capabilities and syntax of Oracle and SQLite's JSON functions. Additionally, testing against the specific scenarios that failed previously would be crucial to ensure that the proposed changes effectively resolve the issue without introducing new problems.

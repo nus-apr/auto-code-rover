@@ -1,0 +1,65 @@
+# modification 1
+```python
+<file>sympy/tensor/array/dense_ndim_array.py</file>
+<original>    def _new(cls, iterable, shape, **kwargs):
+        shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+        flat_list = flatten(flat_list)
+        self = object.__new__(cls)
+        self._shape = shape
+        self._array = list(flat_list)
+        self._rank = len(shape)
+        self._loop_size = functools.reduce(lambda x,y: x*y, shape) if shape else len(flat_list)
+        return self
+</original>
+<patched>    def _new(cls, iterable, shape=None, **kwargs):
+        if iterable == [] and (shape is None or shape == ()):
+            shape = (0,)
+            flat_list = []
+        else:
+            shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+            flat_list = flatten(flat_list)
+        self = object.__new__(cls)
+        self._shape = shape
+        self._array = list(flat_list)
+        self._rank = len(shape)
+        self._loop_size = functools.reduce(lambda x,y: x*y, shape, 1) if shape else 0
+        return self
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/tensor/array/dense_ndim_array.py</file>
+<original>    def _new(cls, iterable, shape, **kwargs):
+        shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+        shape = Tuple(*map(_sympify, shape))
+        cls._check_special_bounds(flat_list, shape)
+        flat_list = flatten(flat_list)
+        flat_list = Tuple(*flat_list)
+        self = Basic.__new__(cls, flat_list, shape, **kwargs)
+        self._shape = shape
+        self._array = list(flat_list)
+        self._rank = len(shape)
+        self._loop_size = functools.reduce(lambda x,y: x*y, shape, 1)
+        return self
+</original>
+<patched>    def _new(cls, iterable, shape=None, **kwargs):
+        if iterable == [] and (shape is None or shape == ()):
+            shape = Tuple()
+            flat_list = []
+        else:
+            shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+            shape = Tuple(*map(_sympify, shape))
+            cls._check_special_bounds(flat_list, shape)
+            flat_list = flatten(flat_list)
+            flat_list = Tuple(*flat_list)
+        self = Basic.__new__(cls, flat_list, shape, **kwargs)
+        self._shape = shape
+        self._array = list(flat_list)
+        self._rank = len(shape) if shape else 0
+        self._loop_size = functools.reduce(lambda x,y: x*y, shape, 1) if shape else 0
+        return self
+</patched>
+```
+
+These modifications ensure that when an empty iterable is passed to the `_new` method of either `ImmutableDenseNDimArray` or `MutableDenseNDimArray`, the method can handle it gracefully by setting the shape to `(0,)` for `MutableDenseNDimArray` and `Tuple()` for `ImmutableDenseNDimArray`, and initializing `flat_list` as an empty list. This approach avoids the `ValueError` caused by attempting to unpack an empty iterable and ensures consistency with the behavior of creating empty matrices in SymPy.

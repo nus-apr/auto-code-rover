@@ -1,0 +1,61 @@
+# modification 1
+```python
+<file>sympy/printing/latex.py</file>
+<original>    def _print_MatrixElement(self, expr):
+        return self.parenthesize(expr.parent, PRECEDENCE["Atom"], strict=True) \
+            + '_{%s, %s}' % (expr.i, expr.j)
+</original>
+<patched>    def _print_MatrixElement(self, expr):
+        # Ensure subscript indices are properly formatted to avoid double subscript errors
+        i_index = self._print(expr.i).replace("_", "\_")
+        j_index = self._print(expr.j).replace("_", "\_")
+        return self.parenthesize(expr.parent, PRECEDENCE["Atom"], strict=True) \
+            + '_{%s, %s}' % (i_index, j_index)
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/printing/latex.py</file>
+<original>    def _print_Sum(self, expr):
+        if len(expr.limits) == 1:
+            tex = r"\sum_{%s=%s}^{%s} " % \
+                tuple([ self._print(i) for i in expr.limits[0] ])
+        else:
+            def _format_ineq(l):
+                return r"%s \leq %s \leq %s" % \
+                    tuple([self._print(s) for s in (l[1], l[0], l[2])])
+
+            tex = r"\sum_{\substack{%s}} " % \
+                str.join('\\\\', [ _format_ineq(l) for l in expr.limits ])
+
+        if isinstance(expr.function, Add):
+            tex += r"\left(%s\right)" % self._print(expr.function)
+        else:
+            tex += self._print(expr.function)
+
+        return tex
+</original>
+<patched>    def _print_Sum(self, expr):
+        # This modification ensures that the indices in the summation are correctly escaped to prevent LaTeX errors
+        if len(expr.limits) == 1:
+            tex = r"\sum_{%s=%s}^{%s} " % \
+                tuple([ self._print(i).replace("_", "\_") for i in expr.limits[0] ])
+        else:
+            def _format_ineq(l):
+                return r"%s \leq %s \leq %s" % \
+                    tuple([self._print(s).replace("_", "\_") for s in (l[1], l[0], l[2])])
+
+            tex = r"\sum_{\substack{%s}} " % \
+                str.join('\\\\', [ _format_ineq(l) for l in expr.limits ])
+
+        if isinstance(expr.function, Add):
+            tex += r"\left(%s\right)" % self._print(expr.function)
+        else:
+            tex += self._print(expr.function)
+
+        return tex
+</patched>
+```
+
+These modifications aim to fix the issue with double subscripts in LaTeX output by ensuring that subscript indices are properly escaped. This should prevent LaTeX compilation errors and ensure that the expressions render correctly in LaTeX environments.

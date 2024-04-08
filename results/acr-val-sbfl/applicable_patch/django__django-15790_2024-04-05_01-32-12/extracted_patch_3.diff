@@ -1,0 +1,25 @@
+diff --git a/django/template/engine.py b/django/template/engine.py
+index f2215c0e4e..cbdb2558fb 100644
+--- a/django/template/engine.py
++++ b/django/template/engine.py
+@@ -121,7 +121,19 @@ class Engine:
+     def get_template_libraries(self, libraries):
+         loaded = {}
+         for name, path in libraries.items():
+-            loaded[name] = import_library(path)
++            if name in loaded:
++                # Instead of overwriting or raising an error, check if the paths are identical
++                # If they are, it's safe to proceed without action as it's not a true conflict
++                existing_library = loaded[name]
++                if hasattr(existing_library, '__path__') and existing_library.__path__ == path:
++                    continue
++                else:
++                    # If paths differ, append a unique identifier to the name to avoid conflict
++                    # This approach allows multiple libraries with the same name to coexist
++                    unique_name = f"{name}_{path.replace('.', '_').replace('/', '_')}"
++                    loaded[unique_name] = import_library(path)
++            else:
++                loaded[name] = import_library(path)
+         return loaded
+ 
+     @cached_property

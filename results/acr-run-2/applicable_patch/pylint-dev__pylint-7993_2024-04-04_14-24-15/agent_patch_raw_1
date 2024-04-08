@@ -1,0 +1,24 @@
+# modification 1
+```python
+<file>pylint/reporters/text.py</file>
+<original>            if argument[0] not in MESSAGE_FIELDS:
+                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</original>
+<patched>            if argument[0] not in MESSAGE_FIELDS:
+                # Attempt to handle custom braces by checking if the argument is a valid Python expression
+                try:
+                    # Evaluate the argument to see if it's a valid expression, which could include custom formats
+                    eval(argument[0], {"__builtins__": None}, {})
+                except (SyntaxError, NameError):
+                    # If it's not a valid expression or uses undefined names, warn the user and remove from template
+                    warnings.warn(
+                        f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                        "Are you sure it is supported on the current version of pylint?"
+                    )
+                    template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</patched>
+```
+
+**Explanation**: This patch attempts to address the issue by introducing a check to see if the unrecognized argument in the `--msg-template` is a valid Python expression. This is done using the `eval` function with a restricted environment to prevent execution of arbitrary code. If the argument is not a valid Python expression (resulting in `SyntaxError` or `NameError`), the original warning is issued, and the argument is removed from the template. This approach aims to allow for more flexibility in specifying custom braces in the message template while maintaining safety against arbitrary code execution.

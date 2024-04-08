@@ -1,0 +1,23 @@
+Based on the issue description and the provided implementation of `ExpressionWrapper`, the issue seems to arise from how `ExpressionWrapper` handles the SQL generation for wrapped expressions, particularly when dealing with negated `Q` objects. The `as_sql` method directly delegates the SQL generation to the wrapped expression without considering the `ExpressionWrapper`'s `output_field`, which is crucial for expressions that result in a boolean output, such as negated `Q` objects.
+
+To address this issue, we can modify the `as_sql` method in `ExpressionWrapper` to ensure that it correctly handles the `output_field`, especially for boolean fields resulting from negated `Q` objects. This involves adjusting the SQL generation to account for the `output_field` when compiling the wrapped expression.
+
+# modification 1
+```python
+<file>django/db/models/expressions.py</file>
+<original>def as_sql(self, compiler, connection):
+    return compiler.compile(self.expression)</original>
+<patched>def as_sql(self, compiler, connection):
+    sql, params = compiler.compile(self.expression)
+    if self.output_field.get_internal_type() == 'BooleanField':
+        if sql:
+            sql = 'NOT (' + sql + ')' if 'NOT' in sql.upper() else '(' + sql + ')'
+        else:
+            # Handle the case where sql is empty, particularly for empty Q() objects
+            sql = '1=1' if 'NOT' in sql.upper() else '1=0'
+    return sql, params</patched>
+```
+
+This patch modifies the `as_sql` method to explicitly handle boolean output fields, which are common with negated `Q` objects. It ensures that the SQL reflects the negation and correctly represents the boolean logic expected from such expressions. The patch also includes a fallback for cases where the SQL string might be empty, ensuring that a valid SQL condition is returned that evaluates to either true or false, depending on the presence of negation.
+
+Please note, this patch is a conceptual solution based on the provided context and understanding of the issue. Further testing and refinement may be necessary to ensure it correctly addresses all edge cases and integrates seamlessly with Django's ORM behavior.

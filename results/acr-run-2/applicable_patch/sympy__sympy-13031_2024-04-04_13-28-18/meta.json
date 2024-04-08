@@ -1,0 +1,37 @@
+{
+    "task_id": "sympy__sympy-13031",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.1",
+        "env_name": "setup_sympy__sympy__1.1",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/matrices/tests/test_sparse.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-13031",
+        "base_commit": "2dfa7457f20ee187fbb09b5b6a1631da4458388c",
+        "hints_text": "CC @siefkenj \nI update my comment in case someone already read it. We still have an issue with matrices shape in [pyphs](https://github.com/pyphs/pyphs/issues/49#issuecomment-316618994), but hstack and vstack seem ok in sympy 1.1.1rc1:\r\n\r\n```\r\n>>> import sympy as sy\r\n>>> sy.__version__\r\n'1.1.1rc1'\r\n>>> '1.1.1rc1'\r\n'1.1.1rc1'\r\n>>> matrices = [sy.Matrix.zeros(0, n) for n in range(4)]\r\n>>> sy.Matrix.hstack(*matrices).shape\r\n(0, 6)\r\n>>> matrices = [sy.Matrix.zeros(1, n) for n in range(4)]\r\n>>> sy.Matrix.hstack(*matrices).shape\r\n(1, 6)\r\n>>> matrices = [sy.Matrix.zeros(n, 0) for n in range(4)]\r\n>>> sy.Matrix.vstack(*matrices).shape\r\n(6, 0)\r\n>>> matrices = [sy.Matrix.zeros(1, n) for n in range(4)]\r\n>>> sy.Matrix.hstack(*matrices).shape\r\n(1, 6)\r\n>>> \r\n```\nThe problem is solved with Matrix but not SparseMatrix:\r\n```\r\n>>> import sympy as sy\r\n>>> sy.__version__\r\n'1.1.1rc1'\r\n>>> matrices = [Matrix.zeros(0, n) for n in range(4)]\r\n>>> Matrix.hstack(*matrices)\r\nMatrix(0, 6, [])\r\n>>> sparse_matrices = [SparseMatrix.zeros(0, n) for n in range(4)]\r\n>>> SparseMatrix.hstack(*sparse_matrices)\r\nMatrix(0, 3, [])\r\n>>> \r\n```\nBisected to 27e9ee425819fa09a4cbb8179fb38939cc693249. Should we revert that commit? CC @aravindkanna\nAny thoughts? This is the last fix to potentially go in the 1.1.1 release, but I want to cut a release candidate today or tomorrow, so speak now, or hold your peace (until the next major release).\nI am away at a conference. The change should be almost identical to the fix for dense matrices, if someone can manage to get a patch in. I *might* be able to do it tomorrow.\nOkay.  I've looked this over and its convoluted...\r\n\r\n`SparseMatrix` should impliment `_eval_col_join`.  `col_join` should not be implemented.  It is, and that is what `hstack` is calling, which is why my previous patch didn't fix `SparseMatrix`s as well.  However, the patch that @asmeurer referenced ensures that `SparseMatrix.row_join(DenseMatrix)` returns a `SparseMatrix` whereas `CommonMatrix.row_join(SparseMatrix, DenseMatrix)` returns a `classof(SparseMatrix, DenseMatrix)` which happens to be a `DenseMatrix`.  I don't think that these should behave differently.  This API needs to be better thought out.\nSo is there a simple fix that can be made for the release or should this be postponed?",
+        "created_at": "2017-07-23T15:48:13Z",
+        "test_patch": "diff --git a/sympy/matrices/tests/test_sparse.py b/sympy/matrices/tests/test_sparse.py\n--- a/sympy/matrices/tests/test_sparse.py\n+++ b/sympy/matrices/tests/test_sparse.py\n@@ -26,6 +26,12 @@ def sparse_zeros(n):\n     assert type(a.row_join(b)) == type(a)\n     assert type(a.col_join(b)) == type(a)\n \n+    # make sure 0 x n matrices get stacked correctly\n+    sparse_matrices = [SparseMatrix.zeros(0, n) for n in range(4)]\n+    assert SparseMatrix.hstack(*sparse_matrices) == Matrix(0, 6, [])\n+    sparse_matrices = [SparseMatrix.zeros(n, 0) for n in range(4)]\n+    assert SparseMatrix.vstack(*sparse_matrices) == Matrix(6, 0, [])\n+\n     # test element assignment\n     a = SparseMatrix((\n         (1, 0),\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Behavior of Matrix hstack and vstack changed in sympy 1.1\nIn sympy 1.0:\r\n```\r\nimport sympy as sy\r\nM1 = sy.Matrix.zeros(0, 0)\r\nM2 = sy.Matrix.zeros(0, 1)\r\nM3 = sy.Matrix.zeros(0, 2)\r\nM4 = sy.Matrix.zeros(0, 3)\r\nsy.Matrix.hstack(M1, M2, M3, M4).shape\r\n```\r\nreturns \r\n`(0, 6)`\r\n\r\nNow, same in sympy 1.1:\r\n```\r\nimport sympy as sy\r\nM1 = sy.Matrix.zeros(0, 0)\r\nM2 = sy.Matrix.zeros(0, 1)\r\nM3 = sy.Matrix.zeros(0, 2)\r\nM4 = sy.Matrix.zeros(0, 3)\r\nsy.Matrix.hstack(M1, M2, M3, M4).shape\r\n```\r\nreturns\r\n`(0, 3)\r\n`\r\nwhereas:\r\n```\r\nimport sympy as sy\r\nM1 = sy.Matrix.zeros(1, 0)\r\nM2 = sy.Matrix.zeros(1, 1)\r\nM3 = sy.Matrix.zeros(1, 2)\r\nM4 = sy.Matrix.zeros(1, 3)\r\nsy.Matrix.hstack(M1, M2, M3, M4).shape\r\n```\r\nreturns\r\n`(1, 6)\r\n`\n",
+        "version": "1.1",
+        "FAIL_TO_PASS": [
+            "test_sparse_matrix"
+        ],
+        "PASS_TO_PASS": [
+            "test_CL_RL",
+            "test_add",
+            "test_copyin",
+            "test_errors",
+            "test_len",
+            "test_sparse_solve",
+            "test_sparse_zeros_sparse_eye",
+            "test_trace",
+            "test_transpose"
+        ],
+        "environment_setup_commit": "ec9e3c0436fbff934fa84e22bf07f1b3ef5bfac3",
+        "patch": "diff --git a/sympy/matrices/sparse.py b/sympy/matrices/sparse.py\n--- a/sympy/matrices/sparse.py\n+++ b/sympy/matrices/sparse.py\n@@ -985,8 +985,10 @@ def col_join(self, other):\n         >>> C == A.row_insert(A.rows, Matrix(B))\n         True\n         \"\"\"\n-        if not self:\n-            return type(self)(other)\n+        # A null matrix can always be stacked (see  #10770)\n+        if self.rows == 0 and self.cols != other.cols:\n+            return self._new(0, other.cols, []).col_join(other)\n+\n         A, B = self, other\n         if not A.cols == B.cols:\n             raise ShapeError()\n@@ -1191,8 +1193,10 @@ def row_join(self, other):\n         >>> C == A.col_insert(A.cols, B)\n         True\n         \"\"\"\n-        if not self:\n-            return type(self)(other)\n+        # A null matrix can always be stacked (see  #10770)\n+        if self.cols == 0 and self.rows != other.rows:\n+            return self._new(other.rows, 0, []).row_join(other)\n+\n         A, B = self, other\n         if not A.rows == B.rows:\n             raise ShapeError()\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/13031"
+    }
+}

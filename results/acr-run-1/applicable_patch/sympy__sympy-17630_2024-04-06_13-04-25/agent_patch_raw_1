@@ -1,0 +1,30 @@
+# modification 1
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def _blockmul(self, other):
+        if (isinstance(other, BlockMatrix) and
+                self.colblocksizes == other.rowblocksizes):
+            return BlockMatrix(self.blocks*other.blocks)
+
+        return self * other
+</original>
+<patched>    def _blockmul(self, other):
+        from sympy.matrices.expressions import ZeroMatrix
+        if (isinstance(other, BlockMatrix) and
+                self.colblocksizes == other.rowblocksizes):
+            # Initialize an empty matrix for the result blocks
+            result_blocks = [[None for _ in range(len(other.colblocksizes))] for _ in range(len(self.rowblocksizes))]
+            for i in range(len(self.rowblocksizes)):
+                for j in range(len(other.colblocksizes)):
+                    # Initialize the block as a ZeroMatrix with appropriate dimensions
+                    result_blocks[i][j] = ZeroMatrix(self.rowblocksizes[i], other.colblocksizes[j])
+                    for k in range(len(self.colblocksizes)):
+                        # Perform block multiplication and add to the current block
+                        result_blocks[i][j] += self.blocks[i, k] * other.blocks[k, j]
+            return BlockMatrix(result_blocks)
+
+        return self * other
+</patched>
+```
+
+This patch modifies the `_blockmul` method in the `BlockMatrix` class to explicitly handle the multiplication of blocks, ensuring that `ZeroMatrix` blocks are correctly maintained during the process. It introduces a loop to iterate over the blocks, performing the multiplication block by block and initializing the result blocks as `ZeroMatrix` instances with appropriate dimensions. This approach prevents the inadvertent conversion of `ZeroMatrix` blocks into `Zero` scalar objects, thus preserving the matrix-like properties required for subsequent operations.

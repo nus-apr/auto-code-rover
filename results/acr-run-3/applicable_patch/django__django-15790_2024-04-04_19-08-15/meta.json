@@ -1,0 +1,40 @@
+{
+    "task_id": "django__django-15790",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.2",
+        "env_name": "setup_django__django__4.2",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 check_framework.test_templates"
+    },
+    "task_info": {
+        "instance_id": "django__django-15790",
+        "base_commit": "c627226d05dd52aef59447dcfb29cec2c2b11b8a",
+        "hints_text": "Thanks for the report. It's a bug in the new system check (see 004b4620f6f4ad87261e149898940f2dcd5757ef and #32987).",
+        "created_at": "2022-06-23T11:02:06Z",
+        "test_patch": "diff --git a/tests/check_framework/test_templates.py b/tests/check_framework/test_templates.py\n--- a/tests/check_framework/test_templates.py\n+++ b/tests/check_framework/test_templates.py\n@@ -158,6 +158,19 @@ def test_template_tags_with_same_library_name(self):\n                 [self.error_same_tags],\n             )\n \n+    @override_settings(\n+        INSTALLED_APPS=[\"check_framework.template_test_apps.same_tags_app_1\"]\n+    )\n+    def test_template_tags_same_library_in_installed_apps_libraries(self):\n+        with self.settings(\n+            TEMPLATES=[\n+                self.get_settings(\n+                    \"same_tags\", \"same_tags_app_1.templatetags.same_tags\"\n+                ),\n+            ]\n+        ):\n+            self.assertEqual(check_for_template_tags_with_the_same_name(None), [])\n+\n     @override_settings(\n         INSTALLED_APPS=[\"check_framework.template_test_apps.same_tags_app_1\"]\n     )\n",
+        "repo": "django/django",
+        "problem_statement": "check_for_template_tags_with_the_same_name with libraries in TEMPLATES\nDescription\n\t\nI didn't explore this thoroughly, but I think there might be an issue with the check_for_template_tags_with_the_same_name when you add a template tag library into TEMPLATES['OPTIONS']['librairies'].\nI'm getting an error like: \n(templates.E003) 'my_tags' is used for multiple template tag modules: 'someapp.templatetags.my_tags', 'someapp.templatetags.my_tags'\n",
+        "version": "4.2",
+        "FAIL_TO_PASS": [
+            "test_template_tags_same_library_in_installed_apps_libraries (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)"
+        ],
+        "PASS_TO_PASS": [
+            "Error if template loaders are specified and APP_DIRS is True.",
+            "test_app_dirs_removed (check_framework.test_templates.CheckTemplateSettingsAppDirsTest)",
+            "test_loaders_removed (check_framework.test_templates.CheckTemplateSettingsAppDirsTest)",
+            "test_string_if_invalid_both_are_strings (check_framework.test_templates.CheckTemplateStringIfInvalidTest)",
+            "test_string_if_invalid_first_is_string (check_framework.test_templates.CheckTemplateStringIfInvalidTest)",
+            "test_string_if_invalid_not_specified (check_framework.test_templates.CheckTemplateStringIfInvalidTest)",
+            "test_string_if_invalid_not_string (check_framework.test_templates.CheckTemplateStringIfInvalidTest)",
+            "test_template_tags_with_different_library_name (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)",
+            "test_template_tags_with_different_name (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)",
+            "test_template_tags_with_same_library_name (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)",
+            "test_template_tags_with_same_library_name_and_module_name (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)",
+            "test_template_tags_with_same_name (check_framework.test_templates.CheckTemplateTagLibrariesWithSameName)"
+        ],
+        "environment_setup_commit": "0fbdb9784da915fce5dcc1fe82bac9b4785749e5",
+        "patch": "diff --git a/django/core/checks/templates.py b/django/core/checks/templates.py\n--- a/django/core/checks/templates.py\n+++ b/django/core/checks/templates.py\n@@ -50,15 +50,15 @@ def check_string_if_invalid_is_string(app_configs, **kwargs):\n @register(Tags.templates)\n def check_for_template_tags_with_the_same_name(app_configs, **kwargs):\n     errors = []\n-    libraries = defaultdict(list)\n+    libraries = defaultdict(set)\n \n     for conf in settings.TEMPLATES:\n         custom_libraries = conf.get(\"OPTIONS\", {}).get(\"libraries\", {})\n         for module_name, module_path in custom_libraries.items():\n-            libraries[module_name].append(module_path)\n+            libraries[module_name].add(module_path)\n \n     for module_name, module_path in get_template_tag_modules():\n-        libraries[module_name].append(module_path)\n+        libraries[module_name].add(module_path)\n \n     for library_name, items in libraries.items():\n         if len(items) > 1:\n@@ -66,7 +66,7 @@ def check_for_template_tags_with_the_same_name(app_configs, **kwargs):\n                 Error(\n                     E003.msg.format(\n                         repr(library_name),\n-                        \", \".join(repr(item) for item in items),\n+                        \", \".join(repr(item) for item in sorted(items)),\n                     ),\n                     id=E003.id,\n                 )\n",
+        "pr_link": "https://github.com/django/django/pull/15790"
+    }
+}

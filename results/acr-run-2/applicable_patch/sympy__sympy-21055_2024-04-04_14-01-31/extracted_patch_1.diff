@@ -1,0 +1,27 @@
+diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py
+index e1f97190c0..c6333b0080 100644
+--- a/sympy/assumptions/refine.py
++++ b/sympy/assumptions/refine.py
+@@ -48,12 +48,20 @@ def refine(expr, assumptions=True):
+ 
+     if not expr.is_Atom:
+         args = [refine(arg, assumptions) for arg in expr.args]
+-        # TODO: this will probably not work with Integral or Polynomial
+-        expr = expr.func(*args)
++        # Enhanced handling for Integral and Piecewise expressions
++        if isinstance(expr, Integral) or isinstance(expr, Piecewise):
++            # For Integral and Piecewise, directly attempt to refine their arguments under the given assumptions
++            refined_args = [refine(arg, assumptions) for arg in expr.args]
++            expr = expr.func(*refined_args)
++        else:
++            expr = expr.func(*args)
+     if hasattr(expr, '_eval_refine'):
+         ref_expr = expr._eval_refine(assumptions)
+         if ref_expr is not None:
+             return ref_expr
++        # Special handling for arg function under positive assumption
++        if isinstance(expr, Function) and expr.func == arg and assumptions.get(Q.positive(expr.args[0]), False):
++            return 0
+     name = expr.__class__.__name__
+     handler = handlers_dict.get(name, None)
+     if handler is None:

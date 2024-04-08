@@ -1,0 +1,29 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 8837881579..6751e29d0a 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -2085,8 +2085,9 @@ class Query(BaseExpression):
+             # Add to existing deferred names.
+             self.deferred_loading = existing.union(field_names), True
+         else:
+-            # Remove names from the set of any existing "immediate load" names.
+-            self.deferred_loading = existing.difference(field_names), False
++            # This patch ensures that when only() is called before defer(), the fields specified in only() are not loaded if they are also mentioned in defer().
++            immediate_loading_fields = set(self.get_loaded_field_names()).difference(existing)
++            self.deferred_loading = immediate_loading_fields.difference(field_names), False
+ 
+     def add_immediate_loading(self, field_names):
+         """
+@@ -2105,9 +2106,9 @@ class Query(BaseExpression):
+             field_names.add(self.get_meta().pk.name)
+ 
+         if defer:
+-            # Remove any existing deferred names from the current set before
+-            # setting the new names.
+-            self.deferred_loading = field_names.difference(existing), False
++            # This patch ensures that immediate loading properly overrides existing deferrals, especially when defer() is called after only().
++            new_deferred = existing.difference(field_names)
++            self.deferred_loading = new_deferred, defer and bool(new_deferred)
+         else:
+             # Replace any existing "immediate load" field names.
+             self.deferred_loading = frozenset(field_names), False

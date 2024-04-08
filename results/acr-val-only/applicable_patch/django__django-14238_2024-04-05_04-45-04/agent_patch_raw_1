@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    @property
+    def _subclasses(self):
+        return (BigAutoField, SmallAutoField)</original>
+<patched>    @property
+    def _subclasses(self):
+        # Including AutoField itself to ensure it's recognized as a valid base class
+        return (AutoField, BigAutoField, SmallAutoField)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __subclasscheck__(self, subclass):
+        return subclass in self._subclasses or super().__subclasscheck__(subclass)</original>
+<patched>    def __subclasscheck__(self, subclass):
+        # Adjusting the check to also consider subclasses of the subclasses
+        return issubclass(subclass, self._subclasses) or super().__subclasscheck__(subclass)</patched>
+```
+
+# modification 3
+```python
+<file>django/db/models/options.py</file>
+<original>        if not issubclass(pk_class, AutoField):
+            raise ValueError(
+                f"Primary key '{pk_class_path}' referred by {source} must "
+                f"subclass AutoField."
+            )</original>
+<patched>        # Importing AutoFieldMeta to use for subclass check
+        from django.db.models.fields import AutoFieldMeta
+        if not AutoFieldMeta.__subclasscheck__(pk_class):
+            raise ValueError(
+                f"Primary key '{pk_class_path}' referred by {source} must "
+                f"be a subclass of AutoField or its recognized subclasses."
+            )</patched>
+```
+
+These modifications address the issue by ensuring that subclasses of `BigAutoField` and `SmallAutoField` are properly recognized as valid subclasses of `AutoField` through adjustments in the `AutoFieldMeta` metaclass. Additionally, the patch modifies the `_get_default_pk_class` method in `django/db/models/options.py` to use the updated subclass check logic, ensuring that custom fields extending `BigAutoField` or `SmallAutoField` can be used as primary keys without causing Django to crash.

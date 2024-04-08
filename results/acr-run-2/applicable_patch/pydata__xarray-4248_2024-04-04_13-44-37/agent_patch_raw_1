@@ -1,0 +1,86 @@
+To address the feature request of showing units in the dataset overview, modifications are needed in both the HTML and plain text representations of the dataset. Given the context provided, the patch will focus on enhancing these representations to include units. Since the exact implementation details for retrieving units from data variables and coordinates are not provided, this patch will assume that units can be accessed through a `.units` attribute on data variables and coordinates, which is a common pattern in scientific datasets.
+
+# modification 1
+```python
+<file>xarray/core/formatting_html.py</file>
+<original>def dataset_repr(ds):
+    obj_type = "xarray.{}".format(type(ds).__name__)
+
+    header_components = [f"&lt;div class='xr-obj-type'&gt;{escape(obj_type)}&lt;/div&gt;"]
+
+    sections = [
+        dim_section(ds),
+        coord_section(ds.coords),
+        datavar_section(ds.data_vars),
+        attr_section(ds.attrs),
+    ]
+
+    return _obj_repr(ds, header_components, sections)
+</original>
+<patched>def dataset_repr(ds):
+    obj_type = "xarray.{}".format(type(ds).__name__)
+
+    header_components = [f"&lt;div class='xr-obj-type'&gt;{escape(obj_type)}&lt;/div&gt;"]
+
+    # Enhanced to include units in dimensions and data variables sections
+    sections = [
+        dim_section(ds),  # Assuming dim_section can handle units if applicable
+        coord_section(ds.coords, include_units=True),
+        datavar_section(ds.data_vars, include_units=True),
+        attr_section(ds.attrs),
+    ]
+
+    return _obj_repr(ds, header_components, sections)
+</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/formatting.py</file>
+<original>def dataset_repr(ds):
+    summary = ["&lt;xarray.{}&gt;".format(type(ds).__name__)]
+
+    col_width = _calculate_col_width(_get_col_items(ds.variables))
+
+    dims_start = pretty_print("Dimensions:", col_width)
+    summary.append("{}({})".format(dims_start, dim_summary(ds)))
+
+    if ds.coords:
+        summary.append(coords_repr(ds.coords, col_width=col_width))
+
+    unindexed_dims_str = unindexed_dims_repr(ds.dims, ds.coords)
+    if unindexed_dims_str:
+        summary.append(unindexed_dims_str)
+
+    summary.append(data_vars_repr(ds.data_vars, col_width=col_width))
+
+    if ds.attrs:
+        summary.append(attrs_repr(ds.attrs))
+
+    return "\n".join(summary)
+</original>
+<patched>def dataset_repr(ds):
+    summary = ["&lt;xarray.{}&gt;".format(type(ds).__name__)]
+
+    col_width = _calculate_col_width(_get_col_items(ds.variables))
+
+    dims_start = pretty_print("Dimensions:", col_width)
+    summary.append("{}({})".format(dims_start, dim_summary(ds, include_units=True)))  # Enhanced to include units
+
+    if ds.coords:
+        summary.append(coords_repr(ds.coords, col_width=col_width, include_units=True))  # Enhanced to include units
+
+    unindexed_dims_str = unindexed_dims_repr(ds.dims, ds.coords, include_units=True)  # Assuming this function can be enhanced to include units
+    if unindexed_dims_str:
+        summary.append(unindexed_dims_str)
+
+    summary.append(data_vars_repr(ds.data_vars, col_width=col_width, include_units=True))  # Enhanced to include units
+
+    if ds.attrs:
+        summary.append(attrs_repr(ds.attrs))
+
+    return "\n".join(summary)
+</patched>
+```
+
+Note: The patches assume that the functions `coord_section`, `datavar_section`, `dim_summary`, `coords_repr`, `unindexed_dims_repr`, and `data_vars_repr` can be modified to accept an `include_units` parameter and that they will handle the inclusion of units in their respective sections. This would involve modifying these functions to extract and display units from the `.units` attribute of data variables and coordinates. The actual implementation of these modifications would require additional changes to those functions, which are not detailed here due to the lack of specific implementation details in the provided context.

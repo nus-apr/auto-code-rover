@@ -1,0 +1,39 @@
+Given the context and the issue described, the core problem seems to be that the `dataset_update_method` does not explicitly handle or preserve the chunked nature of dask arrays during the update operation. To address this, we need to ensure that when merging datasets, the chunking information of any dask arrays is retained. However, without explicit details on how chunking is represented or manipulated within the xarray framework, a precise patch cannot be guaranteed. A hypothetical approach would involve checking for chunked arrays and preserving their chunking structure during the merge operation.
+
+Below is a conceptual patch that aims to preserve chunking for dask arrays. This patch is speculative and would need further refinement and testing within the actual xarray codebase.
+
+# modification 1
+```python
+<file>xarray/core/merge.py</file>
+<original>return merge_core(
+    [dataset, other],
+    priority_arg=1,
+    indexes=indexes,
+    combine_attrs="override",
+)</original>
+<patched># Before merging, check if 'other' contains chunked dask arrays and preserve their chunking
+from dask.array.core import Array as DaskArray
+
+def preserve_chunking(target, source):
+    """Ensure that chunking in 'source' is applied to 'target' if both are dask arrays."""
+    if isinstance(target.data, DaskArray) and isinstance(source.data, DaskArray):
+        target = target.chunk(source.chunks)
+    return target
+
+# Apply chunk preservation logic
+if isinstance(other, Dataset):
+    for var_name, data_array in other.data_vars.items():
+        if var_name in dataset.data_vars:
+            dataset[var_name] = preserve_chunking(dataset[var_name], data_array)
+
+return merge_core(
+    [dataset, other],
+    priority_arg=1,
+    indexes=indexes,
+    combine_attrs="override",
+)</patched>
+```
+
+This modification introduces a hypothetical `preserve_chunking` function that checks if both the target (existing dataset variable) and source (variable from the dataset to be merged) are dask arrays. If they are, it applies the chunking from the source to the target. This function is then used to pre-process the dataset variables before the actual merge operation.
+
+Please note, this patch is conceptual and serves to illustrate a potential approach to addressing the issue. Actual implementation may require adjustments based on the xarray framework's internal mechanisms for handling dask arrays and chunking. Further testing and validation would be necessary to ensure the patch does not introduce regressions or unintended behavior.

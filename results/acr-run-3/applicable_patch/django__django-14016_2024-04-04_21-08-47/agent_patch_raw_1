@@ -1,0 +1,46 @@
+# modification 1
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def deconstruct(self):
+        path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+        if path.startswith('django.db.models.query_utils'):
+            path = path.replace('django.db.models.query_utils', 'django.db.models')
+        args, kwargs = (), {}
+        if len(self.children) == 1 and not isinstance(self.children[0], Q):
+            child = self.children[0]
+            kwargs = {child[0]: child[1]}
+        else:
+            args = tuple(self.children)
+            if self.connector != self.default:
+                kwargs = {'_connector': self.connector}
+        if self.negated:
+            kwargs['_negated'] = True
+        return path, args, kwargs
+</original>
+<patched>    def deconstruct(self):
+        from collections.abc import Mapping, Set, Sequence
+        path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+        if path.startswith('django.db.models.query_utils'):
+            path = path.replace('django.db.models.query_utils', 'django.db.models')
+        args, kwargs = (), {}
+        if len(self.children) == 1 and not isinstance(self.children[0], Q):
+            child = self.children[0]
+            # Check if child[1] is a non-pickleable type and convert it accordingly
+            if isinstance(child[1], (Mapping, Set)):
+                kwargs = {child[0]: list(child[1])}
+            elif isinstance(child[1], Sequence) and not isinstance(child[1], str):
+                kwargs = {child[0]: tuple(child[1])}
+            else:
+                kwargs = {child[0]: child[1]}
+        else:
+            # Convert children to a tuple, ensuring all elements are pickleable
+            args = tuple((child if isinstance(child, Q) else (child[0], list(child[1]) if isinstance(child[1], (Mapping, Set)) else tuple(child[1]) if isinstance(child[1], Sequence) and not isinstance(child[1], str) else child[1]) for child in self.children))
+            if self.connector != self.default:
+                kwargs = {'_connector': self.connector}
+        if self.negated:
+            kwargs['_negated'] = True
+        return path, args, kwargs
+</patched>
+```
+
+This patch modifies the `deconstruct` method in the `Q` class to ensure that non-pickleable types such as `dict_keys` are converted into pickleable types (`list` or `tuple`) before serialization. This approach aims to resolve the "TypeError: cannot pickle 'dict_keys' object" issue by preemptively converting non-pickleable types into a format that can be pickled, thus allowing the `|` operator to be applied to `Q` objects containing references to such types without causing errors.

@@ -1,0 +1,21 @@
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..4683d76800 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -102,7 +102,15 @@ def get_total_scale_factor(expr):
+         return expr
+ 
+     depmat = _get_conversion_matrix_for_expr(expr, target_units, unit_system)
+-    if depmat is None:
++    # Check if the conversion matrix is None or if it fails to properly convert units
++    if depmat is None or all(p == 0 for u, p in zip(target_units, depmat)):
++        # Attempt to return the expression in terms of base units if direct conversion fails
++        try:
++            base_units_expr = expr.replace(lambda x: isinstance(x, Quantity), lambda x: x.convert_to_base_units())
++            if base_units_expr != expr:
++                return convert_to(base_units_expr, target_units, unit_system)
++        except Exception:
++            pass
+         return expr
+ 
+     expr_scale_factor = get_total_scale_factor(expr)

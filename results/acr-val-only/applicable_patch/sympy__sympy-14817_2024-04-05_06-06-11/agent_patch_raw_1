@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>sympy/printing/pretty/pretty.py</file>
+<original>                if S(item.args[0]).is_negative:
+                    s = prettyForm(*stringPict.next(s, ' '))
+                    pform = self._print(item)
+                else:
+                    s = prettyForm(*stringPict.next(s, ' + '))
+                s = prettyForm(*stringPict.next(s, pform))</original>
+<patched>                # Check if the first argument is a negative number without using sympify
+                # to avoid parsing issues with special characters in symbol names.
+                try:
+                    if item.args[0].is_negative:
+                        s = prettyForm(*stringPict.next(s, ' '))
+                        pform = self._print(item)
+                    else:
+                        s = prettyForm(*stringPict.next(s, ' + '))
+                except AttributeError:
+                    # Fallback if .is_negative is not available, avoiding sympify
+                    s = prettyForm(*stringPict.next(s, ' + '))
+                s = prettyForm(*stringPict.next(s, pform))</patched>
+```
+
+Explanation:
+- The modification addresses the issue where `S(item.args[0]).is_negative` could potentially lead to a `SympifyError` when `item.args[0]` contains special characters or is not directly parsable by `sympify`. This is particularly problematic for `MatrixSymbol` names that include characters like `*`.
+- By adding a `try-except` block, the code attempts to use the `.is_negative` property directly from the `item.args[0]` object, which should be available for numeric types and SymPy expressions without needing to convert them to SymPy objects using `sympify`.
+- The `except AttributeError` block serves as a fallback for cases where `item.args[0]` does not have the `.is_negative` attribute, which can happen if `item.args[0]` is not a numeric type or a SymPy expression. In such cases, the code defaults to adding a `+` sign, maintaining the original behavior for objects that do not explicitly indicate negativity.
+- This approach avoids the unnecessary use of `sympify`, which can lead to parsing errors, especially with unsanitized input or input containing special characters not intended to be evaluated or parsed as expressions.

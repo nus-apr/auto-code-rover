@@ -1,0 +1,28 @@
+# modification 1
+```python
+<file>sklearn/cluster/_affinity_propagation.py</file>
+<original>        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
+            affinity_propagation(
+                self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                convergence_iter=self.convergence_iter, damping=self.damping,
+                copy=self.copy, verbose=self.verbose, return_n_iter=True)
+
+        if self.affinity != "precomputed":
+            self.cluster_centers_ = X[self.cluster_centers_indices_].copy()</original>
+<patched>        self.cluster_centers_indices_, self.labels_, self.n_iter_ = \
+            affinity_propagation(
+                self.affinity_matrix_, self.preference, max_iter=self.max_iter,
+                convergence_iter=self.convergence_iter, damping=self.damping,
+                copy=self.copy, verbose=self.verbose, return_n_iter=True)
+
+        # Check for convergence
+        if self.n_iter_ == self.max_iter:
+            warnings.warn("AffinityPropagation did not converge, you might want to increase the number of max_iter or check your data.",
+                          ConvergenceWarning)
+            self.cluster_centers_indices_ = np.array([])
+            self.labels_ = np.full(X.shape[0], -1, dtype=int)
+        elif self.affinity != "precomputed":
+            self.cluster_centers_ = X[self.cluster_centers_indices_].copy()</patched>
+```
+
+This patch introduces a check after the `affinity_propagation` call within the `fit` method to determine if the algorithm has reached the maximum number of iterations without converging. If it has not converged, it issues a warning and sets `cluster_centers_indices_` to an empty array and `labels_` to an array filled with `-1`, as per the expected behavior described in the issue. This approach ensures that users are explicitly informed about the non-convergence through both a warning and the expected return values, aligning the implementation with the documentation and user expectations.

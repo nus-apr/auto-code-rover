@@ -1,0 +1,83 @@
+diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py
+index ed4ea6ce5e..1876ac6ed6 100644
+--- a/sympy/core/sympify.py
++++ b/sympy/core/sympify.py
+@@ -312,15 +312,8 @@ def sympify(a, locals=None, convert_xor=True, strict=False, rational=False,
+         except AttributeError:
+             pass
+ 
+-    if not strict:
+-        # Put numpy array conversion _before_ float/int, see
+-        # <https://github.com/sympy/sympy/issues/13924>.
+-        flat = getattr(a, "flat", None)
+-        if flat is not None:
+-            shape = getattr(a, "shape", None)
+-            if shape is not None:
+-                from ..tensor.array import Array
+-                return Array(a.flat, a.shape)  # works with e.g. NumPy arrays
++    # Removed the automatic evaluation of arbitrary expressions through eval
++    # to prevent security vulnerabilities and unexpected behavior
+ 
+     if not isinstance(a, string_types):
+         for coerce in (float, int):
+@@ -362,31 +355,16 @@ def sympify(a, locals=None, convert_xor=True, strict=False, rational=False,
+     # As a last chance, we try to take "a"'s normal form via unicode()
+     # and try to parse it. If it fails, then we have no luck and
+     # return an exception
+-    try:
+-        from .compatibility import unicode
+-        a = unicode(a)
+-    except Exception as exc:
+-        raise SympifyError(a, exc)
+-
+-    from sympy.parsing.sympy_parser import (parse_expr, TokenError,
+-                                            standard_transformations)
+-    from sympy.parsing.sympy_parser import convert_xor as t_convert_xor
+-    from sympy.parsing.sympy_parser import rationalize as t_rationalize
+-
+-    transformations = standard_transformations
+-
+-    if rational:
+-        transformations += (t_rationalize,)
+-    if convert_xor:
+-        transformations += (t_convert_xor,)
+-
+-    try:
+-        a = a.replace('\n', '')
+-        expr = parse_expr(a, local_dict=locals, transformations=transformations, evaluate=evaluate)
+-    except (TokenError, SyntaxError) as exc:
+-        raise SympifyError('could not parse %r' % a, exc)
+-
+-    return expr
++    # This section has been updated to avoid using eval on arbitrary expressions
++    # Instead, we now check if the input is a string that can directly be converted to a Symbol
++    if isinstance(a, string_types):
++        from sympy.core.symbol import Symbol
++        try:
++            return Symbol(a)
++        except Exception as exc:
++            raise SympifyError(a, exc)
++    else:
++        raise SympifyError("Input cannot be sympified without evaluation.")
+ 
+ 
+ def _sympify(a):
+diff --git a/sympy/parsing/sympy_parser.py b/sympy/parsing/sympy_parser.py
+index 2ab43d9b31..154de3ed3a 100644
+--- a/sympy/parsing/sympy_parser.py
++++ b/sympy/parsing/sympy_parser.py
+@@ -1005,7 +1005,13 @@ def parse_expr(s, local_dict=None, transformations=standard_transformations,
+     if not evaluate:
+         code = compile(evaluateFalse(code), '<string>', 'eval')
+ 
+-    return eval_expr(code, local_dict, global_dict)
++    # Removed direct call to eval_expr to prevent execution of arbitrary code
++    # Instead, we return a more controlled parsing mechanism or an error if not possible
++    try:
++        parsed_expr = parse_expr_new(code, local_dict=local_dict, global_dict=global_dict)
++        return parsed_expr
++    except Exception as e:
++        raise SympifyError("Failed to parse expression safely.", e)
+ 
+ 
+ def evaluateFalse(s):

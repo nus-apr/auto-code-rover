@@ -1,0 +1,38 @@
+Given the feedback and the need to address the issue more accurately, let's refine the approach. The goal is to ensure that the method change induced by specific status codes (303, 302, 301) is preserved across subsequent redirects without incorrectly reverting to the original method. The initial patch attempted to address this by conditionally updating the `req` object's method before copying it for the next redirect. However, based on the feedback, this approach might not have been effective or correct in the context of how the `requests` library manages request objects and redirects.
+
+A more targeted approach would involve directly managing the method change within the redirect handling logic, ensuring that once a method is changed due to a specific redirect response, that change is correctly applied to all subsequent redirect requests. This involves adjusting the logic where the method is set for the `prepared_request`.
+
+# Revised Patch
+```python
+<file>requests/sessions.py</file>
+<original>prepared_request.method = method</original>
+<patched># Instead of directly setting the method on the prepared_request,
+# maintain a variable to track the current effective method across redirects.
+# This change assumes the addition of a 'current_method' variable initialized with req.method at the start of the resolve_redirects method.
+
+# Check if the redirect response requires a method change and update current_method accordingly
+if (resp.status_code == codes.see_other and method != 'HEAD') or \
+   (resp.status_code == codes.found and method != 'HEAD') or \
+   (resp.status_code == codes.moved and method == 'POST'):
+    current_method = 'GET'
+else:
+    current_method = method  # Preserve the current method if no change is required
+
+# Apply the current effective method to the prepared request
+prepared_request.method = current_method</patched>
+```
+
+# Initialization of current_method
+```python
+<file>requests/sessions.py</file>
+<original>while resp.is_redirect:</original>
+<patched># Initialize current_method with the method of the original request
+current_method = req.method
+while resp.is_redirect:</patched>
+```
+
+Explanation:
+- The revised approach introduces a `current_method` variable to track the method that should be used for the current and any subsequent redirect requests. This variable is initialized with the method of the original request (`req.method`) before entering the redirect handling loop.
+- Within the loop, based on the status code of the redirect response, `current_method` may be updated. For example, a `303 See Other` response changes the method to `GET`, and this change should be preserved for all subsequent redirects.
+- The `prepared_request.method` is then set using `current_method`, ensuring that the correct method is used for each redirect request.
+- This approach ensures that method changes induced by specific redirect responses are accurately preserved across subsequent redirects, addressing the issue described.

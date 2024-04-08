@@ -1,0 +1,52 @@
+# modification 1
+```python
+<file>django/db/models/query_utils.py</file>
+<original>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            return copy.deepcopy(self)
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            return copy.deepcopy(other)
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        return obj
+</original>
+<patched>    def _combine(self, other, conn):
+        if not isinstance(other, Q):
+            raise TypeError(other)
+
+        # Convert non-pickleable objects in conditions to pickleable
+        def make_pickleable(value):
+            if isinstance(value, dict_keys):
+                return list(value)
+            return value
+
+        # If the other Q() is empty, ignore it and just use `self`.
+        if not other:
+            self_clone = copy.deepcopy(self)
+            self_clone.children = [(key, make_pickleable(value)) for key, value in self_clone.children]
+            return self_clone
+        # Or if this Q is empty, ignore it and just use `other`.
+        elif not self:
+            other_clone = copy.deepcopy(other)
+            other_clone.children = [(key, make_pickleable(value)) for key, value in other_clone.children]
+            return other_clone
+
+        obj = type(self)()
+        obj.connector = conn
+        obj.add(self, conn)
+        obj.add(other, conn)
+        # Ensure all conditions are pickleable
+        obj.children = [(key, make_pickleable(value)) for key, value in obj.children]
+        return obj
+</patched>
+```
+
+This patch introduces a helper function `make_pickleable` within the `_combine` method to convert non-pickleable objects, specifically `dict_keys`, into a pickleable format (in this case, a list) before the `Q` object is deep-copied. This approach aims to address the issue where using `dict_keys` within `Q` objects leads to a "TypeError: cannot pickle 'dict_keys' object" when attempting to perform operations that involve serialization, such as using the `|` operator. The conversion is applied to the `children` attribute of `Q` objects, which is where the query conditions are stored.

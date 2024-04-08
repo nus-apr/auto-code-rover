@@ -1,0 +1,36 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index e0eeccefa6..5410b23122 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1135,14 +1135,23 @@ class QuerySet:
+         return obj
+ 
+     def distinct(self, *field_names):
+-        """
+-        Return a new QuerySet instance that will select only distinct results.
+-        """
+-        assert not self.query.is_sliced, \
+-            "Cannot create distinct fields once a slice has been taken."
+-        obj = self._chain()
+-        obj.query.add_distinct_fields(*field_names)
+-        return obj
++            """
++            Return a new QuerySet instance that will select only distinct results.
++            Enhanced to support distinct operation after union with annotations.
++            """
++            assert not self.query.is_sliced, \
++                "Cannot create distinct fields once a slice has been taken."
++            # Start of the enhancement
++            if hasattr(self, 'query') and hasattr(self.query, 'combined_queries'):
++                combined_query = self.query.combined_queries
++                if combined_query:
++                    for query in combined_query:
++                        query.add_distinct_fields(*field_names)
++                    return self
++            # End of the enhancement
++            obj = self._chain()
++            obj.query.add_distinct_fields(*field_names)
++            return obj
+ 
+     def extra(self, select=None, where=None, params=None, tables=None,
+               order_by=None, select_params=None):

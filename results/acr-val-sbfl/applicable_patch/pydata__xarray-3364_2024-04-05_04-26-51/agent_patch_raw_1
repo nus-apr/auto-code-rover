@@ -1,0 +1,47 @@
+# modification 1
+```python
+<file>xarray/core/concat.py</file>
+<original>            if absent_merge_vars:
+                raise ValueError(
+                    "variables %r are present in some datasets but not others. "
+                    % absent_merge_vars
+                )</original>
+<patched>            # if absent_merge_vars:
+            #     raise ValueError(
+            #         "variables %r are present in some datasets but not others. "
+            #         % absent_merge_vars
+            #     )
+            # Instead of raising an error, initialize missing variables with NaNs
+            for ds in datasets:
+                for var in absent_merge_vars:
+                    if var not in ds:
+                        ds[var] = xr.full_like(ds[list(ds.data_vars)[0]], fill_value=fill_value, dtype=float)
+                        ds[var].attrs['auto_filled'] = True</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/concat.py</file>
+<original>            for var in variables_to_merge:
+                to_merge[var].append(ds.variables[var])</original>
+<patched>            for var in variables_to_merge:
+                if var in ds.variables:
+                    to_merge[var].append(ds.variables[var])
+                else:
+                    # If the variable is missing in the current dataset, create a placeholder variable filled with NaNs
+                    placeholder = xr.Variable(ds.dims, np.full(ds.sizes.values(), fill_value), attrs={'auto_filled': True})
+                    to_merge[var].append(placeholder)</patched>
+```
+
+# modification 3
+```python
+<file>xarray/core/concat.py</file>
+<original>            except KeyError:
+                raise ValueError("%r is not present in all datasets." % k)</original>
+<patched>            except KeyError:
+                # Instead of raising an error, create a placeholder variable for missing data
+                placeholder = xr.Variable(datasets[0][k].dims, np.full(datasets[0][k].shape, fill_value), attrs={'auto_filled': True})
+                vars = [placeholder if k not in ds.variables else ds.variables[k] for ds in datasets]</patched>
+```
+
+These modifications aim to address the issue by avoiding raising errors for missing variables across datasets being concatenated. Instead, missing variables are initialized with NaNs, and a placeholder variable filled with NaNs is used where necessary. This approach aligns with the behavior of `pd.concat` for handling datasets with mismatched variables, making `xarray.concat` more flexible and user-friendly.

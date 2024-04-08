@@ -1,0 +1,57 @@
+Given the context and the nature of the issue with `cse()` having strange behavior for `MatrixSymbol` indexing, a potential patch would involve ensuring that when `MatrixSymbol` objects are encountered during the CSE process, their unique structure and indexing are preserved and handled correctly. Since the detailed implementation of how `MatrixSymbol` objects are specifically handled during CSE isn't directly visible from the provided code, the patch will focus on a conceptual fix that could be applied to the `cse` function in `sympy/simplify/cse_main.py`.
+
+# modification 1
+```python
+<file>sympy/simplify/cse_main.py</file>
+<original>if isinstance(e, (Matrix, ImmutableMatrix)):
+            temp.append(Tuple(*e.flat()))
+        elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+            temp.append(Tuple(*e.todok().items()))
+        else:
+            temp.append(e)</original>
+<patched>if isinstance(e, (Matrix, ImmutableMatrix, MatrixSymbol)):
+            # For MatrixSymbol, we ensure that the structure is preserved by not flattening.
+            if isinstance(e, MatrixSymbol):
+                temp.append(e)
+            else:
+                temp.append(Tuple(*e.flat()))
+        elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+            temp.append(Tuple(*e.todok().items()))
+        else:
+            temp.append(e)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/simplify/cse_main.py</file>
+<original># Get the matrices back
+    for i, e in enumerate(exprs):
+        if isinstance(e, (Matrix, ImmutableMatrix)):
+            reduced_exprs[i] = Matrix(e.rows, e.cols, reduced_exprs[i])
+            if isinstance(e, ImmutableMatrix):
+                reduced_exprs[i] = reduced_exprs[i].as_immutable()
+        elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+            m = SparseMatrix(e.rows, e.cols, {})
+            for k, v in reduced_exprs[i]:
+                m[k] = v
+            if isinstance(e, ImmutableSparseMatrix):
+                m = m.as_immutable()
+            reduced_exprs[i] = m</original>
+<patched># Get the matrices back, ensuring MatrixSymbol objects are correctly handled
+    for i, e in enumerate(exprs):
+        if isinstance(e, (Matrix, ImmutableMatrix, MatrixSymbol)):
+            # Directly handling MatrixSymbol to preserve its structure without conversion
+            if not isinstance(e, MatrixSymbol):
+                reduced_exprs[i] = Matrix(e.rows, e.cols, reduced_exprs[i])
+                if isinstance(e, ImmutableMatrix):
+                    reduced_exprs[i] = reduced_exprs[i].as_immutable()
+        elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+            m = SparseMatrix(e.rows, e.cols, {})
+            for k, v in reduced_exprs[i]:
+                m[k] = v
+            if isinstance(e, ImmutableSparseMatrix):
+                m = m.as_immutable()
+            reduced_exprs[i] = m</patched>
+```
+
+These modifications aim to ensure that `MatrixSymbol` objects are treated distinctly from regular matrices during the CSE process, preserving their unique structure and indexing capabilities. The first modification prevents `MatrixSymbol` objects from being flattened, which could disrupt their indexing. The second modification ensures that when reconstructing expressions post-CSE, `MatrixSymbol` objects are not inadvertently converted into a different matrix type that might not support the same indexing semantics.

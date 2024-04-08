@@ -1,0 +1,49 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index b28dc925ba..398b5b2499 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -1761,7 +1761,7 @@ class SQLInsertCompiler(SQLCompiler):
+         # necessary and it should be possible to use placeholders and
+         # expressions in bulk inserts too.
+         can_bulk = (
+-            not self.returning_fields and self.connection.features.has_bulk_insert
++            not (self.returning_fields and self.query.update_conflicts) and self.connection.features.has_bulk_insert
+         )
+ 
+         placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
+@@ -1776,7 +1776,7 @@ class SQLInsertCompiler(SQLCompiler):
+             self.returning_fields
+             and self.connection.features.can_return_columns_from_insert
+         ):
+-            if self.connection.features.can_return_rows_from_bulk_insert:
++            if self.connection.features.can_return_rows_from_bulk_insert or self.query.update_conflicts:
+                 result.append(
+                     self.connection.ops.bulk_insert_sql(fields, placeholder_rows)
+                 )
+@@ -1786,14 +1786,18 @@ class SQLInsertCompiler(SQLCompiler):
+                 params = [param_rows[0]]
+             if on_conflict_suffix_sql:
+                 result.append(on_conflict_suffix_sql)
+-            # Skip empty r_sql to allow subclasses to customize behavior for
+-            # 3rd party backends. Refs #19096.
+-            r_sql, self.returning_params = self.connection.ops.return_insert_columns(
+-                self.returning_fields
+-            )
+-            if r_sql:
+-                result.append(r_sql)
+-                params += [self.returning_params]
++            # Adjust to include returning_fields when update_conflicts is True
++            if self.query.update_conflicts:
++                returning_fields_sql, returning_params = self.connection.ops.return_insert_columns(
++                    [self.query.model._meta.pk] + list(self.query.update_fields or [])
++                )
++            else:
++                returning_fields_sql, returning_params = self.connection.ops.return_insert_columns(
++                    self.returning_fields
++                )
++            if returning_fields_sql:
++                result.append(returning_fields_sql)
++                params += [returning_params]
+             return [(" ".join(result), tuple(chain.from_iterable(params)))]
+ 
+         if can_bulk:

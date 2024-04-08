@@ -1,0 +1,38 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..8f3ed41b15 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -326,13 +326,17 @@ class FileSystemStorage(Storage):
+     def size(self, name):
+         return os.path.getsize(self.path(name))
+ 
+-    def url(self, name):
++    def url(self, name, request=None):
+         if self.base_url is None:
+             raise ValueError("This file is not accessible via a URL.")
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        full_url = urljoin(self.base_url, url)
++        if request is not None:
++            script_name = request.META.get('SCRIPT_NAME', '')
++            full_url = request.build_absolute_uri(script_name + '/' + full_url)
++        return full_url
+ 
+     def _datetime_from_timestamp(self, ts):
+         """
+diff --git a/django/templatetags/static.py b/django/templatetags/static.py
+index 39712aaba0..f42b3fc22e 100644
+--- a/django/templatetags/static.py
++++ b/django/templatetags/static.py
+@@ -103,7 +103,8 @@ class StaticNode(template.Node):
+         return self.handle_simple(path)
+ 
+     def render(self, context):
+-        url = self.url(context)
++        request = context.get('request', None)
++        url = self.url(context, request=request)
+         if context.autoescape:
+             url = conditional_escape(url)
+         if self.varname is None:

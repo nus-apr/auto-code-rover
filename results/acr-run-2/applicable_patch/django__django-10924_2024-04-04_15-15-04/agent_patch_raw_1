@@ -1,0 +1,46 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __init__(self, verbose_name=None, name=None, path='', match=None,
+                 recursive=False, allow_files=True, allow_folders=False, **kwargs):
+        self.path, self.match, self.recursive = path, match, recursive
+        self.allow_files, self.allow_folders = allow_files, allow_folders
+        kwargs.setdefault('max_length', 100)
+        super().__init__(verbose_name, name, **kwargs)
+</original>
+<patched>    def __init__(self, verbose_name=None, name=None, path='', match=None,
+                 recursive=False, allow_files=True, allow_folders=False, **kwargs):
+        self.path_resolver = path if callable(path) else lambda: path
+        self.match, self.recursive = match, recursive
+        self.allow_files, self.allow_folders = allow_files, allow_folders
+        kwargs.setdefault('max_length', 100)
+        super().__init__(verbose_name, name, **kwargs)
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>        return super().formfield(**{
+            'path': self.path,
+            'match': self.match,
+            'recursive': self.recursive,
+            'form_class': forms.FilePathField,
+            'allow_files': self.allow_files,
+            'allow_folders': self.allow_folders,
+            **kwargs,
+        })
+</original>
+<patched>        return super().formfield(**{
+            'path': self.path_resolver(),
+            'match': self.match,
+            'recursive': self.recursive,
+            'form_class': forms.FilePathField,
+            'allow_files': self.allow_files,
+            'allow_folders': self.allow_folders,
+            **kwargs,
+        })
+</patched>
+```
+
+These modifications allow the `path` parameter of the `FilePathField` in Django models to accept a callable, enabling dynamic resolution of the file path based on the runtime environment. The first modification changes the `__init__` method to store a lambda function that either directly returns the `path` if it's not callable or calls the `path` if it is callable. The second modification ensures that whenever the `formfield` method is called, it uses the resolved path from the callable or the static path, depending on what was provided.

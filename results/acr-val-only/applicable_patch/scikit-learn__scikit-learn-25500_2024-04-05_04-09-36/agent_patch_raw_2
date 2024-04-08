@@ -1,0 +1,25 @@
+Given the feedback, let's refine the approach to ensure compatibility across different output types while maintaining the expected behavior of the `predict_proba` method in `CalibratedClassifierCV`. The issue seems to stem from the arithmetic operations performed on the output of `predict_proba` from the calibrated classifiers, which may not be directly compatible with numpy's broadcasting rules when the output is a pandas DataFrame. A more robust solution would involve explicitly checking the output type and ensuring it is converted to a numpy array before performing arithmetic operations.
+
+# modification 1
+```python
+<file>sklearn/calibration.py</file>
+<original>            mean_proba += proba</original>
+<patched>            # Convert proba to numpy array if it's a pandas DataFrame
+            if isinstance(proba, pd.DataFrame):
+                proba = proba.values
+            mean_proba += proba</patched>
+```
+
+This modification explicitly checks if `proba` is a pandas DataFrame by using `isinstance(proba, pd.DataFrame)`. If true, it converts `proba` to a numpy array using `.values`. This ensures that the subsequent operation `mean_proba += proba` is performed on numpy arrays, thus avoiding the broadcasting issue regardless of the configuration set by `set_config(transform_output="pandas")`.
+
+This approach requires importing pandas at the top of the file:
+
+# modification 2
+```python
+<file>sklearn/calibration.py</file>
+<original>import numpy as np</original>
+<patched>import numpy as np
+import pandas as pd</patched>
+```
+
+These modifications together ensure that the `predict_proba` method in `CalibratedClassifierCV` can handle outputs from calibrated classifiers correctly, even when those outputs are pandas DataFrames, thus resolving the issue described.

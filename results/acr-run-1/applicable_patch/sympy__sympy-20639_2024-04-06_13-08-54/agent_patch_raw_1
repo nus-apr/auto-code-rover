@@ -1,0 +1,33 @@
+Given the context and the code snippets provided, the issue seems to stem from how the `_print_nth_root` and `_print_Pow` methods handle the rendering of expressions involving roots, particularly when the exponent is a fraction like `1/E`. The pretty printing of `pi**(1/E)` should not result in a negative root representation. The issue likely lies in the handling of fractional exponents in these methods. However, without a clear error in the provided snippets, the patch will focus on ensuring that fractional powers are handled correctly, especially for cases like `1/E` which should not be simplified to a square root representation unless explicitly `1/2`.
+
+# modification 1
+```python
+<file>sympy/printing/pretty/pretty.py</file>
+<original>if e is S.NegativeOne:
+    return prettyForm("1")/self._print(b)
+n, d = fraction(e)
+if n is S.One and d.is_Atom and not e.is_Integer and self._settings['root_notation']:
+    return self._print_nth_root(b, e)</original>
+<patched>if e is S.NegativeOne:
+    return prettyForm("1")/self._print(b)
+# Ensure that the exponent is not simplified to a root notation incorrectly
+n, d = fraction(e)
+if n is S.One and d.is_Atom and not e.is_Integer and e != S.Half and self._settings['root_notation']:
+    return self._print_nth_root(b, e)</patched>
+```
+
+# modification 2
+```python
+<file>sympy/printing/pretty/pretty.py</file>
+<original>if isinstance(expt, Rational):
+    exp = str(expt.q)
+    if exp == '2':
+        exp = ''</original>
+<patched>if isinstance(expt, Rational) and expt != S.Half:
+    exp = str(expt.q)
+    # Only simplify the exponent display for square roots
+    if exp == '2' and expt == S.Half:
+        exp = ''</patched>
+```
+
+These modifications aim to refine the handling of fractional exponents in pretty printing, ensuring that expressions like `pi**(1/E)` are not incorrectly simplified to a root notation that might imply a square root. The patches specifically address potential oversights in the handling of fractional exponents, ensuring that the root notation is only applied when appropriate and does not lead to misleading representations.

@@ -1,0 +1,29 @@
+Given the feedback, let's refine the approach to fixing the `__repr__` method in the `ResolverMatch` class to ensure it handles `functools.partial` objects more gracefully. The initial attempt aimed to directly modify the representation of the function within the `__repr__` method itself. However, considering the feedback, it might be more appropriate to adjust how the function path or representation is determined, ensuring compatibility with existing tests and functionalities.
+
+# modification 1
+```python
+<file>django/urls/resolvers.py</file>
+<original>    def __repr__(self):
+        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
+            self._func_path, self.args, self.kwargs, self.url_name,
+            self.app_names, self.namespaces, self.route,
+        )
+</original>
+<patched>    def __repr__(self):
+        func_repr = self._func_path
+        # Enhanced handling for functools.partial objects
+        if hasattr(self.func, 'func'):
+            base_func = self.func.func
+            func_repr = f"{base_func.__module__}.{base_func.__name__}"
+            if hasattr(self.func, 'args'):
+                func_repr += f", args={self.func.args}"
+            if hasattr(self.func, 'keywords'):
+                func_repr += f", kwargs={self.func.keywords}"
+        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
+            func_repr, self.args, self.kwargs, self.url_name,
+            self.app_names, self.namespaces, self.route,
+        )
+</patched>
+```
+
+This revised patch aims to address the issue by improving the handling of `functools.partial` objects in the `__repr__` method of the `ResolverMatch` class. It checks if the `self.func` attribute is a partial function and, if so, adjusts the representation to include the module and name of the base function as well as any arguments and keyword arguments it was called with. This approach should provide a more informative and helpful representation for debugging and logging purposes, while also aiming to maintain compatibility with existing tests and functionalities.

@@ -1,0 +1,100 @@
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def add_deferred_loading(self, field_names):
+        """
+        Add the given list of model field names to the set of fields to
+        exclude from loading from the database when automatic column selection
+        is done. Add the new field names to any existing field names that
+        are deferred (or removed from any existing field names that are marked
+        as the only ones for immediate loading).
+        """
+        # Fields on related models are stored in the literal double-underscore
+        # format, so that we can use a set datastructure. We do the foo__bar
+        # splitting and handling when computing the SQL column names (as part of
+        # get_columns()).
+        existing, defer = self.deferred_loading
+        if defer:
+            # Add to existing deferred names.
+            self.deferred_loading = existing.union(field_names), True
+        else:
+            # Remove names from the set of any existing "immediate load" names.
+            self.deferred_loading = existing.difference(field_names), False
+</original>
+<patched>    def add_deferred_loading(self, field_names):
+        """
+        Add the given list of model field names to the set of fields to
+        exclude from loading from the database when automatic column selection
+        is done. Add the new field names to any existing field names that
+        are deferred (or removed from any existing field names that are marked
+        as the only ones for immediate loading).
+        """
+        # Fields on related models are stored in the literal double-underscore
+        # format, so that we can use a set datastructure. We do the foo__bar
+        # splitting and handling when computing the SQL column names (as part of
+        # get_columns()).
+        existing, defer = self.deferred_loading
+        if defer:
+            # Add to existing deferred names.
+            self.deferred_loading = existing.union(field_names), True
+        else:
+            # This patch ensures that when only() is called before defer(), the fields specified in only() are not loaded if they are also mentioned in defer().
+            immediate_loading_fields = set(self.get_loaded_field_names()).difference(existing)
+            self.deferred_loading = immediate_loading_fields.difference(field_names), False
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def add_immediate_loading(self, field_names):
+        """
+        Add the given list of model field names to the set of fields to
+        retrieve when the SQL is executed ("immediate loading" fields). The
+        field names replace any existing immediate loading field names. If
+        there are field names already specified for deferred loading, remove
+        those names from the new field_names before storing the new names
+        for immediate loading. (That is, immediate loading overrides any
+        existing immediate values, but respects existing deferrals.)
+        """
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if 'pk' in field_names:
+            field_names.remove('pk')
+            field_names.add(self.get_meta().pk.name)
+
+        if defer:
+            # Remove any existing deferred names from the current set before
+            # setting the new names.
+            self.deferred_loading = field_names.difference(existing), False
+        else:
+            # Replace any existing "immediate load" field names.
+            self.deferred_loading = frozenset(field_names), False
+</original>
+<patched>    def add_immediate_loading(self, field_names):
+        """
+        Add the given list of model field names to the set of fields to
+        retrieve when the SQL is executed ("immediate loading" fields). The
+        field names replace any existing immediate loading field names. If
+        there are field names already specified for deferred loading, remove
+        those names from the new field_names before storing the new names
+        for immediate loading. (That is, immediate loading overrides any
+        existing immediate values, but respects existing deferrals.)
+        """
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if 'pk' in field_names:
+            field_names.remove('pk')
+            field_names.add(self.get_meta().pk.name)
+
+        if defer:
+            # This patch ensures that immediate loading properly overrides existing deferrals, especially when defer() is called after only().
+            new_deferred = existing.difference(field_names)
+            self.deferred_loading = new_deferred, defer and bool(new_deferred)
+        else:
+            # Replace any existing "immediate load" field names.
+            self.deferred_loading = frozenset(field_names), False
+</patched>
+```
+
+These modifications aim to address the issue where chaining `.defer()` after `.only()` does not behave as expected, by ensuring that deferred fields are correctly

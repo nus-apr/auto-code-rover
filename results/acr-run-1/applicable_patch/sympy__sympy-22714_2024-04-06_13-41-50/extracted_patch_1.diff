@@ -1,0 +1,56 @@
+diff --git a/sympy/core/parameters.py b/sympy/core/parameters.py
+index bbfcdc29d2..540de043fc 100644
+--- a/sympy/core/parameters.py
++++ b/sympy/core/parameters.py
+@@ -95,11 +95,17 @@ def evaluate(x):
+ 
+     old = global_parameters.evaluate
+ 
++    # Add a mechanism to ensure that the evaluate context manager does not override
++    # the evaluation state if it has been explicitly set within the context
+     try:
+-        global_parameters.evaluate = x
++        if not hasattr(global_parameters, '_explicit_evaluate'):
++            global_parameters.evaluate = x
+         yield
+     finally:
+-        global_parameters.evaluate = old
++        if not hasattr(global_parameters, '_explicit_evaluate'):
++            global_parameters.evaluate = old
++        if hasattr(global_parameters, '_explicit_evaluate'):
++            delattr(global_parameters, '_explicit_evaluate')
+ 
+ 
+ @contextmanager
+diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py
+index 591e784133..2d8f76fb07 100644
+--- a/sympy/core/sympify.py
++++ b/sympy/core/sympify.py
+@@ -377,8 +377,12 @@ def sympify(a, locals=None, convert_xor=True, strict=False, rational=False,
+         else:
+             return a
+ 
++    # Ensure that the evaluate parameter explicitly passed to sympify takes precedence
++    # over the global evaluation state, providing more predictable control over evaluation.
+     if evaluate is None:
+         evaluate = global_parameters.evaluate
++    else:
++        global_parameters.evaluate = evaluate
+ 
+     # Support for basic numpy datatypes
+     if _is_numpy_instance(a):
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 73c20334d0..c48eb11148 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -162,7 +162,9 @@ def __new__(cls, *args, **kwargs):
+ 
+         # Turn any Floats into rationals and simplify
+         # any expressions before we instantiate
+-        if evaluate:
++        # Adjust the condition to explicitly check the global evaluation state
++        # This ensures that the coordinates are simplified based on the current evaluation context
++        if evaluate and global_parameters.evaluate:
+             coords = coords.xreplace({
+                 f: simplify(nsimplify(f, rational=True))
+                  for f in coords.atoms(Float)})

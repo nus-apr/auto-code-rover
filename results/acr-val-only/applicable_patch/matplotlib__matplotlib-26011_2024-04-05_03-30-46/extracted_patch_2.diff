@@ -1,0 +1,26 @@
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 9c2ba63901..cb4dae6e77 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -3643,7 +3643,20 @@ class _AxesBase(martist.Artist):
+             if right is not None:
+                 raise TypeError("Cannot pass both 'right' and 'xmax'")
+             right = xmax
+-        return self.xaxis._set_lim(left, right, emit=emit, auto=auto)
++        # Store the original limits before setting new ones
++        original_limits = self.get_xlim()
++        # Set the new limits
++        result = self.xaxis._set_lim(left, right, emit=emit, auto=auto)
++        # Check if the limits have changed and if emit is True
++        if emit and original_limits != self.get_xlim():
++            # Explicitly trigger xlim_changed callbacks for all sibling axes
++            for other in self._shared_x_axes.get_siblings(self):
++                if other is not self:
++                    # Trigger the callback only if the limits have actually changed
++                    other_limits = other.get_xlim()
++                    if other_limits != original_limits:
++                        other.callbacks.process('xlim_changed', other)
++        return result
+ 
+     get_xscale = _axis_method_wrapper("xaxis", "get_scale")
+     set_xscale = _axis_method_wrapper("xaxis", "_set_axes_scale")

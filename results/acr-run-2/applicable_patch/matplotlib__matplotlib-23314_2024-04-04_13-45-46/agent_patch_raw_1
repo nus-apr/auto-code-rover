@@ -1,0 +1,53 @@
+# modification 1
+```python
+<file>lib/mpl_toolkits/mplot3d/axes3d.py</file>
+<original>    def set_frame_on(self, b):
+        """
+        Set whether the 3D axes panels are drawn.
+
+        Parameters
+        ----------
+        b : bool
+        """
+        self._frameon = bool(b)
+        self.stale = True
+</original>
+<patched>    def set_frame_on(self, b):
+        """
+        Set whether the 3D axes panels are drawn.
+
+        Parameters
+        ----------
+        b : bool
+        """
+        self._frameon = bool(b)
+        # Ensure that when the frame is set off, the contents are also not visible
+        for child in self.get_children():
+            child.set_visible(b)
+        self.stale = True
+</patched>
+```
+
+# modification 2
+```python
+<file>lib/mpl_toolkits/mplot3d/axes3d.py</file>
+<original>    # There was no original implementation of set_visible in Axes3D
+</original>
+<patched>    def set_visible(self, b):
+        """
+        Set the visibility of the 3D axes and its contents.
+
+        Parameters
+        ----------
+        b : bool
+        """
+        super().set_visible(b)
+        self.set_frame_on(b)
+        # Explicitly set visibility for each child artist in the Axes3D
+        for child in self.get_children():
+            child.set_visible(b)
+        self.stale = True
+</patched>
+```
+
+These modifications aim to address the issue by ensuring that setting the visibility of a 3D axes object (`Axes3D`) through `set_visible` or `set_frame_on` methods affects not only the frame but also the contents within the axes. The first modification enhances the `set_frame_on` method to adjust the visibility of all child artists when the frame's visibility is changed. The second modification introduces a new `set_visible` method to `Axes3D` that overrides the inherited behavior from `Artist`, ensuring that visibility settings are propagated to both the frame and its contents. This approach should resolve the reported issue by providing consistent and expected behavior when toggling visibility in 3D plots.

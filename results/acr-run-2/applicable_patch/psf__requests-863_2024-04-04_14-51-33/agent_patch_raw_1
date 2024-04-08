@@ -1,0 +1,30 @@
+# modification 1
+```python
+<file>requests/models.py</file>
+<original>        for (k, v) in list(hooks.items()):
+            self.register_hook(event=k, hook=v)</original>
+<patched>        for (k, v) in list(hooks.items()):
+            if isinstance(v, list):
+                for hook in v:
+                    self.register_hook(event=k, hook=hook)
+            else:
+                self.register_hook(event=k, hook=v)</patched>
+```
+
+# modification 2
+```python
+<file>requests/models.py</file>
+<original>    def register_hook(self, event, hook):
+        """Properly register a hook."""
+
+        self.hooks[event].append(hook)</original>
+<patched>    def register_hook(self, event, hook):
+        """Properly register a hook."""
+        if event not in self.hooks:
+            self.hooks[event] = []
+        self.hooks[event].append(hook)</patched>
+```
+
+These modifications address the issue by allowing the `hooks` argument in the `Request` class `__init__` method to accept lists of functions for each event. The first modification checks if the value associated with an event key in the `hooks` dictionary is a list. If it is, it iterates over the list and registers each function using the `register_hook` method. If the value is not a list (i.e., a single callable), it registers it directly, preserving the original functionality for backward compatibility.
+
+The second modification ensures that the `register_hook` method is robust against events not previously defined in the `self.hooks` dictionary, although this scenario is unlikely given the initialization in the `__init__` method. This is more of a safeguard to ensure the `register_hook` method behaves correctly even if used in isolation or in future modifications.

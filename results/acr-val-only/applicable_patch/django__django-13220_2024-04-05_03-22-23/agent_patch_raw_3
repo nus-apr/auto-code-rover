@@ -1,0 +1,40 @@
+Given the feedback that the initial patch did not resolve the issue and some tests have failed, it's important to refine the approach, especially considering the complexity of comparing `error_dict` structures. The initial attempt might have oversimplified the comparison of `error_dict`, not accounting for potential order differences within lists that are values in the dictionary. Let's adjust the approach to ensure a more robust comparison, especially focusing on the `error_dict` and lists of messages.
+
+# modification 1
+```python
+<file>django/core/exceptions.py</file>
+<original>    def messages(self):
+        if hasattr(self, 'error_dict'):
+            return sum(dict(self).values(), [])
+        return list(self)</original>
+<patched>    def messages(self):
+        if hasattr(self, 'error_dict'):
+            return sum(dict(self).values(), [])
+        return list(self)
+
+    def __eq__(self, other):
+        if not isinstance(other, ValidationError):
+            return NotImplemented
+        # Deep comparison of error_dict if present
+        if hasattr(self, 'error_dict') and hasattr(other, 'error_dict'):
+            self_error_dict = {k: set(v) for k, v in self.error_dict.items()}
+            other_error_dict = {k: set(v) for k, v in other.error_dict.items()}
+            return self_error_dict == other_error_dict
+        # Normalize messages to a set for order-independent comparison if error_dict is not present
+        elif not hasattr(self, 'error_dict') and not hasattr(other, 'error_dict'):
+            self_messages = set(self.messages)
+            other_messages = set(other.messages)
+            return self_messages == other_messages
+        # If one has error_dict and the other does not, they are not equal
+        return False</patched>
+```
+
+This revised patch introduces a more nuanced approach to comparing instances of `ValidationError`:
+
+1. **Deep Comparison of `error_dict`**: When both instances have an `error_dict`, the method now converts the lists of messages within each dictionary value into sets for order-independent comparison. This ensures that the comparison accounts for potential differences in the order of messages within the same error category.
+
+2. **Comparison of Message Lists**: If neither instance has an `error_dict`, the method falls back to comparing the sets of messages, as in the initial patch. This handles cases where errors are not associated with specific fields.
+
+3. **Handling Inconsistent Structures**: The patch adds a condition to explicitly return `False` if one instance has an `error_dict` and the other does not. This addresses a potential edge case where the two instances represent fundamentally different types of validation errors (field-specific vs. non-field-specific) and should not be considered equal.
+
+This approach aims to address the shortcomings identified in the initial patch, particularly by ensuring a more thorough and accurate comparison of `ValidationError` instances that may contain complex, nested error information.

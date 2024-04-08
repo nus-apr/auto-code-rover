@@ -1,0 +1,45 @@
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 9c2ba63901..11eba25948 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -3643,7 +3643,39 @@ class _AxesBase(martist.Artist):
+             if right is not None:
+                 raise TypeError("Cannot pass both 'right' and 'xmax'")
+             right = xmax
+-        return self.xaxis._set_lim(left, right, emit=emit, auto=auto)
++        # Introduce a context manager to track recursion depth
++        from contextlib import contextmanager
++        @contextmanager
++        def _shared_limit_update(self, axis, emit):
++            # Use a simple attribute to track if we're already updating shared limits
++            if not hasattr(self, '_updating_shared_limits'):
++                self._updating_shared_limits = { 'x': False, 'y': False }
++            if self._updating_shared_limits[axis]:
++                # If we're already updating this axis, do not emit to prevent recursion
++                emit = False
++            else:
++                self._updating_shared_limits[axis] = True
++            try:
++                yield
++            finally:
++                # Reset the flag after update
++                self._updating_shared_limits[axis] = False
++        
++        # Modify the set_xlim method to use the context manager
++        def set_xlim(self, left=None, right=None, *, emit=True, auto=False,
++                     xmin=None, xmax=None):
++            if right is None and np.iterable(left):
++                left, right = left
++            if xmin is not None:
++                if left is not None:
++                    raise TypeError("Cannot pass both 'left' and 'xmin'")
++                left = xmin
++            if xmax is not None:
++                if right is not None:
++                    raise TypeError("Cannot pass both 'right' and 'xmax'")
++                right = xmax
++            with self._shared_limit_update('x', emit):
++                return self.xaxis._set_lim(left, right, emit=emit, auto=auto)
+ 
+     get_xscale = _axis_method_wrapper("xaxis", "get_scale")
+     set_xscale = _axis_method_wrapper("xaxis", "_set_axes_scale")

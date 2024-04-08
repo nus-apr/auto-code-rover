@@ -1,0 +1,52 @@
+diff --git a/django/db/migrations/executor.py b/django/db/migrations/executor.py
+index aa2fe0883b..c7a8f9bbb1 100644
+--- a/django/db/migrations/executor.py
++++ b/django/db/migrations/executor.py
+@@ -96,8 +96,8 @@ class MigrationExecutor:
+         (un)applied and in a second step run all the database operations.
+         """
+         # The django_migrations table must be present to record applied
+-        # migrations.
+-        self.recorder.ensure_schema()
++        # migrations, respecting db_router allow_migrate rules.
++        self.recorder.ensure_schema(db_alias=self.connection.alias)
+ 
+         if plan is None:
+             plan = self.migration_plan(targets)
+diff --git a/django/db/migrations/recorder.py b/django/db/migrations/recorder.py
+index 1a37c6b7d0..bb9b296ac9 100644
+--- a/django/db/migrations/recorder.py
++++ b/django/db/migrations/recorder.py
+@@ -56,8 +56,14 @@ class MigrationRecorder:
+             tables = self.connection.introspection.table_names(cursor)
+         return self.Migration._meta.db_table in tables
+ 
+-    def ensure_schema(self):
+-        """Ensure the table exists and has the correct schema."""
++    def ensure_schema(self, db_alias=None):
++        """Ensure the table exists and has the correct schema, respecting db_router allow_migrate rules."""
++        from django.db import router
++        if db_alias is None:
++            db_alias = self.connection.alias
++        # Check if allow_migrate is True for the Migration model on the given db_alias
++        if not router.allow_migrate(db_alias, self.Migration):
++            return
+         # If the table's there, that's fine - we've never changed its schema
+         # in the codebase.
+         if self.has_table():
+@@ -81,10 +87,11 @@ class MigrationRecorder:
+             # are applied.
+             return {}
+ 
+-    def record_applied(self, app, name):
+-        """Record that a migration was applied."""
+-        self.ensure_schema()
+-        self.migration_qs.create(app=app, name=name)
++    def record_applied(self, app, name, db_alias=None):
++        """Record that a migration was applied, respecting db_router allow_migrate rules."""
++        self.ensure_schema(db_alias=db_alias)
++        if db_alias is None or db_alias == self.connection.alias:
++            self.migration_qs.create(app=app, name=name)
+ 
+     def record_unapplied(self, app, name):
+         """Record that a migration was unapplied."""

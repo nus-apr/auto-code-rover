@@ -1,0 +1,18 @@
+Based on the analysis and the provided code snippets, the issue seems to stem from the handling of the `evaluate` flag within the `Point` class's `__new__` method. When creating a `Point2D` instance with `evaluate(False)`, the global evaluation setting prevents the automatic simplification of expressions, which seems to interfere with the validation logic that checks for imaginary coordinates.
+
+To resolve this issue, we can modify the `Point` class's `__new__` method to ensure that the validation of coordinates for imaginary numbers is correctly handled even when global evaluation is turned off. Specifically, we can add a step to force the evaluation of coordinate expressions for the purpose of this validation check, without altering the overall behavior of the `evaluate` context manager.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>if any(a.is_number and im(a) for a in coords):
+    raise ValueError('Imaginary coordinates are not permitted.')</original>
+<patched>if any(a.is_number and im(a.evalf()) for a in coords):
+    raise ValueError('Imaginary coordinates are not permitted.')</patched>
+```
+
+This modification ensures that each coordinate is evaluated to a floating-point number (if it is a numerical expression) for the specific purpose of checking whether it is imaginary. The use of `a.evalf()` forces the evaluation of `a` to a numerical value if possible, which allows the `im()` function to correctly determine whether the coordinate has an imaginary part. This approach minimizes the impact on the rest of the system by limiting the scope of evaluation to just this check, preserving the intended behavior of `evaluate(False)` in other contexts.
+
+Please note, this patch is conceptual and aims to address the specific issue described. Further testing and validation would be required to ensure that it does not introduce any unintended side effects, especially in complex expressions where forced evaluation might lead to loss of symbolic information.

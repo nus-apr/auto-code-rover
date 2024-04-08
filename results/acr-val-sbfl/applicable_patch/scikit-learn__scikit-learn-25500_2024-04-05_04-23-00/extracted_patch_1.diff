@@ -1,0 +1,47 @@
+diff --git a/sklearn/calibration.py b/sklearn/calibration.py
+index 2c4a33616..fc75c31f1 100644
+--- a/sklearn/calibration.py
++++ b/sklearn/calibration.py
+@@ -478,7 +478,12 @@ class CalibratedClassifierCV(ClassifierMixin, MetaEstimatorMixin, BaseEstimator)
+ 
+         mean_proba /= len(self.calibrated_classifiers_)
+ 
+-        return mean_proba
++        from sklearn.utils import _get_config
++        if _get_config()["transform_output"] == "pandas":
++            from sklearn.utils._set_output import _wrap_in_pandas_container
++            return _wrap_in_pandas_container(mean_proba, columns=self.classes_)
++        else:
++            return mean_proba
+ 
+     def predict(self, X):
+         """Predict the target of new samples.
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..324813509 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -127,11 +127,19 @@ def _wrap_data_with_container(method, data_to_wrap, original_input, estimator):
+         return data_to_wrap
+ 
+     # dense_config == "pandas"
+-    return _wrap_in_pandas_container(
+-        data_to_wrap=data_to_wrap,
+-        index=getattr(original_input, "index", None),
+-        columns=estimator.get_feature_names_out,
+-    )
++    try:
++        return _wrap_in_pandas_container(
++            data_to_wrap=data_to_wrap,
++            index=getattr(original_input, "index", None),
++            columns=estimator.get_feature_names_out(),
++        )
++    except TypeError:
++        # Fallback for estimators without get_feature_names_out
++        return _wrap_in_pandas_container(
++            data_to_wrap=data_to_wrap,
++            index=getattr(original_input, "index", None),
++            columns=None,
++        )
+ 
+ 
+ def _wrap_method_output(f, method):

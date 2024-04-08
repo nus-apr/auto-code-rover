@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if has_dups(temp):
+            if is_cycle:
+                raise ValueError('there were repeated elements; to resolve '
+                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+            else:
+                raise ValueError('there were repeated elements.')</original>
+<patched># Removed the check for duplicate elements in cycle notation to allow non-disjoint cycles
+# if has_dups(temp):
+#     if is_cycle:
+#         raise ValueError('there were repeated elements; to resolve '
+#         'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+#     else:
+#         raise ValueError('there were repeated elements.')</patched>
+```
+
+# modification 2
+```python
+<file>sympy/combinatorics/permutations.py</file>
+<original>if is_cycle:
+            # it's not necessarily canonical so we won't store
+            # it -- use the array form instead
+            c = Cycle()
+            for ci in args:
+                c = c(*ci)
+            aform = c.list()</original>
+<patched>if is_cycle:
+            # Modified to correctly handle non-disjoint cycles by applying them in left-to-right order
+            from sympy.combinatorics import Permutation as Perm
+            aform = list(range(max(flatten(args)) + 1)) if not size else list(range(size))
+            for cycle in args:
+                for i in range(len(cycle)):
+                    aform[cycle[i-1]] = cycle[i]
+            # Ensure the permutation extends to the specified size
+            if size and size > len(aform):
+                aform.extend(list(range(len(aform), size)))</patched>
+```
+
+This patch addresses the issue by first removing the check that raises a `ValueError` for repeated elements in cycle notation, allowing non-disjoint cycles to be processed. Then, it modifies the handling of cycle notation inputs to apply non-disjoint cycles in left-to-right order, constructing the resulting permutation as expected. This approach ensures that the constructor can handle non-disjoint cycles correctly and extends the permutation to the specified size if necessary.

@@ -1,0 +1,27 @@
+Given the feedback, it seems there was a misunderstanding in the approach to fixing the issue with handling custom braces in the `TextReporter.on_set_current_module` method. Let's refine the approach to address the issue more accurately, focusing on the original problem of handling custom braces correctly without affecting the functionality of the method.
+
+# modification 1
+```python
+<file>pylint/reporters/text.py</file>
+<original>        arguments = re.findall(r"\{(.+?)(:.*)?\}", template)
+        for argument in arguments:
+            if argument[0] not in MESSAGE_FIELDS:
+                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on previous versions of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</original>
+<patched>        # Adjust the regex to exclude matches that are preceded by an opening brace or followed by a closing brace, to handle custom braces correctly.
+        arguments = re.findall(r"(?<!\{)\{([^{}]+?)(:.*)?\}(?!\})", template)
+        for argument in arguments:
+            if argument[0] not in MESSAGE_FIELDS:
+                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on previous versions of pylint?"
+                )
+                # Use re.escape to properly escape any special characters in the argument[0] when removing it from the template.
+                template = re.sub(r"\{" + re.escape(argument[0]) + r"(:.*?)?\}", "", template)
+        # No need to replace double braces with single braces as the original issue was misinterpreted. The focus is on correctly parsing and validating arguments.</patched>
+```
+
+This modification corrects the initial approach by focusing on the actual problem described in the feedback: the incorrect handling of custom braces in the `TextReporter.on_set_current_module` method. The updated regex now correctly excludes matches that are either preceded by an opening brace or followed by a closing brace, thus properly handling custom braces. Additionally, the use of `re.escape` ensures that any special characters in the argument are correctly escaped when removing unrecognized arguments from the template. The final step of replacing double braces with single braces was removed as it was based on a misinterpretation of the issue.

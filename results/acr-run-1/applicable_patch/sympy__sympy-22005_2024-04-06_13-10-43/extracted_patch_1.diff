@@ -1,0 +1,41 @@
+diff --git a/sympy/solvers/polysys.py b/sympy/solvers/polysys.py
+index b9809fd4e9..657bdb0a7c 100644
+--- a/sympy/solvers/polysys.py
++++ b/sympy/solvers/polysys.py
+@@ -51,14 +51,28 @@ def solve_poly_system(seq, *gens, **args):
+     except PolificationFailed as exc:
+         raise ComputationFailed('solve_poly_system', len(seq), exc)
+ 
+-    if len(polys) == len(opt.gens) == 2:
+-        f, g = polys
+-
+-        if all(i <= 2 for i in f.degree_list() + g.degree_list()):
+-            try:
+-                return solve_biquadratic(f, g, opt)
+-            except SolveFailed:
+-                pass
++    if len(polys) == len(opt.gens):
++        if len(polys) == 1:
++            # Handle univariate case separately to ensure correct handling of infinite solutions
++            f = polys[0]
++            if f.degree() == 1:
++                # Directly solve linear univariate polynomial
++                return [(-f.LC() / f.nth(1),)]
++            elif f.degree() == 0 and f.LC() == 0:
++                # The equation is 0 = 0, indicating infinite solutions
++                raise NotImplementedError("Infinite solutions are not supported.")
++            else:
++                raise NotImplementedError("Only linear univariate polynomials are directly solvable.")
++        elif len(polys) == 2:
++            f, g = polys
++            if all(i <= 2 for i in f.degree_list() + g.degree_list()):
++                try:
++                    return solve_biquadratic(f, g, opt)
++                except SolveFailed:
++                    pass
++        else:
++            # Fallback for more complex systems
++            return solve_generic(polys, opt)
+ 
+     return solve_generic(polys, opt)
+ 

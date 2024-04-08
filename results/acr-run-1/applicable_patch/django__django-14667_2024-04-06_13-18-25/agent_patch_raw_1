@@ -1,0 +1,52 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            clone.query.add_deferred_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            # Check if only() has been called before defer() and adjust the deferred fields accordingly
+            if clone.query.deferred_loading[0]:
+                existing_deferred_fields = set(clone.query.deferred_loading[0])
+                fields_to_defer = set(fields)
+                # Remove any fields from the deferred set if they are also specified in only()
+                adjusted_fields = existing_deferred_fields.difference(fields_to_defer)
+                clone.query.set_deferred_loading(adjusted_fields, defer=True)
+            else:
+                clone.query.add_deferred_loading(fields)
+        return clone</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        clone.query.add_immediate_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        # Adjust immediate loading fields if defer() has been called before only()
+        if clone.query.deferred_loading[0]:
+            existing_deferred_fields = set(clone.query.deferred_loading[0])
+            fields_to_load_immediately = set(fields)
+            # Ensure fields specified in defer() are not loaded immediately
+            adjusted_fields = fields_to_load_immediately.difference(existing_deferred_fields)
+            clone.query.set_immediate_loading(adjusted_fields)
+        else:
+            clone.query.add_immediate_loading(fields)
+        return clone</patched>
+```
+
+**Explanation**:
+These modifications aim to address the issue where chaining `defer()` and `only()` methods does not behave as expected. The core of the problem lies in how deferred and immediate loading fields are managed when these methods are used together.
+
+- **Modification 1** adjusts the behavior of the `defer()` method to check if `only()` has been called previously and ensure that fields specified in `only()` are not deferred unnecessarily. It does this by calculating the difference between existing deferred fields and the fields specified in `only()`, then updating the deferred fields accordingly.
+
+- **Modification 2** changes the `only()` method to consider any fields that have been deferred by a previous call to `defer()`. It ensures that fields specified in `defer()` are not marked for immediate loading by `only()`, maintaining the integrity of deferred loading while allowing `only()` to function as intended.
+
+These patches aim to ensure that the `defer()` and `only()` methods can be chained together in any order while behaving as expected, respecting the intentions behind deferring and immediately loading specific fields.

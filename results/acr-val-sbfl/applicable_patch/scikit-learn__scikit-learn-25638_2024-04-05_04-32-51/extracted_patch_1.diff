@@ -1,0 +1,35 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..33a3af590 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -113,7 +113,8 @@ def unique_labels(*ys):
+ 
+     ys_labels = set(chain.from_iterable((i for i in _unique_labels(y)) for y in ys))
+     # Check that we don't mix string type with number type
+-    if len(set(isinstance(label, str) for label in ys_labels)) > 1:
++    # Adjust the check to allow nullable pandas dtypes alongside integers
++    if len(set(isinstance(label, str) for label in ys_labels)) > 1 and not all(isinstance(label, (int, np.integer, type(pd.NA))) for label in ys_labels):
+         raise ValueError("Mix of label input types (string and number)")
+ 
+     return xp.asarray(sorted(ys_labels))
+@@ -340,9 +341,17 @@ def type_of_target(y, input_name=""):
+             return "binary"  # []
+         # 2-D empty array: [[]]
+         return "unknown"
+-    if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+-        # [obj_1] and not ["label_1"]
+-        return "unknown"
++    # Handle nullable pandas dtypes by checking for pandas extension dtypes
++    if not issparse(y) and y.dtype == object:
++        if hasattr(y, "dtype") and (str(y.dtype).startswith("Int") or str(y.dtype).startswith("Float") or y.dtype.name == "boolean"):
++            # Check if y contains pandas nullable integer, float, or boolean types
++            if y.ndim == 1 or (y.ndim == 2 and y.shape[1] == 1):
++                return "binary"
++            elif y.ndim == 2:
++                return "multiclass-multioutput"
++        elif not isinstance(y.flat[0], str):
++            # [obj_1] and not ["label_1"]
++            return "unknown"
+ 
+     # Check if multioutput
+     if y.ndim == 2 and y.shape[1] > 1:

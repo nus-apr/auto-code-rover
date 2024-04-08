@@ -1,0 +1,37 @@
+diff --git a/lib/mpl_toolkits/mplot3d/art3d.py b/lib/mpl_toolkits/mplot3d/art3d.py
+index 8fe6e7a9c1..a9c7dffc74 100644
+--- a/lib/mpl_toolkits/mplot3d/art3d.py
++++ b/lib/mpl_toolkits/mplot3d/art3d.py
+@@ -171,6 +171,8 @@ class Line3D(lines.Line2D):
+     def set_3d_properties(self, zs=0, zdir='z'):
+         xs = self.get_xdata()
+         ys = self.get_ydata()
++        if not isinstance(zs, np.ndarray):
++            zs = np.array(zs)
+         zs = np.broadcast_to(zs, len(xs))
+         self._verts3d = juggle_axes(xs, ys, zs, zdir)
+         self.stale = True
+@@ -192,10 +194,12 @@ class Line3D(lines.Line2D):
+         -----
+         Accepts x, y, z arguments or a single array-like (x, y, z)
+         """
+-        if len(args) == 1:
++        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) == 3:
+             self._verts3d = args[0]
+-        else:
++        elif len(args) == 3:
+             self._verts3d = args
++        else:
++            raise ValueError("set_data_3d expects either three separate arrays (x, y, z) or a single array-like of shape (3, N).")
+         self.stale = True
+ 
+     def get_data_3d(self):
+@@ -211,6 +215,8 @@ class Line3D(lines.Line2D):
+ 
+     @artist.allow_rasterization
+     def draw(self, renderer):
++        if not hasattr(self, '_verts3d'):
++            self.set_3d_properties()  # Ensure _verts3d is initialized
+         xs3d, ys3d, zs3d = self._verts3d
+         xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
+         self.set_data(xs, ys)

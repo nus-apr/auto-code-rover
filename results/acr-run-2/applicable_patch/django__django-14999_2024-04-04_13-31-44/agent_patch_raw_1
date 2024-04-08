@@ -1,0 +1,63 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        new_model = to_state.apps.get_model(app_label, self.new_name)
+        if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+            old_model = from_state.apps.get_model(app_label, self.old_name)
+            # Move the main table
+            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )
+            ...
+</original>
+<patched>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        new_model = to_state.apps.get_model(app_label, self.new_name)
+        old_model = from_state.apps.get_model(app_label, self.old_name)
+        # Check if db_table is explicitly set and if it matches the new model's db_table, skip the operation
+        if old_model._meta.db_table == new_model._meta.db_table:
+            return
+        if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+            # Move the main table
+            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )
+            ...
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/backends/sqlite3/schema.py</file>
+<original>    def _remake_table(self, model, create_field=None, delete_field=None, alter_field=None):
+        ...
+        # Create a new table with the updated schema.
+        self.create_model(new_model)
+        ...
+        # Rename the new table to take way for the old
+        self.alter_db_table(
+            new_model, new_model._meta.db_table, model._meta.db_table,
+            disable_constraints=False,
+        )
+</original>
+<patched>    def _remake_table(self, model, create_field=None, delete_field=None, alter_field=None):
+        ...
+        # Check if db_table is explicitly set and if it matches the new model's db_table, skip the operation
+        if 'new__%s' % strip_quotes(model._meta.db_table) == model._meta.db_table:
+            return
+        # Create a new table with the updated schema.
+        self.create_model(new_model)
+        ...
+        # Rename the new table to take way for the old
+        self.alter_db_table(
+            new_model, new_model._meta.db_table, model._meta.db_table,
+            disable_constraints=False,
+        )
+</patched>
+```
+
+These modifications aim to address the issue by adding checks to see if the `db_table` attribute of a model is explicitly set and matches the target table name in both the `RenameModel` operation and the SQLite schema backend's `_remake_table` method. If the condition is met, the operations are skipped to prevent unnecessary table alterations and to ensure that renaming a model with a defined `db_table` becomes a no-operation as intended.

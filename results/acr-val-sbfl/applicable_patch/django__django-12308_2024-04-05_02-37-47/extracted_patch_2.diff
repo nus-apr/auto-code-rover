@@ -1,0 +1,23 @@
+diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py
+index e4ddc8f017..2649baedcf 100644
+--- a/django/contrib/admin/utils.py
++++ b/django/contrib/admin/utils.py
+@@ -399,7 +399,17 @@ def display_for_field(value, field, empty_value_display):
+     elif isinstance(field, models.FileField) and value:
+         return format_html('<a href="{}">{}</a>', value.url, value)
+     else:
+-        return display_for_value(value, empty_value_display)
++            # Special handling for JSONField to ensure it displays valid JSON strings in the admin interface.
++            if isinstance(field, models.JSONField):
++                from django.core.serializers.json import DjangoJSONEncoder
++                try:
++                    return json.dumps(value, cls=DjangoJSONEncoder)
++                except TypeError:
++                    # In case the value is not serializable, fall back to the default string representation.
++                    # This ensures that the admin interface does not break due to unserializable JSON values.
++                    return str(value)
++            else:
++                return display_for_value(value, empty_value_display)
+ 
+ 
+ def display_for_value(value, empty_value_display, boolean=False):

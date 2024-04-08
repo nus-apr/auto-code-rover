@@ -1,0 +1,29 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 07d6ffd4ca..3a9fbee14d 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1127,12 +1127,22 @@ class QuerySet:
+         return clone
+ 
+     def order_by(self, *field_names):
+-        """Return a new QuerySet instance with the ordering changed."""
++        """Return a new QuerySet instance with the ordering changed. This version adds handling for self-referencing foreign keys."""
+         assert not self.query.is_sliced, \
+             "Cannot reorder a query once a slice has been taken."
++        
++        # Handle self-referencing foreign keys explicitly
++        new_field_names = []
++        for field_name in field_names:
++            if "__" in field_name and field_name.endswith("_id"):
++                parts = field_name.split("__")
++                if parts[-2] == parts[-3]:  # Indicates a self-reference
++                    field_name = "__".join(parts[:-2] + [parts[-1]])
++            new_field_names.append(field_name)
++        
+         obj = self._chain()
+         obj.query.clear_ordering(force_empty=False)
+-        obj.query.add_ordering(*field_names)
++        obj.query.add_ordering(*new_field_names)
+         return obj
+ 
+     def distinct(self, *field_names):

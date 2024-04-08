@@ -1,0 +1,42 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..5fb47ee08 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -305,6 +305,9 @@ def type_of_target(y, input_name=""):
+     with warnings.catch_warnings():
+         warnings.simplefilter("error", np.VisibleDeprecationWarning)
+         if not issparse(y):
++            # Convert nullable pandas dtypes to their numpy counterparts before conversion to array
++            if isinstance(y, pd.Series) and y.dtype.name in ("Int64", "Float64", "boolean"):
++                y = y.astype(y.dtype.name.lower())
+             try:
+                 y = xp.asarray(y)
+             except (np.VisibleDeprecationWarning, ValueError):
+@@ -340,9 +343,24 @@ def type_of_target(y, input_name=""):
+             return "binary"  # []
+         # 2-D empty array: [[]]
+         return "unknown"
+-    if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+-        # [obj_1] and not ["label_1"]
+-        return "unknown"
++    if not issparse(y):
++        # Handle nullable pandas dtypes explicitly
++        if y.dtype.name in ("Int64", "Float64", "boolean"):
++            if y.ndim == 2 and y.shape[1] > 1:
++                suffix = "-multioutput"
++            else:
++                suffix = ""
++            if y.dtype.name == "boolean":
++                return "binary" + suffix
++            else:
++                data = y.data if issparse(y) else y
++                if pd.api.types.is_integer_dtype(y.dtype) or (data != data.astype(int)).any():
++                    return "continuous" + suffix
++                else:
++                    return "multiclass" + suffix
++        elif y.dtype == object and not isinstance(y.flat[0], str):
++            # [obj_1] and not ["label_1"]
++            return "unknown"
+ 
+     # Check if multioutput
+     if y.ndim == 2 and y.shape[1] > 1:

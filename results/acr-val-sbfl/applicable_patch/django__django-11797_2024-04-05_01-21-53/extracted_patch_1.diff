@@ -1,0 +1,31 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 2b59dd301a..9d86b63a7c 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -344,7 +344,8 @@ class BaseExpression:
+         return copy.copy(self)
+ 
+     def get_group_by_cols(self, alias=None):
+-        if not self.contains_aggregate:
++        # Adjusted to ensure that group by columns are correctly identified in subqueries
++        if not self.contains_aggregate or self.is_subquery:
+             return [self]
+         cols = []
+         for source in self.get_source_expressions():
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 180f4a41fc..5f8d353705 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1072,8 +1072,12 @@ class QuerySet:
+ 
+         for alias, annotation in clone.query.annotations.items():
+             if alias in annotations and annotation.contains_aggregate:
++                # Ensure that the GROUP BY clause is preserved in subqueries after annotation
+                 if clone._fields is None:
+                     clone.query.group_by = True
++                elif hasattr(clone.query, 'subquery') and clone.query.subquery:
++                    # If this is a subquery, ensure the GROUP BY clause from the parent query is preserved
++                    clone.query.group_by = clone.query.get_outer_ref_group_by()
+                 else:
+                     clone.query.set_group_by()
+                 break

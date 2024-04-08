@@ -1,0 +1,31 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 25c3b44250..ecd2d077d4 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -351,6 +351,7 @@ class StatReloader(BaseReloader):
+             time.sleep(self.SLEEP_TIME)
+             yield
+ 
++    import os
+     def snapshot_files(self):
+         # watched_files may produce duplicate paths if globs overlap.
+         seen_files = set()
+@@ -358,9 +359,15 @@ class StatReloader(BaseReloader):
+             if file in seen_files:
+                 continue
+             try:
+-                mtime = file.stat().st_mtime
+-            except OSError:
+-                # This is thrown when the file does not exist.
++                # Convert Path object to string and check for null byte
++                file_path_str = str(file.resolve(strict=False))
++                if '\x00' in file_path_str:
++                    logger.warning("Ignoring file due to null byte in path: %s", file_path_str)
++                    continue
++                # Use os.path.getmtime for compatibility and direct filesystem access
++                mtime = os.path.getmtime(file_path_str)
++            except OSError as e:
++                logger.error("Error accessing file %s: %s", file, e)
+                 continue
+             seen_files.add(file)
+             yield file, mtime

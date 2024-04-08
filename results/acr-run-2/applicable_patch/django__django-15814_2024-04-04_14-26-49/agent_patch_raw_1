@@ -1,0 +1,22 @@
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>rel_cls = RelatedPopulator(rel_klass_info, select, db)</original>
+<patched>rel_cls = RelatedPopulator(rel_klass_info, select, db)
+# Ensure handling of proxy models by referencing the concrete model's metadata
+if hasattr(rel_klass_info['model']._meta, 'proxy') and rel_klass_info['model']._meta.proxy:
+    rel_klass_info['model'] = rel_klass_info['model']._meta.concrete_model</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/query.py</file>
+<original>opts = cur_model._meta</original>
+<patched># Adjust to handle proxy models correctly by referencing the concrete model's metadata
+if cur_model._meta.proxy:
+    opts = cur_model._meta.concrete_model._meta
+else:
+    opts = cur_model._meta</patched>
+```
+
+These modifications aim to address the issue by ensuring that when dealing with proxy models, Django's ORM references the metadata of the concrete model instead. This change is applied in both the `get_related_populators` method in `django/db/models/query.py` and the `deferred_to_data` function in `django/db/models/sql/query.py`, where the original issue and the suggested fix were identified. This approach should resolve the crash when using `QuerySet.only()` after `select_related()` on proxy models, as described in the issue.

@@ -1,0 +1,27 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 95302a05ca..6bcb625211 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -152,7 +152,8 @@ def rowblocksizes(self):
+ 
+     @property
+     def colblocksizes(self):
+-        return [self.blocks[0, i].cols for i in range(self.blockshape[1])]
++        from sympy.matrices.expressions.matexpr import ZeroMatrix
++        return [self.blocks[0, i].cols if not isinstance(self.blocks[0, i], ZeroMatrix) else 0 for i in range(self.blockshape[1])]
+ 
+     def structurally_equal(self, other):
+         return (isinstance(other, BlockMatrix)
+@@ -162,9 +163,11 @@ def structurally_equal(self, other):
+             and self.colblocksizes == other.colblocksizes)
+ 
+     def _blockmul(self, other):
++        from sympy.matrices.expressions.matexpr import ZeroMatrix
+         if (isinstance(other, BlockMatrix) and
+                 self.colblocksizes == other.rowblocksizes):
+-            return BlockMatrix(self.blocks*other.blocks)
++            new_blocks = [[self.blocks[i, j] * other.blocks[j, i] if not (isinstance(self.blocks[i, j], ZeroMatrix) or isinstance(other.blocks[j, i], ZeroMatrix)) else ZeroMatrix(self.blocks[i, j].rows, other.blocks[j, i].cols) for j in range(other.blockshape[0])] for i in range(self.blockshape[0])]
++            return BlockMatrix(new_blocks)
+ 
+         return self * other
+ 

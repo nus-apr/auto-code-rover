@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>seaborn/axisgrid.py</file>
+<original>if not isinstance(data, pd.DataFrame):
+    raise TypeError(
+        f"'data' must be pandas DataFrame object, not: {type(data)}")</original>
+<patched>if not isinstance(data, pd.DataFrame):
+    raise TypeError(
+        f"'data' must be pandas DataFrame object, not: {type(data)}")
+# Check if DataFrame has MultiIndex columns and flatten if true
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = ['_'.join(col).strip() for col in data.columns.values]</patched>
+```
+
+# modification 2
+```python
+<file>seaborn/axisgrid.py</file>
+<original>vector = self.data[var]</original>
+<patched># Adapt for MultiIndex columns
+if isinstance(self.data.columns, pd.MultiIndex):
+    # Attempt to match var to a MultiIndex column
+    matched_cols = [col for col in self.data.columns if var in col]
+    if matched_cols:
+        vector = self.data[matched_cols[0]]
+    else:
+        raise KeyError(f"Variable {var} not found in DataFrame columns.")
+else:
+    vector = self.data[var]</patched>
+```
+
+These modifications aim to address the issue with seaborn's `pairplot` function when used with MultiIndex DataFrames. The first modification ensures that if the DataFrame passed to `pairplot` has MultiIndex columns, these columns are flattened into a single index by joining the levels with an underscore. This approach maintains the uniqueness of the column names while making them compatible with the existing seaborn code.
+
+The second modification is a more targeted approach within the `map_diag` method of the `PairGrid` class. It checks if the DataFrame columns are a MultiIndex and, if so, attempts to find a matching column for the variable `var`. This is a more conservative approach that only modifies the behavior when dealing with MultiIndex columns, potentially allowing for more nuanced handling of MultiIndex DataFrames in the future.
+
+Note: These patches are conceptual and may require further testing and refinement to ensure they work correctly in all cases and do not introduce other issues.

@@ -1,0 +1,46 @@
+Given the issue with the `ReadOnlyPasswordHashWidget` in Django, where the label's 'for' attribute points to a non-labelable element, the solution involves modifying the template `auth/widgets/read_only_password_hash.html` to ensure it complies with HTML standards. Since the widget renders text and not an input, the 'for' attribute should be removed from the label or adjusted accordingly. However, without direct access to the template content through the provided context, I'll focus on a conceptual patch that should be applied to the template file based on the information available.
+
+# modification 1
+```python
+<file>django/contrib/auth/forms.py</file>
+<original>class ReadOnlyPasswordHashWidget(forms.Widget):
+    template_name = 'auth/widgets/read_only_password_hash.html'
+    read_only = True
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        summary = []
+        if not value or value.startswith(UNUSABLE_PASSWORD_PREFIX):
+            summary.append({'label': gettext("No password set.")})
+        else:
+            try:
+                hasher = identify_hasher(value)
+            except ValueError:
+                summary.append({'label': gettext("Invalid password format or unknown hashing algorithm.")})
+            else:
+                for key, value_ in hasher.safe_summary(value).items():
+                    summary.append({'label': gettext(key), 'value': value_})
+        context['summary'] = summary
+        return context</original>
+<patched>class ReadOnlyPasswordHashWidget(forms.Widget):
+    template_name = 'auth/widgets/read_only_password_hash.html'
+    read_only = True
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        summary = []
+        if not value or value.startswith(UNUSABLE_PASSWORD_PREFIX):
+            summary.append({'label': gettext("No password set."), 'is_labelable': False})
+        else:
+            try:
+                hasher = identify_hasher(value)
+            except ValueError:
+                summary.append({'label': gettext("Invalid password format or unknown hashing algorithm."), 'is_labelable': False})
+            else:
+                for key, value_ in hasher.safe_summary(value).items():
+                    summary.append({'label': gettext(key), 'value': value_, 'is_labelable': False})
+        context['summary'] = summary
+        return context</patched>
+```
+
+Note: The actual fix needs to be applied within the template file `auth/widgets/read_only_password_hash.html` by utilizing the 'is_labelable' context variable to conditionally render the 'for' attribute only when it is appropriate (i.e., when the element is actually labelable). Since the template content is not directly provided, the patch above adds a conceptual 'is_labelable' flag to the context to indicate that the elements being labeled are not suitable for a 'for' attribute. The real implementation would require adjusting the HTML in the template based on this flag, such as by removing the 'for' attribute or modifying its value to ensure compliance with HTML standards.

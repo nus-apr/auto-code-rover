@@ -1,0 +1,30 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c2623f099f..da2fc18df8 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -80,15 +80,23 @@ class Q(tree.Node):
+         return clause
+ 
+     def deconstruct(self):
++        from collections.abc import Mapping, Set, Sequence
+         path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+         if path.startswith('django.db.models.query_utils'):
+             path = path.replace('django.db.models.query_utils', 'django.db.models')
+         args, kwargs = (), {}
+         if len(self.children) == 1 and not isinstance(self.children[0], Q):
+             child = self.children[0]
+-            kwargs = {child[0]: child[1]}
++            # Check if child[1] is a non-pickleable type and convert it accordingly
++            if isinstance(child[1], (Mapping, Set)):
++                kwargs = {child[0]: list(child[1])}
++            elif isinstance(child[1], Sequence) and not isinstance(child[1], str):
++                kwargs = {child[0]: tuple(child[1])}
++            else:
++                kwargs = {child[0]: child[1]}
+         else:
+-            args = tuple(self.children)
++            # Convert children to a tuple, ensuring all elements are pickleable
++            args = tuple((child if isinstance(child, Q) else (child[0], list(child[1]) if isinstance(child[1], (Mapping, Set)) else tuple(child[1]) if isinstance(child[1], Sequence) and not isinstance(child[1], str) else child[1]) for child in self.children))
+             if self.connector != self.default:
+                 kwargs = {'_connector': self.connector}
+         if self.negated:

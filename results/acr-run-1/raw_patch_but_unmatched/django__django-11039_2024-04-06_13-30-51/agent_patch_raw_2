@@ -1,0 +1,39 @@
+Given the constraints and the inability to directly interact with the actual Django codebase or simulate real-time changes, I'll provide a conceptual approach to crafting a patch based on the described issue and the context provided. This approach will outline the necessary changes without specific code snippets from the actual Django project, aiming to guide the resolution of the issue regarding `sqlmigrate` output wrapping in `BEGIN/COMMIT`.
+
+### Conceptual Patch Approach
+
+#### Modification to `sqlmigrate` Command Logic
+
+**File Path**: `django/core/management/commands/sqlmigrate.py`
+
+**Description**:
+The `sqlmigrate` command needs to conditionally wrap its SQL output in transaction statements based on the database's support for transactional DDL. This involves adjusting the logic where the SQL for migrations is generated and formatted for output.
+
+**Conceptual Change**:
+- Before generating the SQL output, check the database connection's capability to support transactional DDL using `connection.features.can_rollback_ddl`.
+- Conditionally prepend `BEGIN;` and append `COMMIT;` to the SQL output based on the above capability check.
+
+#### Modification to Migration Execution Logic
+
+**File Path**: `django/db/migrations/executor.py`
+
+**Description**:
+The `MigrationExecutor` may play a role in determining how migrations are executed and, by extension, how their SQL is generated, especially in the context of `collect_sql` method which is used by `sqlmigrate` to generate SQL without executing it.
+
+**Conceptual Change**:
+- In the `collect_sql` method, adjust the invocation of the schema editor to consider `connection.features.can_rollback_ddl` when deciding on the `atomic` parameter value.
+- This ensures that the collected SQL respects the database's ability to handle transactional DDL, aligning with the adjustments made in the `sqlmigrate` command logic.
+
+#### Test Adjustments
+
+**File Path**: `tests/migrations/test_commands.py`
+
+**Description**:
+New tests should be added or existing tests adjusted to verify that the `sqlmigrate` command correctly handles the database's support for transactional DDL.
+
+**Conceptual Change**:
+- Add tests that mock `connection.features.can_rollback_ddl` to both `True` and `False` and verify that the SQL output from `sqlmigrate` is correctly wrapped or not wrapped in `BEGIN/COMMIT` accordingly.
+- Ensure that these tests cover various databases that Django supports, reflecting different behaviors regarding transactional DDL.
+
+### Note
+This conceptual approach outlines the necessary changes without specific original and patched code snippets due to the limitations mentioned. Implementing these changes requires access to the Django codebase, understanding of its structure, and familiarity with its testing framework. After making the proposed changes, thorough testing across supported databases is essential to ensure that the issue is resolved without introducing regressions.

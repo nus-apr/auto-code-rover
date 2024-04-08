@@ -1,0 +1,66 @@
+Given the feedback, let's refine the approach to ensure that the patch correctly addresses the issue without causing test failures. The goal remains to display the scope of fixtures when using the `pytest --fixtures` command, but we must ensure compatibility with existing pytest functionality and tests.
+
+# modification 1
+```python
+<file>src/_pytest/python.py</file>
+<original>def write_fixture(fixture_def):
+    argname = fixture_def.argname
+    if verbose <= 0 and argname.startswith("_"):
+        return
+    if verbose > 0:
+        bestrel = get_best_relpath(fixture_def.func)
+        funcargspec = "{} -- {}".format(argname, bestrel)
+    else:
+        funcargspec = argname
+    tw.line(funcargspec, green=True)
+    fixture_doc = fixture_def.func.__doc__
+    if fixture_doc:
+        write_docstring(tw, fixture_doc)
+    else:
+        tw.line("    no docstring available", red=True)</original>
+<patched>def write_fixture(fixture_def):
+    argname = fixture_def.argname
+    if verbose <= 0 and argname.startswith("_"):
+        return
+    fixture_scope = fixture_def.scope
+    if verbose > 0:
+        bestrel = get_best_relpath(fixture_def.func)
+        funcargspec = "{} -- {} [scope:{}]".format(argname, bestrel, fixture_scope)
+    else:
+        funcargspec = "{} [scope:{}]".format(argname, fixture_scope)
+    tw.line(funcargspec, green=True)
+    fixture_doc = fixture_def.func.__doc__
+    if fixture_doc:
+        write_docstring(tw, fixture_doc)
+    else:
+        tw.line("    no docstring available", red=True)</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/python.py</file>
+<original>if verbose > 0:
+    funcargspec = "%s -- %s" % (argname, bestrel)
+else:
+    funcargspec = argname
+tw.line(funcargspec, green=True)
+loc = getlocation(fixturedef.func, curdir)
+doc = fixturedef.func.__doc__ or ""
+if doc:
+    write_docstring(tw, doc)
+else:
+    tw.line("    %s: no docstring available" % (loc,), red=True)</original>
+<patched>if verbose > 0:
+    funcargspec = "%s -- %s [scope:%s]" % (argname, bestrel, fixturedef.scope)
+else:
+    funcargspec = "%s [scope:%s]" % (argname, fixturedef.scope)
+tw.line(funcargspec, green=True)
+loc = getlocation(fixturedef.func, curdir)
+doc = fixturedef.func.__doc__ or ""
+if doc:
+    write_docstring(tw, doc)
+else:
+    tw.line("    %s: no docstring available" % (loc,), red=True)</patched>
+```
+
+These modifications adjust the format slightly by including the fixture scope within brackets to clearly separate it from the fixture name and path. This approach aims to maintain clarity and readability in the output, potentially addressing the issue that caused test failures previously. The inclusion of fixture scope information directly in the output string should be compatible with existing tests, assuming those tests do not strictly depend on the exact format of the `--fixtures` output.

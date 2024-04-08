@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_oracle(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_oracle(compiler, connection)
+        return super().as_sql(compiler, connection)</original>
+<patched>    def as_oracle(self, compiler, connection):
+        # Check if the key exists and is not JSON null
+        key_check_sql, key_check_params = self.lhs.as_oracle(compiler, connection)
+        json_null_check_sql = "JSON_QUERY(%s, '$.%s') IS NOT NULL" % (key_check_sql, self.lhs.key_name)
+        return json_null_check_sql, key_check_params</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/json.py</file>
+<original>    def as_sqlite(self, compiler, connection):
+        if not self.rhs:
+            return HasKey(self.lhs.lhs, self.lhs.key_name).as_sqlite(compiler, connection)
+        return super().as_sql(compiler, connection)</original>
+<patched>    def as_sqlite(self, compiler, connection):
+        # Check if the key exists and is not JSON null
+        key_check_sql, key_check_params = self.lhs.as_sqlite(compiler, connection)
+        json_null_check_sql = "json_extract(%s, '$.%s') IS NOT NULL" % (key_check_sql, self.lhs.key_name)
+        return json_null_check_sql, key_check_params</patched>
+```
+
+These modifications aim to address the issue by explicitly checking that the JSON key exists and its value is not null in both Oracle and SQLite databases. This approach ensures that `isnull=True` only matches objects that do not have the key, aligning the behavior with other supported databases like MariaDB, MySQL, and PostgreSQL.

@@ -1,0 +1,36 @@
+{
+    "task_id": "sympy__sympy-15345",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.4",
+        "env_name": "setup_sympy__sympy__1.4",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/printing/tests/test_mathematica.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-15345",
+        "base_commit": "9ef28fba5b4d6d0168237c9c005a550e6dc27d81",
+        "hints_text": "Hi, I'm new (to the project and development in general, but I'm a long time Mathematica user) and have been looking into this problem.\r\n\r\nThe `mathematica.py` file goes thru a table of known functions (of which neither Mathematica `Max` or `Min` functions are in) that are specified with lowercase capitalization, so it might be that doing `mathematica_code(Max(x,2))` is just yielding the unevaluated expression of `mathematica_code`. But there is a problem when I do `mathematica_code(max(x,2))` I get an error occurring in the Relational class in `core/relational.py`\r\n\r\nStill checking it out, though.\n`max` (lowercase `m`) is the Python builtin which tries to compare the items directly and give a result. Since `x` and `2` cannot be compared, you get an error. `Max` is the SymPy version that can return unevaluated results. ",
+        "created_at": "2018-10-05T06:00:31Z",
+        "test_patch": "diff --git a/sympy/printing/tests/test_mathematica.py b/sympy/printing/tests/test_mathematica.py\n--- a/sympy/printing/tests/test_mathematica.py\n+++ b/sympy/printing/tests/test_mathematica.py\n@@ -2,7 +2,7 @@\n                         Rational, Integer, Tuple, Derivative)\n from sympy.integrals import Integral\n from sympy.concrete import Sum\n-from sympy.functions import exp, sin, cos, conjugate\n+from sympy.functions import exp, sin, cos, conjugate, Max, Min\n \n from sympy import mathematica_code as mcode\n \n@@ -28,6 +28,7 @@ def test_Function():\n     assert mcode(f(x, y, z)) == \"f[x, y, z]\"\n     assert mcode(sin(x) ** cos(x)) == \"Sin[x]^Cos[x]\"\n     assert mcode(conjugate(x)) == \"Conjugate[x]\"\n+    assert mcode(Max(x,y,z)*Min(y,z)) == \"Max[x, y, z]*Min[y, z]\"\n \n \n def test_Pow():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "mathematica_code gives wrong output with Max\nIf I run the code\r\n\r\n```\r\nx = symbols('x')\r\nmathematica_code(Max(x,2))\r\n```\r\n\r\nthen I would expect the output `'Max[x,2]'` which is valid Mathematica code but instead I get `'Max(2, x)'` which is not valid Mathematica code.\n",
+        "version": "1.4",
+        "FAIL_TO_PASS": [
+            "test_Function"
+        ],
+        "PASS_TO_PASS": [
+            "test_Derivative",
+            "test_Integer",
+            "test_Integral",
+            "test_Mul",
+            "test_Pow",
+            "test_Rational",
+            "test_constants",
+            "test_containers"
+        ],
+        "environment_setup_commit": "73b3f90093754c5ed1561bd885242330e3583004",
+        "patch": "diff --git a/sympy/printing/mathematica.py b/sympy/printing/mathematica.py\n--- a/sympy/printing/mathematica.py\n+++ b/sympy/printing/mathematica.py\n@@ -31,7 +31,8 @@\n     \"asech\": [(lambda x: True, \"ArcSech\")],\n     \"acsch\": [(lambda x: True, \"ArcCsch\")],\n     \"conjugate\": [(lambda x: True, \"Conjugate\")],\n-\n+    \"Max\": [(lambda *x: True, \"Max\")],\n+    \"Min\": [(lambda *x: True, \"Min\")],\n }\n \n \n@@ -101,6 +102,8 @@ def _print_Function(self, expr):\n                     return \"%s[%s]\" % (mfunc, self.stringify(expr.args, \", \"))\n         return expr.func.__name__ + \"[%s]\" % self.stringify(expr.args, \", \")\n \n+    _print_MinMaxBase = _print_Function\n+\n     def _print_Integral(self, expr):\n         if len(expr.variables) == 1 and not expr.limits[0][1:]:\n             args = [expr.args[0], expr.variables[0]]\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/15345"
+    }
+}

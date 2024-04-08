@@ -1,0 +1,38 @@
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 7c978c47be..07fb090f73 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -213,13 +213,27 @@ def __add__(self, other):
+         sympy.geometry.point.Point.translate
+ 
+         """
+-        try:
+-            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+-        except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++        from sympy.core.mul import Mul
++        if isinstance(other, Mul) and any(isinstance(arg, Point) for arg in other.args):
++            # Handle case where 'other' is a result of multiplication involving a Point and a sympy number
++            point_arg = [arg for arg in other.args if isinstance(arg, Point)][0]
++            non_point_args = [arg for arg in other.args if not isinstance(arg, Point)]
++            # Perform multiplication of non-point arguments separately
++            non_point_result = Mul(*non_point_args, evaluate=True)
++            try:
++                s, o = Point._normalize_dimension(self, point_arg)
++                coords = [simplify(a + non_point_result*b) for a, b in zip(s, o)]
++                return Point(coords, evaluate=False)
++            except TypeError:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
++        else:
++            try:
++                s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
++            except TypeError:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+-        coords = [simplify(a + b) for a, b in zip(s, o)]
+-        return Point(coords, evaluate=False)
++            coords = [simplify(a + b) for a, b in zip(s, o)]
++            return Point(coords, evaluate=False)
+ 
+     def __contains__(self, item):
+         return item in self.args

@@ -1,0 +1,76 @@
+To address the issue of `socket.error` exceptions not being caught and wrapped in a `requests`-specific exception like `ConnectionError` in the `iter_content` and `content` methods of the `Response` class, we can introduce exception handling for `socket.error`. This will ensure that such exceptions are consistently wrapped into `requests.exceptions.ConnectionError`, providing a more intuitive error handling experience for users of the library.
+
+Here's how the patch could look:
+
+# modification 1
+```python
+<file>requests/models.py</file>
+<original>            try:
+                # Special case for urllib3.
+                try:
+                    for chunk in self.raw.stream(chunk_size, decode_content=True):
+                        yield chunk
+                except IncompleteRead as e:
+                    raise ChunkedEncodingError(e)
+                except DecodeError as e:
+                    raise ContentDecodingError(e)
+            except AttributeError:
+                # Standard file-like object.
+                while True:
+                    chunk = self.raw.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk</original>
+<patched>            try:
+                # Special case for urllib3.
+                try:
+                    for chunk in self.raw.stream(chunk_size, decode_content=True):
+                        yield chunk
+                except IncompleteRead as e:
+                    raise ChunkedEncodingError(e)
+                except DecodeError as e:
+                    raise ContentDecodingError(e)
+                except socket.error as e:  # Added handling for socket.error
+                    raise requests.exceptions.ConnectionError(e)
+            except AttributeError:
+                # Standard file-like object.
+                while True:
+                    chunk = self.raw.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk</patched>
+```
+
+# modification 2
+```python
+<file>requests/models.py</file>
+<original>            try:
+                if self._content_consumed:
+                    raise RuntimeError(
+                        'The content for this response was already consumed')
+
+                if self.status_code == 0:
+                    self._content = None
+                else:
+                    self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+
+            except AttributeError:
+                self._content = None</original>
+<patched>            try:
+                if self._content_consumed:
+                    raise RuntimeError(
+                        'The content for this response was already consumed')
+
+                if self.status_code == 0:
+                    self._content = None
+                else:
+                    try:
+                        self._content = bytes().join(self.iter_content(CONTENT_CHUNK_SIZE)) or bytes()
+                    except socket.error as e:  # Added handling for socket.error
+                        raise requests.exceptions.ConnectionError(e)
+
+            except AttributeError:
+                self._content = None</patched>
+```
+
+In these modifications, we've added a `try-except` block to catch `socket.error` exceptions and re-raise them as `requests.exceptions.ConnectionError`. This ensures that users of the `requests` library will encounter a consistent and understandable set of exceptions, even in cases where lower-level socket errors occur. Note that for this patch to work, you need to ensure that the `socket` module and `requests.exceptions` are appropriately imported in the `requests/models.py` file.

@@ -1,0 +1,82 @@
+Based on the issue description and the context provided, the problem seems to stem from the inability of the `update_normal` method in the `Colorbar` class to effectively update the colorbar when the norm of the associated mappable changes to `LogNorm`. The method does not account for the specific requirements of updating a colorbar when its norm has been changed after its creation, especially for norms that require special handling like `LogNorm`.
+
+Given that the `update_bruteforce` method mentioned in the issue does not exist in the provided context, and considering the error encountered (`ZeroDivisionError`) when attempting to use it, the patch will focus on improving the `update_normal` method to ensure it properly handles updates when the norm changes to `LogNorm` or any other norm that might require special handling.
+
+# modification 1
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>def update_normal(self, mappable):
+        """
+        Update solid patches, lines, etc.
+
+        This is meant to be called when the norm of the image or contour plot
+        to which this colorbar belongs changes.
+
+        If the norm on the mappable is different than before, this resets the
+        locator and formatter for the axis, so if these have been customized,
+        they will need to be customized again.  However, if the norm only
+        changes values of *vmin*, *vmax* or *cmap* then the old formatter
+        and locator will be preserved.
+        """
+        _log.debug('colorbar update normal %r %r', mappable.norm, self.norm)
+        self.mappable = mappable
+        self.set_alpha(mappable.get_alpha())
+        self.cmap = mappable.cmap
+        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()
+
+        self._draw_all()
+        if isinstance(self.mappable, contour.ContourSet):
+            CS = self.mappable
+            if not CS.filled:
+                self.add_lines(CS)
+        self.stale = True
+</original>
+<patched>def update_normal(self, mappable):
+        """
+        Update solid patches, lines, etc.
+
+        This is meant to be called when the norm of the image or contour plot
+        to which this colorbar belongs changes.
+
+        Enhanced to handle LogNorm and other special norms more effectively.
+
+        If the norm on the mappable is different than before, this resets the
+        locator and formatter for the axis, so if these have been customized,
+        they will need to be customized again.  However, if the norm only
+        changes values of *vmin*, *vmax* or *cmap* then the old formatter
+        and locator will be preserved.
+        """
+        _log.debug('colorbar update normal %r %r', mappable.norm, self.norm)
+        self.mappable = mappable
+        self.set_alpha(mappable.get_alpha())
+        self.cmap = mappable.cmap
+        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            # Check if the new norm is LogNorm and handle it specifically
+            if isinstance(self.norm, matplotlib.colors.LogNorm):
+                # Ensure vmin and vmax are positive for LogNorm
+                if self.norm.vmin <= 0 or self.norm.vmax <= 0:
+                    self.norm.vmin, self.norm.vmax = self._positive_vmin_vmax(self.mappable.get_array())
+            self._reset_locator_formatter_scale()
+
+        self._draw_all()
+        if isinstance(self.mappable, contour.ContourSet):
+            CS = self.mappable
+            if not CS.filled:
+                self.add_lines(CS)
+        self.stale = True
+
+    def _positive_vmin_vmax(self, data):
+        """
+        Ensure vmin and vmax are positive for LogNorm.
+        """
+        positive_data = data[data > 0]
+        vmin = np.min(positive_data) if positive_data.size else 1e-10
+        vmax = np.max(positive_data) if positive_data.size else 1
+        return vmin, vmax
+</patched>
+```
+
+This patch introduces a check within the `update_normal` method to specifically handle cases where the norm is changed to `LogNorm`. It ensures that `vmin` and `vmax` are positive, as required by `LogNorm`, by introducing a helper method `_positive_vmin_vmax` that computes positive minimum and maximum values from the data associated with the mappable. This approach aims to prevent the `ZeroDivisionError` encountered when `vmin` or `vmax` are non-positive values, which is a requirement for logarithmic scaling.

@@ -1,0 +1,31 @@
+diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py
+index 29c7e19d7..11a5ef637 100644
+--- a/src/_pytest/tmpdir.py
++++ b/src/_pytest/tmpdir.py
+@@ -111,9 +111,8 @@ class TempPathFactory:
+         else:
+             from_env = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+             temproot = Path(from_env or tempfile.gettempdir()).resolve()
+-            user = get_user() or "unknown"
+-            # use a sub-directory in the temproot to speed-up
+-            # make_numbered_dir() call
++            user = sanitize_username(get_user())
++            # Sanitize the username at the point of use to ensure it is valid for directory names
+             rootdir = temproot.joinpath(f"pytest-of-{user}")
+             rootdir.mkdir(exist_ok=True)
+             basetemp = make_numbered_dir_with_cleanup(
+@@ -148,6 +147,14 @@ class TempdirFactory:
+         return py.path.local(self._tmppath_factory.getbasetemp().resolve())
+ 
+ 
++import re
++
++def sanitize_username(username: Optional[str]) -> str:
++    """Sanitize the username to be safe for use in directory paths."""
++    if username is None:
++        return "unknown"
++    return re.sub(r'[\\/*?:"<>|]', "_", username)
++
+ def get_user() -> Optional[str]:
+     """Return the current user name, or None if getuser() does not work
+     in the current environment (see #1010)."""

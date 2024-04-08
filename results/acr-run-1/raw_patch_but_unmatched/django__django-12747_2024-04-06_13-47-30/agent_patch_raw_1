@@ -1,0 +1,62 @@
+Given the nature of the issue described and without direct access to the specific codebase or additional context from search results, I will provide a hypothetical patch based on common Django ORM patterns. This patch aims to address the inconsistency in the result format of the `QuerySet.delete` method between models with and without foreign keys. Please note, the actual file paths and code snippets might differ in your project.
+
+### Hypothetical Patch
+
+The goal is to ensure that the `QuerySet.delete` method returns a consistent result format, specifically the dictionary part of the tuple, regardless of whether models have foreign keys or not.
+
+#### modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>
+collector = Collector(using=using)
+collector.collect([self])
+collector.delete()
+
+return sum([len(batch) for batch in collector.data.values()]), {}
+</original>
+<patched>
+collector = Collector(using=using)
+collector.collect([self])
+deleted, _ = collector.delete()
+
+# Ensure a consistent dictionary format for the second element of the tuple
+deleted_counter = {model._meta.label: count for model, count in collector.data.items()}
+return deleted, deleted_counter if deleted_counter else {}
+</patched>
+```
+
+#### modification 2
+```python
+<file>django/db/models/deletion.py</file>
+<original>
+def delete(self):
+    # Note: This is a simplified version of the method for illustration.
+    # Actual implementation may vary.
+    deleted_counter = {}
+    for model, instances in self.data.items():
+        count = len(instances)  # Count might be 0 for models without instances to delete
+        deleted_counter[model._meta.label] = count
+        for obj in instances:
+            obj.delete()
+    return deleted_counter
+</original>
+<patched>
+def delete(self):
+    # Note: This is a simplified version of the method for illustration.
+    # Actual implementation may vary.
+    deleted_counter = {}
+    for model, instances in self.data.items():
+        count = len(instances)  # Count might be 0 for models without instances to delete
+        if count > 0:  # Only add to deleted_counter if count > 0 to maintain consistency
+            deleted_counter[model._meta.label] = count
+        for obj in instances:
+            obj.delete()
+    # Ensure the dictionary includes all models processed, even if count is 0
+    for model in self.models:
+        if model._meta.label not in deleted_counter:
+            deleted_counter[model._meta.label] = 0
+    return deleted_counter
+</patched>
+```
+
+Please note, these modifications are based on a generic understanding of Django's deletion process and the described issue. The actual implementation in your project may require adjustments. Always test patches in a development environment before applying them to your production codebase.

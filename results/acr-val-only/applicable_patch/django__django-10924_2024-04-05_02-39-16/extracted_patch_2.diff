@@ -1,0 +1,31 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 0c64748ccd..8885b021ed 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1663,7 +1663,9 @@ class FilePathField(Field):
+ 
+     def __init__(self, verbose_name=None, name=None, path='', match=None,
+                  recursive=False, allow_files=True, allow_folders=False, **kwargs):
+-        self.path, self.match, self.recursive = path, match, recursive
++        # Evaluate 'path' if it's a callable right at the start to ensure it's a string during field initialization
++        self.path = path() if callable(path) else path
++        self.match, self.recursive = match, recursive
+         self.allow_files, self.allow_folders = allow_files, allow_folders
+         kwargs.setdefault('max_length', 100)
+         super().__init__(verbose_name, name, **kwargs)
+@@ -1687,8 +1689,13 @@ class FilePathField(Field):
+ 
+     def deconstruct(self):
+         name, path, args, kwargs = super().deconstruct()
+-        if self.path != '':
+-            kwargs['path'] = self.path
++        # For callable 'path', instead of trying to serialize the callable itself, we note it as a callable in the kwargs
++        # This approach requires handling during field initialization from migrations to re-evaluate the callable
++        if callable(self.path):
++            kwargs['path'] = 'callable'
++        else:
++            if self.path != '':
++                kwargs['path'] = self.path
+         if self.match is not None:
+             kwargs['match'] = self.match
+         if self.recursive is not False:

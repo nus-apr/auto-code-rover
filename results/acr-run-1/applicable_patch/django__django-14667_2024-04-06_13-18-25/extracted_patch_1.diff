@@ -1,0 +1,38 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 71a52fb754..cbec7dac72 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1221,7 +1221,15 @@ class QuerySet:
+         if fields == (None,):
+             clone.query.clear_deferred_loading()
+         else:
+-            clone.query.add_deferred_loading(fields)
++            # Check if only() has been called before defer() and adjust the deferred fields accordingly
++            if clone.query.deferred_loading[0]:
++                existing_deferred_fields = set(clone.query.deferred_loading[0])
++                fields_to_defer = set(fields)
++                # Remove any fields from the deferred set if they are also specified in only()
++                adjusted_fields = existing_deferred_fields.difference(fields_to_defer)
++                clone.query.set_deferred_loading(adjusted_fields, defer=True)
++            else:
++                clone.query.add_deferred_loading(fields)
+         return clone
+ 
+     def only(self, *fields):
+@@ -1242,7 +1250,15 @@ class QuerySet:
+             if field in self.query._filtered_relations:
+                 raise ValueError('only() is not supported with FilteredRelation.')
+         clone = self._chain()
+-        clone.query.add_immediate_loading(fields)
++        # Adjust immediate loading fields if defer() has been called before only()
++        if clone.query.deferred_loading[0]:
++            existing_deferred_fields = set(clone.query.deferred_loading[0])
++            fields_to_load_immediately = set(fields)
++            # Ensure fields specified in defer() are not loaded immediately
++            adjusted_fields = fields_to_load_immediately.difference(existing_deferred_fields)
++            clone.query.set_immediate_loading(adjusted_fields)
++        else:
++            clone.query.add_immediate_loading(fields)
+         return clone
+ 
+     def using(self, alias):

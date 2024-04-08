@@ -1,0 +1,40 @@
+diff --git a/sympy/tensor/array/ndim_array.py b/sympy/tensor/array/ndim_array.py
+index 6490a655a4..fe4e7a0a5a 100644
+--- a/sympy/tensor/array/ndim_array.py
++++ b/sympy/tensor/array/ndim_array.py
+@@ -193,9 +193,14 @@ def _scan_iterable_shape(cls, iterable):
+         def f(pointer):
+             if not isinstance(pointer, Iterable):
+                 return [pointer], ()
++            if not pointer:  # Check if the pointer is empty
++                return [], (0,)
+ 
+             result = []
+-            elems, shapes = zip(*[f(i) for i in pointer])
++            try:
++                elems, shapes = zip(*[f(i) for i in pointer])
++            except ValueError:  # Handling empty iterable case
++                return [], (0,)
+             if len(set(shapes)) != 1:
+                 raise ValueError("could not determine shape unambiguously")
+             for i in elems:
+@@ -210,8 +215,8 @@ def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+         from sympy.tensor.array import SparseNDimArray
+ 
+         if shape is None:
+-            if iterable is None:
+-                shape = ()
++            if iterable is None or (isinstance(iterable, Iterable) and not iterable):
++                shape = (0,)
+                 iterable = ()
+             # Construction of a sparse array from a sparse array
+             elif isinstance(iterable, SparseNDimArray):
+@@ -230,7 +235,7 @@ def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+                 shape = iterable.shape
+ 
+             else:
+-                shape = ()
++                shape = (0,)
+                 iterable = (iterable,)
+ 
+         if isinstance(iterable, (Dict, dict)) and shape is not None:

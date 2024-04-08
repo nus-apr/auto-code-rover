@@ -1,0 +1,57 @@
+diff --git a/django/utils/cache.py b/django/utils/cache.py
+index 90292ce4da..87c4c91da2 100644
+--- a/django/utils/cache.py
++++ b/django/utils/cache.py
+@@ -258,11 +258,15 @@ def _if_none_match_passes(target_etag, etags):
+         return target_etag not in etags
+ 
+ 
++from django.utils.http import parse_http_date_safe
++
+ def _if_modified_since_passes(last_modified, if_modified_since):
+     """
+     Test the If-Modified-Since comparison as defined in section 3.3 of RFC 7232.
+     """
+-    return not last_modified or last_modified > if_modified_since
++    # Parse the If-Modified-Since header to datetime; returns None if empty or invalid
++    if_modified_since_dt = parse_http_date_safe(if_modified_since)
++    return not last_modified or not if_modified_since_dt or last_modified > if_modified_since_dt
+ 
+ 
+ def patch_response_headers(response, cache_timeout=None):
+diff --git a/django/views/static.py b/django/views/static.py
+index 1c558a53ff..78fe755932 100644
+--- a/django/views/static.py
++++ b/django/views/static.py
+@@ -111,12 +111,15 @@ def directory_index(path, fullpath):
+     return HttpResponse(t.render(c))
+ 
+ 
++import re
++from django.utils.http import parse_http_date_safe
++
+ def was_modified_since(header=None, mtime=0, size=0):
+     """
+     Was something modified since the user last downloaded it?
+ 
+     header
+-      This is the value of the If-Modified-Since header.  If this is None,
++      This is the value of the If-Modified-Since header.  If this is None or empty,
+       I'll just return True.
+ 
+     mtime
+@@ -126,10 +129,12 @@ def was_modified_since(header=None, mtime=0, size=0):
+       This is the size of the item we're talking about.
+     """
+     try:
+-        if header is None:
++        if not header:
+             raise ValueError
+         matches = re.match(r"^([^;]+)(; length=([0-9]+))?$", header, re.IGNORECASE)
+-        header_mtime = parse_http_date(matches[1])
++        header_mtime = parse_http_date_safe(matches[1])
++        if header_mtime is None:
++            raise ValueError
+         header_len = matches[3]
+         if header_len and int(header_len) != size:
+             raise ValueError

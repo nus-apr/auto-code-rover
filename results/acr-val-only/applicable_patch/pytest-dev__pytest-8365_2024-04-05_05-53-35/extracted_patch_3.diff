@@ -1,0 +1,31 @@
+diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py
+index 29c7e19d7..34f7168b5 100644
+--- a/src/_pytest/tmpdir.py
++++ b/src/_pytest/tmpdir.py
+@@ -150,13 +150,23 @@ class TempdirFactory:
+ 
+ def get_user() -> Optional[str]:
+     """Return the current user name, or None if getuser() does not work
+-    in the current environment (see #1010)."""
++    in the current environment (see #1010). This function also handles cases
++    where the username contains characters not allowed in directory names by
++    providing a generic fallback username."""
+     import getpass
+ 
+     try:
+-        return getpass.getuser()
++        username = getpass.getuser()
++        # Check if the username is valid for use in file paths. This is a basic check,
++        # and more sophisticated logic may be required for comprehensive validation.
++        if not username.isalnum():
++            # Provide a generic fallback username if the original username is not suitable.
++            # This approach ensures that the system can always create a temporary directory.
++            return "pytest_user"
++        return username
+     except (ImportError, KeyError):
+-        return None
++        # In cases where getuser() does not work, return a generic username.
++        return "pytest_user"
+ 
+ 
+ def pytest_configure(config: Config) -> None:

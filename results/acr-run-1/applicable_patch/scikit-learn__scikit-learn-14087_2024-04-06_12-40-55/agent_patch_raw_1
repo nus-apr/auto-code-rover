@@ -1,0 +1,41 @@
+# modification 1
+```python
+<file>sklearn/linear_model/logistic.py</file>
+<original>else:
+                # Take the best scores across every fold and the average of
+                # all coefficients corresponding to the best scores.
+                best_indices = np.argmax(scores, axis=1)
+                if self.multi_class == 'ovr':
+                    w = np.mean([coefs_paths[i, best_indices[i], :]
+                                 for i in range(len(folds))], axis=0)
+                else:
+                    w = np.mean([coefs_paths[:, i, best_indices[i], :]
+                                 for i in range(len(folds))], axis=0)
+
+                best_indices_C = best_indices % len(self.Cs_)
+                self.C_.append(np.mean(self.Cs_[best_indices_C]))
+
+                best_indices_l1 = best_indices // len(self.Cs_)
+                self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))</original>
+<patched>else:
+                # Take the best scores across every fold and the average of
+                # all coefficients corresponding to the best scores.
+                best_indices = np.argmax(scores, axis=1)
+                # Fix for IndexError when refit=False and multi_class is not 'ovr'
+                # Ensure correct indexing for coefs_paths based on multi_class setting
+                if self.multi_class == 'ovr':
+                    w = np.mean([coefs_paths[i, best_indices[i], :]
+                                 for i in range(len(folds))], axis=0)
+                else:
+                    # Adjusted indexing to handle multi_class='multinomial' case correctly
+                    w = np.mean([coefs_paths[:, best_indices[i], i, :]
+                                 for i in range(len(folds))], axis=0)
+
+                best_indices_C = best_indices % len(self.Cs_)
+                self.C_.append(np.mean(self.Cs_[best_indices_C]))
+
+                best_indices_l1 = best_indices // len(self.Cs_)
+                self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))</patched>
+```
+
+This patch addresses the `IndexError` by correcting the indexing into `coefs_paths` when `refit=False` and the `multi_class` setting is not `'ovr'`. The adjustment ensures that the indexing is consistent with the shape of `coefs_paths` in the multi-class case, thus preventing the `IndexError`.

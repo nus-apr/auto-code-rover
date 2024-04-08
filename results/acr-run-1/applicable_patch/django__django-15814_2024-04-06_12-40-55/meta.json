@@ -1,0 +1,57 @@
+{
+    "task_id": "django__django-15814",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.2",
+        "env_name": "setup_django__django__4.2",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 proxy_models.tests"
+    },
+    "task_info": {
+        "instance_id": "django__django-15814",
+        "base_commit": "5eb6a2b33d70b9889e1cafa12594ad6f80773d3a",
+        "hints_text": "Thanks for the report. Would you like to prepare a patch? A regression test is required, e.g. tests/proxy_models/tests.py diff --git a/tests/proxy_models/tests.py b/tests/proxy_models/tests.py index f2f465678b..2081c0cbe3 100644 a b class ProxyModelTests(TestCase): 390390 repr(resp), \"<ProxyImprovement: ProxyImprovement:improve that>\" 391391 ) 392392 393 def test_select_related_only(self): 394 user = ProxyTrackerUser.objects.create(name=\"Joe Doe\", status=\"test\") 395 issue = Issue.objects.create(summary=\"New issue\", assignee=user) 396 qs = Issue.objects.select_related(\"assignee\").only(\"assignee__status\") 397 self.assertEqual(qs.get(), issue) 398 393399 def test_proxy_load_from_fixture(self): 394400 management.call_command(\"loaddata\", \"mypeople.json\", verbosity=0) 395401 p = MyPerson.objects.get(pk=100) If I replace it by opts = cur_model._meta.concrete_model._meta all works as expected. I would fix cur_model instead: cur_model = cur_model._meta.concrete_model opts = cur_model._meta",
+        "created_at": "2022-07-03T19:10:56Z",
+        "test_patch": "diff --git a/tests/proxy_models/tests.py b/tests/proxy_models/tests.py\n--- a/tests/proxy_models/tests.py\n+++ b/tests/proxy_models/tests.py\n@@ -395,6 +395,12 @@ def test_proxy_load_from_fixture(self):\n         p = MyPerson.objects.get(pk=100)\n         self.assertEqual(p.name, \"Elvis Presley\")\n \n+    def test_select_related_only(self):\n+        user = ProxyTrackerUser.objects.create(name=\"Joe Doe\", status=\"test\")\n+        issue = Issue.objects.create(summary=\"New issue\", assignee=user)\n+        qs = Issue.objects.select_related(\"assignee\").only(\"assignee__status\")\n+        self.assertEqual(qs.get(), issue)\n+\n     def test_eq(self):\n         self.assertEqual(MyPerson(id=100), Person(id=100))\n \n",
+        "repo": "django/django",
+        "problem_statement": "QuerySet.only() after select_related() crash on proxy models.\nDescription\n\t\nWhen I optimize a query using select_related() and only() methods from the proxy model I encounter an error:\nWindows 10; Python 3.10; Django 4.0.5\nTraceback (most recent call last):\n File \"D:\\study\\django_college\\manage.py\", line 22, in <module>\n\tmain()\n File \"D:\\study\\django_college\\manage.py\", line 18, in main\n\texecute_from_command_line(sys.argv)\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\core\\management\\__init__.py\", line 446, in execute_from_command_line\n\tutility.execute()\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\core\\management\\__init__.py\", line 440, in execute\n\tself.fetch_command(subcommand).run_from_argv(self.argv)\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\core\\management\\base.py\", line 414, in run_from_argv\n\tself.execute(*args, **cmd_options)\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\core\\management\\base.py\", line 460, in execute\n\toutput = self.handle(*args, **options)\n File \"D:\\study\\django_college\\project\\users\\management\\commands\\test_proxy.py\", line 9, in handle\n\tobjs = list(AnotherModel.objects.select_related(\"custom\").only(\"custom__name\").all())\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\db\\models\\query.py\", line 302, in __len__\n\tself._fetch_all()\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\db\\models\\query.py\", line 1507, in _fetch_all\n\tself._result_cache = list(self._iterable_class(self))\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\db\\models\\query.py\", line 71, in __iter__\n\trelated_populators = get_related_populators(klass_info, select, db)\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\db\\models\\query.py\", line 2268, in get_related_populators\n\trel_cls = RelatedPopulator(rel_klass_info, select, db)\n File \"D:\\Anaconda3\\envs\\django\\lib\\site-packages\\django\\db\\models\\query.py\", line 2243, in __init__\n\tself.pk_idx = self.init_list.index(self.model_cls._meta.pk.attname)\nValueError: 'id' is not in list\nModels:\nclass CustomModel(models.Model):\n\tname = models.CharField(max_length=16)\nclass ProxyCustomModel(CustomModel):\n\tclass Meta:\n\t\tproxy = True\nclass AnotherModel(models.Model):\n\tcustom = models.ForeignKey(\n\t\tProxyCustomModel,\n\t\ton_delete=models.SET_NULL,\n\t\tnull=True,\n\t\tblank=True,\n\t)\nCommand:\nclass Command(BaseCommand):\n\tdef handle(self, *args, **options):\n\t\tlist(AnotherModel.objects.select_related(\"custom\").only(\"custom__name\").all())\nAt django/db/models/sql/query.py in 745 line there is snippet:\nopts = cur_model._meta\nIf I replace it by \nopts = cur_model._meta.concrete_model._meta\nall works as expected.\n",
+        "version": "4.2",
+        "FAIL_TO_PASS": [
+            "test_select_related_only (proxy_models.tests.ProxyModelTests)"
+        ],
+        "PASS_TO_PASS": [
+            "A new MyPerson also shows up as a standard Person.",
+            "Correct type when querying a proxy of proxy",
+            "Creating a Person makes them accessible through the MyPerson proxy.",
+            "Person is not proxied by StatusPerson subclass.",
+            "Proxy models are included in the ancestors for a model's DoesNotExist",
+            "Proxy objects can be deleted",
+            "Test if admin gives warning about cascade deleting models referenced",
+            "Test if the admin delete page shows the correct string representation",
+            "Test save signals for proxy models",
+            "The MyPerson model should be generating the same database queries as",
+            "The StatusPerson models should have its own table (it's using ORM-level",
+            "We can still use `select_related()` to include related models in our",
+            "test_abstract_base_with_model_fields (proxy_models.tests.ProxyModelTests)",
+            "test_concrete_model (proxy_models.tests.ProxyModelTests)",
+            "test_content_type (proxy_models.tests.ProxyModelTests)",
+            "test_eq (proxy_models.tests.ProxyModelTests)",
+            "test_filter_proxy_relation_reverse (proxy_models.tests.ProxyModelTests)",
+            "test_myperson_manager (proxy_models.tests.ProxyModelTests)",
+            "test_new_fields (proxy_models.tests.ProxyModelTests)",
+            "test_no_base_classes (proxy_models.tests.ProxyModelTests)",
+            "test_otherperson_manager (proxy_models.tests.ProxyModelTests)",
+            "test_permissions_created (proxy_models.tests.ProxyModelTests)",
+            "test_proxy_bug (proxy_models.tests.ProxyModelTests)",
+            "test_proxy_for_model (proxy_models.tests.ProxyModelTests)",
+            "test_proxy_load_from_fixture (proxy_models.tests.ProxyModelTests)",
+            "test_proxy_update (proxy_models.tests.ProxyModelTests)",
+            "test_swappable (proxy_models.tests.ProxyModelTests)",
+            "test_too_many_concrete_classes (proxy_models.tests.ProxyModelTests)",
+            "test_user_proxy_models (proxy_models.tests.ProxyModelTests)"
+        ],
+        "environment_setup_commit": "0fbdb9784da915fce5dcc1fe82bac9b4785749e5",
+        "patch": "diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py\n--- a/django/db/models/sql/query.py\n+++ b/django/db/models/sql/query.py\n@@ -748,6 +748,7 @@ def deferred_to_data(self, target):\n                     cur_model = source.related_model\n                 else:\n                     cur_model = source.remote_field.model\n+                cur_model = cur_model._meta.concrete_model\n                 opts = cur_model._meta\n                 # Even if we're \"just passing through\" this model, we must add\n                 # both the current model's pk and the related reference field\n",
+        "pr_link": "https://github.com/django/django/pull/15814"
+    }
+}

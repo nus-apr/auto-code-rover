@@ -1,0 +1,66 @@
+Given the constraints and the nature of the request, I'll provide a hypothetical example of how a patch might be structured based on the Django framework's typical patterns and the issue described. This example is illustrative and may not directly apply to the actual Django codebase without modifications.
+
+### Hypothetical Patch Example
+
+#### Modification to `sqlmigrate` Command Implementation
+
+**File Path**: `django/core/management/commands/sqlmigrate.py`
+
+```python
+<file>django/core/management/commands/sqlmigrate.py</file>
+<original>
+# This is a hypothetical original code snippet where the transaction wrapping might be decided
+with connection.schema_editor() as schema_editor:
+    schema_editor.collect_sql = True
+</original>
+<patched>
+# Hypothetical patched code snippet considering the database's support for transactional DDL
+with connection.schema_editor() as schema_editor:
+    schema_editor.collect_sql = True
+    # Adjust the atomic flag based on the database's capability
+    schema_editor.atomic = schema_editor.atomic and connection.features.can_rollback_ddl
+</patched>
+```
+
+#### Ensuring `MigrationExecutor` Respects Transactional DDL Support
+
+**File Path**: `django/db/migrations/executor.py`
+
+```python
+<file>django/db/migrations/executor.py</file>
+<original>
+# Hypothetical original method invocation within the MigrationExecutor
+with self.connection.schema_editor() as schema_editor:
+    schema_editor.collect_sql = True
+</original>
+<patched>
+# Adjusted method invocation to respect transactional DDL support
+with self.connection.schema_editor() as schema_editor:
+    schema_editor.collect_sql = True
+    # Ensure atomicity is conditioned on the database's DDL rollback capability
+    schema_editor.atomic = schema_editor.atomic and self.connection.features.can_rollback_ddl
+</patched>
+```
+
+#### Test Adjustments for `sqlmigrate` Command
+
+**File Path**: `tests/migrations/test_commands.py`
+
+```python
+<file>tests/migrations/test_commands.py</file>
+<original>
+# Hypothetical original test case that might not fully consider transactional DDL support
+def test_sqlmigrate_output(self):
+    # Setup and invocation leading to sqlmigrate command execution
+</original>
+<patched>
+# Adjusted test case to verify correct handling based on transactional DDL support
+def test_sqlmigrate_output(self):
+    # Setup and invocation leading to sqlmigrate command execution
+    # Additional assertions or mock setup to simulate both environments:
+    # one where transactional DDL is supported and one where it is not
+</patched>
+```
+
+### Note
+These examples are hypothetical and aim to illustrate the kind of changes that might be made to address the issue described. Actual implementation details, including the exact locations and nature of the changes, would depend on the current state of the Django codebase and the specific mechanisms it uses to handle schema migrations and database interactions.

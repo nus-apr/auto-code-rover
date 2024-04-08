@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>        if mappable.norm != self.norm:
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()</original>
+<patched>        if mappable.norm != self.norm or isinstance(mappable.norm, LogNorm):
+            self.norm = mappable.norm
+            self._reset_locator_formatter_scale()
+            self.update_ticks()</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/colorbar.py</file>
+<original>        if not self.norm.scaled():
+            self.norm.vmin = 0
+            self.norm.vmax = 1</original>
+<patched>        if not self.norm.scaled() or isinstance(self.norm, LogNorm):
+            self.norm.autoscale_None(self._boundaries)</patched>
+```
+
+**Explanation:**
+
+1. **Modification 1:** This patch ensures that the colorbar is updated correctly when the norm is changed to `LogNorm`. The original code only resets the locator, formatter, and scale if the norm instance has changed. However, when switching to `LogNorm`, additional updates are necessary to properly reflect the logarithmic scaling in the colorbar. The patched code adds a check for `LogNorm` and calls `update_ticks()` to ensure the ticks are updated to match the new norm.
+
+2. **Modification 2:** The original `_process_values` method sets `vmin` and `vmax` to 0 and 1 if the norm is not scaled, which can lead to issues with logarithmic norms like `LogNorm` that cannot handle values of 0. The patched version adds a condition to handle `LogNorm` specifically, using `autoscale_None` on the boundaries to correctly set `vmin` and `vmax` based on the actual data range. This should prevent the `ZeroDivisionError` by ensuring that `vmin` and `vmax` are set to values that are valid for logarithmic scaling.
+
+These modifications aim to address the issue by ensuring that changes to the norm, especially to `LogNorm`, are handled correctly in both the `update_normal` and `_process_values` methods, preventing errors and ensuring the colorbar reflects the updated norm accurately.

@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>    def is_rewrite_disabled(docstring: str) -> bool:
+        return "PYTEST_DONT_REWRITE" in docstring
+</original>
+<patched>    def is_rewrite_disabled(docstring: Optional[str]) -> bool:
+        if docstring is None:
+            return False
+        return "PYTEST_DONT_REWRITE" in docstring
+</patched>
+```
+
+# modification 2
+```python
+<file>src/_pytest/assertion/rewrite.py</file>
+<original>        exec(co, module.__dict__)</original>
+<patched>        try:
+            exec(co, module.__dict__)
+        except TypeError as e:
+            if "not iterable" in str(e):
+                raise TypeError(f"TypeError encountered while trying to execute module {module.__name__}. "
+                                "This may be caused by a non-string (e.g., number) at the beginning of the file, "
+                                "which is being mistaken for a docstring.") from e
+            raise
+</patched>
+```
+
+These modifications address the issue by first ensuring that the `is_rewrite_disabled` function can gracefully handle cases where the input is not a string, which could occur if the first expression in a file is mistakenly treated as a docstring. The second modification adds error handling around the `exec` call in `exec_module` to provide a more informative error message if a `TypeError` related to iterability occurs, suggesting a possible cause related to the file's initial content. This approach aims to make the error more understandable to the user and hints at a potential fix, without fundamentally changing how pytest processes test files.

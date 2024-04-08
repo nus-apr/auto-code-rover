@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )</original>
+<patched>            # Check if db_table has been explicitly defined and skip if so
+            if old_model._meta.db_table == new_model._meta.db_table:
+                pass
+            else:
+                schema_editor.alter_db_table(
+                    new_model,
+                    old_model._meta.db_table,
+                    new_model._meta.db_table,
+                )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>                schema_editor.alter_db_table(
+                    new_m2m_model,
+                    old_m2m_model._meta.db_table,
+                    new_m2m_model._meta.db_table,
+                )</original>
+<patched>                # Check if M2M db_table has been explicitly defined and skip if so
+                if old_m2m_model._meta.db_table == new_m2m_model._meta.db_table:
+                    pass
+                else:
+                    schema_editor.alter_db_table(
+                        new_m2m_model,
+                        old_m2m_model._meta.db_table,
+                        new_m2m_model._meta.db_table,
+                    )</patched>
+```
+
+These modifications introduce checks to determine if the `db_table` attribute for the model or many-to-many (M2M) relationship tables has been explicitly defined and remains unchanged. If the `db_table` is the same for the old and new models, indicating that it has been explicitly set and should not change, the operations to alter the database table are skipped. This approach aims to address the issue by preventing unnecessary database operations that could lead to the dropping and recreating of foreign key constraints in Postgres and the recreation of the table in SQLite, as described in the issue.

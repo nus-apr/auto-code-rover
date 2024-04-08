@@ -1,0 +1,61 @@
+Given the context and the nature of the issue, a potential cause of the "database is locked" error could be related to how transactions are managed when setting up test data across multiple databases. SQLite, being a file-based database, has limitations with concurrent writes, which can easily lead to locking issues if transactions are not properly managed. 
+
+To address this, we can ensure that each operation within the `setUpTestData` method is wrapped in a transaction block specific to each database connection. This approach aims to minimize the duration of open transactions and reduce the likelihood of encountering a locked database state.
+
+Here's a proposed patch:
+
+# modification 1
+```python
+<file>tests/auth_tests/test_admin_multidb.py</file>
+<original>    def setUpTestData(cls):
+        cls.superusers = {}
+        for db in connections:
+            Router.target_db = db
+            cls.superusers[db] = User.objects.create_superuser(
+                username='admin', password='something', email='test@test.org',
+            )
+</original>
+<patched>    from django.db import transaction
+    def setUpTestData(cls):
+        cls.superusers = {}
+        for db in connections:
+            Router.target_db = db
+            with transaction.atomic(using=db):
+                cls.superusers[db] = User.objects.create_superuser(
+                    username='admin', password='something', email='test@test.org',
+                )
+</patched>
+```
+
+# modification 2
+```python
+<file>tests/admin_views/test_multidb.py</file>
+<original>    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            cls.superusers[db] = User.objects.create_superuser(
+                username='admin', password='something', email='test@test.org',
+            )
+            b = Book(name='Test Book')
+            b.save(using=db)
+            cls.test_book_ids[db] = b.id
+</original>
+<patched>    from django.db import transaction
+    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            with transaction.atomic(using=db):
+                cls.superusers[db] = User.objects.create_superuser(
+                    username='admin', password='something', email='test@test.org',
+                )
+                b = Book(name='Test Book')
+                b.save(using=db)
+                cls.test_book_ids[db] = b.id
+</patched>
+```
+
+These modifications wrap the database operations in the `setUpTestData` method within a transaction block for each database connection. This ensures that each operation is executed as a single transaction, potentially reducing the risk of encountering a locked database state. It's important to note that while this approach can mitigate the issue, testing with SQLite in scenarios involving concurrent writes or operations across multiple databases may still encounter limitations inherent to SQLite's design.

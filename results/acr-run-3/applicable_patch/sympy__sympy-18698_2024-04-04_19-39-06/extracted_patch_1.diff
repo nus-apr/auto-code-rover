@@ -1,0 +1,48 @@
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index c9e77a901f..c9465dc379 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -3234,7 +3234,19 @@ def sqf_list(f, all=False):
+         else:  # pragma: no cover
+             raise OperationNotSupported(f, 'sqf_list')
+ 
+-        return f.rep.dom.to_sympy(coeff), [(f.per(g), k) for g, k in factors]
++        # Ensure multiplicities are correctly aggregated
++        def aggregate_multiplicities(factors):
++            aggregated = {}
++            for base, exp in factors:
++                if base in aggregated:
++                    aggregated[base] += exp
++                else:
++                    aggregated[base] = exp
++            return [(f.per(g), k) for g, k in aggregated.items()]
++        
++        coeff, factors = f.rep.dom.to_sympy(coeff), [(f.per(g), k) for g, k in factors]
++        aggregated_factors = aggregate_multiplicities(factors)
++        return coeff, aggregated_factors
+ 
+     def sqf_list_include(f, all=False):
+         """
+@@ -6215,7 +6227,21 @@ def sqf_list(f, *gens, **args):
+     (2, [(x + 1, 2), (x + 2, 3)])
+ 
+     """
+-    return _generic_factor_list(f, gens, args, method='sqf')
++    # Ensure multiplicities are correctly aggregated
++    def aggregate_multiplicities(factors):
++        aggregated = {}
++        for base, exp in factors:
++            if base in aggregated:
++                aggregated[base] += exp
++            else:
++                aggregated[base] = exp
++        return list(aggregated.items())
++    
++    result = _generic_factor_list(f, gens, args, method='sqf')
++    # Assuming result is in the format (constant, [(factor, multiplicity), ...])
++    constant, factors = result
++    aggregated_factors = aggregate_multiplicities(factors)
++    return constant, aggregated_factors
+ 
+ 
+ @public

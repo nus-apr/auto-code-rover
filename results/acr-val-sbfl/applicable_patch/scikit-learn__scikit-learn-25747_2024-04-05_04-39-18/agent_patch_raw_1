@@ -1,0 +1,17 @@
+# modification 1
+```python
+<file>sklearn/utils/_set_output.py</file>
+<original>return _wrap_in_pandas_container(
+        data_to_wrap=data_to_wrap,
+        index=getattr(original_input, "index", None),
+        columns=estimator.get_feature_names_out,
+    )</original>
+<patched>return _wrap_in_pandas_container(
+        data_to_wrap=data_to_wrap,
+        index=getattr(original_input, "index", None) if hasattr(original_input, 'shape') and original_input.shape[0] == data_to_wrap.shape[0] else None,
+        columns=estimator.get_feature_names_out,
+    )</patched>
+```
+
+# Explanation
+The patch addresses the issue where the index from the original input is used without checking if the transformation (e.g., aggregation) has changed the number of rows in the data. This can lead to a mismatch between the number of rows in the data and the length of the index, causing the error observed. The patched code adds a condition to only use the original input's index if the original input has a shape attribute (indicating it's a DataFrame or similar structure) and if the number of rows in the original input matches the number of rows in the transformed data (`data_to_wrap`). If these conditions are not met, `None` is passed as the index, allowing pandas to automatically generate an appropriate index. This should prevent the `ValueError` related to index length mismatch.

@@ -1,0 +1,28 @@
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 4c27fce605..a982d4e20f 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -327,12 +327,22 @@ class FileSystemStorage(Storage):
+         return os.path.getsize(self.path(name))
+ 
+     def url(self, name):
++        from django.urls import get_script_prefix
+         if self.base_url is None:
+             raise ValueError("This file is not accessible via a URL.")
+         url = filepath_to_uri(name)
+         if url is not None:
+             url = url.lstrip('/')
+-        return urljoin(self.base_url, url)
++        # Ensure base_url ends with a slash for correct urljoin behavior
++        base_url_with_slash = self.base_url if self.base_url.endswith('/') else self.base_url + '/'
++        full_url = urljoin(base_url_with_slash, url)
++        # Prepend the SCRIPT_NAME prefix if not already included
++        script_prefix = get_script_prefix()
++        if not full_url.startswith(script_prefix):
++            # Ensure script_prefix ends with a slash for correct urljoin behavior
++            script_prefix_with_slash = script_prefix if script_prefix.endswith('/') else script_prefix + '/'
++            full_url = urljoin(script_prefix_with_slash, full_url.lstrip('/'))
++        return full_url
+ 
+     def _datetime_from_timestamp(self, ts):
+         """

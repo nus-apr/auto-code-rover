@@ -1,0 +1,50 @@
+diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py
+index ed4ea6ce5e..8c53e6d582 100644
+--- a/sympy/core/sympify.py
++++ b/sympy/core/sympify.py
+@@ -266,6 +266,20 @@ def sympify(a, locals=None, convert_xor=True, strict=False, rational=False,
+     if is_sympy is not None:
+         return a
+ 
++    # Before attempting to convert using the converter dictionary,
++    # check if the input is a string representation that might lead to unsafe eval.
++    # This is to prevent eval from executing arbitrary code during sympify.
++    if isinstance(a, str):
++        try:
++            # Attempt to directly parse the string without eval if it's a simple expression.
++            # This is a safer alternative to eval for basic mathematical expressions.
++            from sympy.parsing.sympy_parser import parse_expr
++            return parse_expr(a, local_dict=locals, transformations=transformations, evaluate=evaluate)
++        except Exception:
++            # If parsing fails, it might not be a simple mathematical expression.
++            # In this case, raise a SympifyError to avoid unsafe eval.
++            raise SympifyError("Could not safely convert string to SymPy expression: {}".format(a))
++    
+     if isinstance(a, CantSympify):
+         raise SympifyError(a)
+     cls = getattr(a, "__class__", None)
+diff --git a/sympy/parsing/sympy_parser.py b/sympy/parsing/sympy_parser.py
+index 2ab43d9b31..f9d6e5b8f7 100644
+--- a/sympy/parsing/sympy_parser.py
++++ b/sympy/parsing/sympy_parser.py
+@@ -899,8 +899,18 @@ def eval_expr(code, local_dict, global_dict):
+ 
+     Generally, ``parse_expr`` should be used.
+     """
+-    expr = eval(
+-        code, global_dict, local_dict)  # take local objects in preference
++    # To enhance security, avoid using eval directly on untrusted code.
++    # Instead, use a safer evaluation method that limits the scope and capabilities.
++    # This example uses ast.literal_eval for demonstration, which is safer but might not support all expressions.
++    # For a more comprehensive solution, consider implementing or using a more secure eval alternative.
++    import ast
++    try:
++        expr = ast.literal_eval(code)
++    except ValueError:
++        # If ast.literal_eval cannot handle the code, it's likely not a simple literal.
++        # In this case, further sanitization or a different approach is needed.
++        # This is a placeholder for a more secure evaluation method.
++        raise ValueError("Unable to safely evaluate expression. Further sanitization needed.")
+ 
+     return expr
+ 

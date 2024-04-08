@@ -1,0 +1,45 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __eq__(self, other):
+        # Needed for @total_ordering
+        if isinstance(other, Field):
+            return self.creation_counter == other.creation_counter
+        return NotImplemented</original>
+<patched>    def __eq__(self, other):
+        # Adjusted to consider the model of the field for comparison
+        if isinstance(other, Field):
+            return (self.creation_counter == other.creation_counter and
+                    self.model == other.model)
+        return NotImplemented</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __hash__(self):
+        return hash(self.creation_counter)</original>
+<patched>    def __hash__(self):
+        # Include model's hash for more distinct hashing across models
+        model_hash = hash(self.model) if self.model else 0
+        return hash((self.creation_counter, model_hash))</patched>
+```
+
+# modification 3
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def __lt__(self, other):
+        # This is needed because bisect does not take a comparison function.
+        if isinstance(other, Field):
+            return self.creation_counter < other.creation_counter
+        return NotImplemented</original>
+<patched>    def __lt__(self, other):
+        # Adjusted to consider the model's name for ordering if creation_counters are equal
+        if isinstance(other, Field):
+            if self.creation_counter == other.creation_counter:
+                self_model_name = self.model._meta.model_name if self.model else ''
+                other_model_name = other.model._meta.model_name if other.model else ''
+                return self_model_name < other_model_name
+            return self.creation_counter < other.creation_counter
+        return NotImplemented</patched>
+```

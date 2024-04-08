@@ -1,0 +1,36 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 5ac2407ea3..6edb137ae1 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1847,14 +1847,17 @@ class QuerySet(AltersData):
+                     )
+                 )
+             else:
+-                self._insert(
++                inserted_ids = self._insert(
+                     item,
+                     fields=fields,
+                     using=self.db,
+                     on_conflict=on_conflict,
+                     update_fields=update_fields,
+                     unique_fields=unique_fields,
++                    returning_fields=self.model._meta.db_returning_fields if on_conflict else None,
+                 )
++                if inserted_ids:
++                    inserted_rows.extend(inserted_ids)
+         return inserted_rows
+ 
+     def _chain(self):
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index b28dc925ba..4905396e13 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -1761,7 +1761,7 @@ class SQLInsertCompiler(SQLCompiler):
+         # necessary and it should be possible to use placeholders and
+         # expressions in bulk inserts too.
+         can_bulk = (
+-            not self.returning_fields and self.connection.features.has_bulk_insert
++            not (self.returning_fields and self.query.on_conflict) and self.connection.features.has_bulk_insert
+         )
+ 
+         placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)

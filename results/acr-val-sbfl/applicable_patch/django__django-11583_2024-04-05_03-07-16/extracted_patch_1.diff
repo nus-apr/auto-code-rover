@@ -1,0 +1,21 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 25c3b44250..1d78eb23c0 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -358,10 +358,16 @@ class StatReloader(BaseReloader):
+             if file in seen_files:
+                 continue
+             try:
++                # Sanitize the file path to ensure it does not contain null bytes
++                sanitized_path = file.as_posix().replace('\x00', '')
++                file = file.__class__(sanitized_path)
+                 mtime = file.stat().st_mtime
+             except OSError:
+                 # This is thrown when the file does not exist.
+                 continue
++            except ValueError as e:
++                logger.error(f"Error processing file path {file}: {e}")
++                continue
+             seen_files.add(file)
+             yield file, mtime
+ 

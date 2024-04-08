@@ -1,0 +1,52 @@
+diff --git a/sympy/parsing/mathematica.py b/sympy/parsing/mathematica.py
+index 7ea14ce33a..2a983294c3 100644
+--- a/sympy/parsing/mathematica.py
++++ b/sympy/parsing/mathematica.py
+@@ -953,7 +953,7 @@ def _from_fullform_to_fullformlist(self, wmexpr: str):
+         return out[0]
+ 
+     def _from_fullformlist_to_fullformsympy(self, pylist: list):
+-        from sympy import Function, Symbol
++        from sympy import Function, Symbol, symbols
+ 
+         def converter(expr):
+             if isinstance(expr, list):
+@@ -1058,18 +1058,27 @@ def converter(expr):
+     }
+ 
+     def _from_fullformlist_to_sympy(self, full_form_list):
+-
+-        def recurse(expr):
+-            if isinstance(expr, list):
+-                if isinstance(expr[0], list):
+-                    head = recurse(expr[0])
++            greek_symbols = {
++                "Alpha": "α", "Beta": "β", "Gamma": "γ", "Delta": "δ", "Epsilon": "ε",
++                "Zeta": "ζ", "Eta": "η", "Theta": "θ", "Iota": "ι", "Kappa": "κ",
++                "Lambda": "λ", "Mu": "μ", "Nu": "ν", "Xi": "ξ", "Omicron": "ο",
++                "Pi": "π", "Rho": "ρ", "Sigma": "σ", "Tau": "τ", "Upsilon": "υ",
++                "Phi": "φ", "Chi": "χ", "Psi": "ψ", "Omega": "ω"
++            }
++    
++            def recurse(expr):
++                if isinstance(expr, list):
++                    if isinstance(expr[0], list):
++                        head = recurse(expr[0])
++                    else:
++                        head = self._node_conversions.get(expr[0], Function(expr[0]))
++                    return head(*list(recurse(arg) for arg in expr[1:]))
++                elif expr in greek_symbols:
++                    return symbols(greek_symbols[expr])
+                 else:
+-                    head = self._node_conversions.get(expr[0], Function(expr[0]))
+-                return head(*list(recurse(arg) for arg in expr[1:]))
+-            else:
+-                return self._atom_conversions.get(expr, sympify(expr))
+-
+-        return recurse(full_form_list)
++                    return self._atom_conversions.get(expr, sympify(expr))
++    
++            return recurse(full_form_list)
+ 
+     def _from_fullformsympy_to_sympy(self, mform):
+ 

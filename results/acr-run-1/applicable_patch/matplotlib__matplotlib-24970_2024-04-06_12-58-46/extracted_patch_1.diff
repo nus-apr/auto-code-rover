@@ -1,0 +1,36 @@
+diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py
+index 2d3072da04..0d3fa2a6ed 100644
+--- a/lib/matplotlib/colors.py
++++ b/lib/matplotlib/colors.py
+@@ -717,19 +717,20 @@ class Colormap:
+         if xa.dtype.kind == "f":
+             with np.errstate(invalid="ignore"):
+                 xa *= self.N
+-                # Negative values are out of range, but astype(int) would
+-                # truncate them towards zero.
+-                xa[xa < 0] = -1
+-                # xa == 1 (== N after multiplication) is not out of range.
+-                xa[xa == self.N] = self.N - 1
+-                # Avoid converting large positive values to negative integers.
+-                np.clip(xa, -1, self.N, out=xa)
+-                xa = xa.astype(int)
++                # Handle floating point values by clipping and converting to int
++                # This avoids potential issues with out-of-bound values
++                xa = np.clip(xa, -1, self.N - 1).astype(int)
+         # Set the over-range indices before the under-range;
+         # otherwise the under-range values get converted to over-range.
+-        xa[xa > self.N - 1] = self._i_over
+-        xa[xa < 0] = self._i_under
+-        xa[mask_bad] = self._i_bad
++        # Patch to address NumPy 1.24 deprecation warnings for out-of-bound integers
++        # Convert to float to avoid direct integer assignment that leads to deprecation warnings
++        xa = xa.astype(float)
++        xa[xa > self.N - 1] = float(self._i_over)
++        xa[xa < 0] = float(self._i_under)
++        xa[mask_bad] = float(self._i_bad)
++        # After handling, convert back to int if not in bytes mode
++        if not bytes:
++            xa = xa.astype(int)
+ 
+         lut = self._lut
+         if bytes:

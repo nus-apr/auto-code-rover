@@ -1,0 +1,34 @@
+# modification 1
+```python
+<file>pylint/__init__.py</file>
+<original>try:
+    PylintRun(argv or sys.argv[1:])
+except KeyboardInterrupt:
+    sys.exit(1)</original>
+<patched>try:
+    PylintRun(argv or sys.argv[1:])
+except KeyboardInterrupt:
+    sys.exit(1)
+except pylint.config.exceptions._UnrecognizedOptionError as e:
+    print(f"Unrecognized option(s) found: {', '.join(e.options)}.")
+    print("Use --help to see available options.")
+    sys.exit(2)</patched>
+```
+
+# modification 2
+```python
+<file>pylint/lint/run.py</file>
+<original>args = _config_initialization(
+    linter, args, reporter, config_file=self._rcfile, verbose_mode=self.verbose
+)</original>
+<patched>try:
+    args = _config_initialization(
+        linter, args, reporter, config_file=self._rcfile, verbose_mode=self.verbose
+    )
+except pylint.config.exceptions._UnrecognizedOptionError as e:
+    print(f"Unrecognized option(s) found: {', '.join(e.options)}.")
+    print("Use --help to see available options.")
+    sys.exit(2)</patched>
+```
+
+These modifications aim to catch the `_UnrecognizedOptionError` exception and handle it by printing a user-friendly message along with a suggestion to use `--help` to see available options, similar to the behavior described in the issue for `mypy`. This approach avoids printing a traceback, which can be confusing for users. The choice of where to catch the exception (either in `pylint/__init__.py` or `pylint/lint/run.py`) depends on the desired granularity of error handling and whether other parts of the code might benefit from this exception handling pattern.

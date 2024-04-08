@@ -1,0 +1,43 @@
+{
+    "task_id": "django__django-14752",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/django__django/setup_django__django__4.0",
+        "env_name": "setup_django__django__4.0",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "./tests/runtests.py --verbosity 2 admin_views.test_autocomplete_view"
+    },
+    "task_info": {
+        "instance_id": "django__django-14752",
+        "base_commit": "b64db05b9cedd96905d637a2d824cbbf428e40e7",
+        "hints_text": "Makes sense to me.",
+        "created_at": "2021-08-07T16:34:32Z",
+        "test_patch": "diff --git a/tests/admin_views/test_autocomplete_view.py b/tests/admin_views/test_autocomplete_view.py\n--- a/tests/admin_views/test_autocomplete_view.py\n+++ b/tests/admin_views/test_autocomplete_view.py\n@@ -1,3 +1,4 @@\n+import datetime\n import json\n from contextlib import contextmanager\n \n@@ -293,6 +294,29 @@ class PKOrderingQuestionAdmin(QuestionAdmin):\n             'pagination': {'more': False},\n         })\n \n+    def test_serialize_result(self):\n+        class AutocompleteJsonSerializeResultView(AutocompleteJsonView):\n+            def serialize_result(self, obj, to_field_name):\n+                return {\n+                    **super().serialize_result(obj, to_field_name),\n+                    'posted': str(obj.posted),\n+                }\n+\n+        Question.objects.create(question='Question 1', posted=datetime.date(2021, 8, 9))\n+        Question.objects.create(question='Question 2', posted=datetime.date(2021, 8, 7))\n+        request = self.factory.get(self.url, {'term': 'question', **self.opts})\n+        request.user = self.superuser\n+        response = AutocompleteJsonSerializeResultView.as_view(**self.as_view_args)(request)\n+        self.assertEqual(response.status_code, 200)\n+        data = json.loads(response.content.decode('utf-8'))\n+        self.assertEqual(data, {\n+            'results': [\n+                {'id': str(q.pk), 'text': q.question, 'posted': str(q.posted)}\n+                for q in Question.objects.order_by('-posted')\n+            ],\n+            'pagination': {'more': False},\n+        })\n+\n \n @override_settings(ROOT_URLCONF='admin_views.urls')\n class SeleniumTests(AdminSeleniumTestCase):\n",
+        "repo": "django/django",
+        "problem_statement": "Refactor AutocompleteJsonView to support extra fields in autocomplete response\nDescription\n\t \n\t\t(last modified by mrts)\n\t \nAdding data attributes to items in ordinary non-autocomplete foreign key fields that use forms.widgets.Select-based widgets is relatively easy. This enables powerful and dynamic admin site customizations where fields from related models are updated immediately when users change the selected item.\nHowever, adding new attributes to autocomplete field results currently requires extending contrib.admin.views.autocomplete.AutocompleteJsonView and fully overriding the AutocompleteJsonView.get() method. Here's an example:\nclass MyModelAdmin(admin.ModelAdmin):\n\tdef get_urls(self):\n\t\treturn [\n\t\t\tpath('autocomplete/', CustomAutocompleteJsonView.as_view(admin_site=self.admin_site))\n\t\t\tif url.pattern.match('autocomplete/')\n\t\t\telse url for url in super().get_urls()\n\t\t]\nclass CustomAutocompleteJsonView(AutocompleteJsonView):\n\tdef get(self, request, *args, **kwargs):\n\t\tself.term, self.model_admin, self.source_field, to_field_name = self.process_request(request)\n\t\tif not self.has_perm(request):\n\t\t\traise PermissionDenied\n\t\tself.object_list = self.get_queryset()\n\t\tcontext = self.get_context_data()\n\t\treturn JsonResponse({\n\t\t\t'results': [\n\t\t\t\t{'id': str(getattr(obj, to_field_name)), 'text': str(obj), 'notes': obj.notes} # <-- customization here\n\t\t\t\tfor obj in context['object_list']\n\t\t\t],\n\t\t\t'pagination': {'more': context['page_obj'].has_next()},\n\t\t})\nThe problem with this is that as AutocompleteJsonView.get() keeps evolving, there's quite a lot of maintenance overhead required to catch up.\nThe solutions is simple, side-effect- and risk-free: adding a result customization extension point to get() by moving the lines that construct the results inside JsonResponse constructor to a separate method. So instead of\n\t\treturn JsonResponse({\n\t\t\t'results': [\n\t\t\t\t{'id': str(getattr(obj, to_field_name)), 'text': str(obj)}\n\t\t\t\tfor obj in context['object_list']\n\t\t\t],\n\t\t\t'pagination': {'more': context['page_obj'].has_next()},\n\t\t})\nthere would be\n\t\treturn JsonResponse({\n\t\t\t'results': [\n\t\t\t\tself.serialize_result(obj, to_field_name) for obj in context['object_list']\n\t\t\t],\n\t\t\t'pagination': {'more': context['page_obj'].has_next()},\n\t\t})\nwhere serialize_result() contains the original object to dictionary conversion code that would be now easy to override:\ndef serialize_result(self, obj, to_field_name):\n\treturn {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}\nThe example CustomAutocompleteJsonView from above would now become succinct and maintainable:\nclass CustomAutocompleteJsonView(AutocompleteJsonView):\n\tdef serialize_result(self, obj, to_field_name):\n\t\treturn super.serialize_result(obj, to_field_name) | {'notes': obj.notes}\nWhat do you think, is this acceptable? I'm more than happy to provide the patch.\n",
+        "version": "4.0",
+        "FAIL_TO_PASS": [
+            "test_serialize_result (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)"
+        ],
+        "PASS_TO_PASS": [
+            "Search results are paginated.",
+            "Searching across model relations use QuerySet.distinct() to avoid",
+            "Users require the change permission for the related model to the",
+            "test_custom_to_field (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_custom_to_field_custom_pk (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_custom_to_field_permission_denied (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_field_does_not_allowed (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_field_does_not_exist (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_field_no_related_field (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_limit_choices_to (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_missing_search_fields (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_must_be_logged_in (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_success (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "test_to_field_resolution_with_fk_pk (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)",
+            "to_field resolution should correctly resolve for target models using"
+        ],
+        "environment_setup_commit": "475cffd1d64c690cdad16ede4d5e81985738ceb4",
+        "patch": "diff --git a/django/contrib/admin/views/autocomplete.py b/django/contrib/admin/views/autocomplete.py\n--- a/django/contrib/admin/views/autocomplete.py\n+++ b/django/contrib/admin/views/autocomplete.py\n@@ -11,7 +11,8 @@ class AutocompleteJsonView(BaseListView):\n \n     def get(self, request, *args, **kwargs):\n         \"\"\"\n-        Return a JsonResponse with search results of the form:\n+        Return a JsonResponse with search results as defined in\n+        serialize_result(), by default:\n         {\n             results: [{id: \"123\" text: \"foo\"}],\n             pagination: {more: true}\n@@ -26,12 +27,19 @@ def get(self, request, *args, **kwargs):\n         context = self.get_context_data()\n         return JsonResponse({\n             'results': [\n-                {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}\n+                self.serialize_result(obj, to_field_name)\n                 for obj in context['object_list']\n             ],\n             'pagination': {'more': context['page_obj'].has_next()},\n         })\n \n+    def serialize_result(self, obj, to_field_name):\n+        \"\"\"\n+        Convert the provided model object to a dictionary that is added to the\n+        results list.\n+        \"\"\"\n+        return {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}\n+\n     def get_paginator(self, *args, **kwargs):\n         \"\"\"Use the ModelAdmin's paginator.\"\"\"\n         return self.model_admin.get_paginator(self.request, *args, **kwargs)\n",
+        "pr_link": "https://github.com/django/django/pull/14752"
+    }
+}

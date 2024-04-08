@@ -1,0 +1,43 @@
+diff --git a/tests/admin_views/test_multidb.py b/tests/admin_views/test_multidb.py
+index a02b637d34..87a732eafc 100644
+--- a/tests/admin_views/test_multidb.py
++++ b/tests/admin_views/test_multidb.py
+@@ -36,12 +36,16 @@ class MultiDatabaseTests(TestCase):
+         cls.test_book_ids = {}
+         for db in connections:
+             Router.target_db = db
+-            cls.superusers[db] = User.objects.create_superuser(
+-                username='admin', password='something', email='test@test.org',
+-            )
+-            b = Book(name='Test Book')
+-            b.save(using=db)
+-            cls.test_book_ids[db] = b.id
++            from django.db import transaction
++            
++            with transaction.atomic(using=db):
++                cls.superusers[db] = User.objects.create_superuser(
++                    username='admin', password='something', email='test@test.org',
++                )
++                b = Book(name='Test Book')
++                b.save(using=db)
++                cls.test_book_ids[db] = b.id
++            # Ensure transactions are properly closed after each operation
+ 
+     @mock.patch('django.contrib.admin.options.transaction')
+     def test_add_view(self, mock):
+diff --git a/tests/test_sqlite.py b/tests/test_sqlite.py
+index f1b65f7d01..f490cb49e5 100644
+--- a/tests/test_sqlite.py
++++ b/tests/test_sqlite.py
+@@ -15,6 +15,11 @@
+ DATABASES = {
+     'default': {
+         'ENGINE': 'django.db.backends.sqlite3',
++        'TEST': {
++            'OPTIONS': {
++                'timeout': 30,  # Adjust the timeout to help prevent locking issues
++            },
++        },
+     },
+     'other': {
+         'ENGINE': 'django.db.backends.sqlite3',

@@ -1,0 +1,57 @@
+diff --git a/lib/matplotlib/artist.py b/lib/matplotlib/artist.py
+index 1f33b9d3ec..19840a80b6 100644
+--- a/lib/matplotlib/artist.py
++++ b/lib/matplotlib/artist.py
+@@ -1304,8 +1304,12 @@ class Artist:
+             normed = self.norm(data)
+             if np.isfinite(normed):
+                 # Midpoints of neighboring color intervals.
+-                neighbors = self.norm.inverse(
+-                    (int(self.norm(data) * n) + np.array([0, 1])) / n)
++                # Check if the norm has an 'inverse' method before calling it
++                try:
++                    neighbors = self.norm.inverse(
++                        (int(self.norm(data) * n) + np.array([0, 1])) / n)
++                except AttributeError:
++                    neighbors = np.array([np.nan, np.nan])  # Fallback value when inverse is not available
+                 delta = abs(neighbors - data).max()
+                 g_sig_digits = cbook._g_sig_digits(data, delta)
+             else:
+diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py
+index 2e51914952..0b83ceb613 100644
+--- a/lib/matplotlib/colors.py
++++ b/lib/matplotlib/colors.py
+@@ -1903,13 +1903,27 @@ class BoundaryNorm(Normalize):
+ 
+     def inverse(self, value):
+         """
+-        Raises
+-        ------
+-        ValueError
+-            BoundaryNorm is not invertible, so calling this method will always
+-            raise an error
++        Attempt to provide an approximate inverse for BoundaryNorm.
++        This implementation is a placeholder and should be improved
++        based on specific requirements.
++    
++        Parameters
++        ----------
++        value : float or ndarray
++            The normalized value(s) for which the inverse is sought.
++    
++        Returns
++        -------
++        ndarray or float
++            The approximate data value(s) corresponding to the input.
+         """
+-        raise ValueError("BoundaryNorm is not invertible")
++        boundaries = self.boundaries
++        if np.isscalar(value):
++            idx = np.searchsorted(boundaries, value, side="left")
++            return boundaries[max(0, idx-1)]
++        else:
++            idx = np.searchsorted(boundaries, value, side="left")
++            return boundaries[np.maximum(0, idx-1)]
+ 
+ 
+ class NoNorm(Normalize):

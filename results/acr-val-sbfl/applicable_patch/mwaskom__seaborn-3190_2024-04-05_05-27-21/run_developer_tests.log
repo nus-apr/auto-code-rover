@@ -1,0 +1,269 @@
+=================================================================== test session starts ====================================================================
+collected 86 items
+
+tests/_core/test_scales.py ........F..............F...............................x..............................                                    [100%]
+
+========================================================================= FAILURES =========================================================================
+_________________________________________________________ TestContinuous.test_interval_with_bools __________________________________________________________
+
+self = <tests._core.test_scales.TestContinuous object at 0x7fb12b581910>
+
+    def test_interval_with_bools(self):
+    
+        x = pd.Series([True, False, False])
+>       s = Continuous()._setup(x, IntervalProperty())
+
+tests/_core/test_scales.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Continuous(values=None, norm=None, trans=None), data = 0     True
+1    False
+2    False
+dtype: bool
+prop = <seaborn._core.properties.IntervalProperty object at 0x7fb12b540730>, axis = <seaborn._core.scales.PseudoAxis object at 0x7fb12b610ca0>
+
+    def _setup(
+        self, data: Series, prop: Property, axis: Axis | None = None,
+    ) -> Scale:
+    
+        new = copy(self)
+        if new._tick_params is None:
+            new = new.tick()
+        if new._label_params is None:
+            new = new.label()
+    
+        forward, inverse = new._get_transform()
+    
+        mpl_scale = new._get_scale(str(data.name), forward, inverse)
+    
+        if axis is None:
+            axis = PseudoAxis(mpl_scale)
+            axis.update_units(data)
+    
+        mpl_scale.set_default_locators_and_formatters(axis)
+        new._matplotlib_scale = mpl_scale
+    
+        normalize: Optional[Callable[[ArrayLike], ArrayLike]]
+        if prop.normed:
+            if new.norm is None:
+                vmin, vmax = data.min(), data.max()
+            else:
+                vmin, vmax = new.norm
+            vmin, vmax = axis.convert_units((vmin, vmax))
+            a = forward(vmin)
+>           b = forward(vmax) - forward(vmin)
+E           TypeError: numpy boolean subtract, the `-` operator, is not supported, use the bitwise_xor, the `^` operator, or the logical_xor function instead.
+
+seaborn/_core/scales.py:351: TypeError
+______________________________________________________________ TestContinuous.test_tick_minor ______________________________________________________________
+
+self = <tests._core.test_scales.TestContinuous object at 0x7fb12b47a790>, x = 0    1.0
+1    3.0
+2    9.0
+Name: x, dtype: float64
+
+    def test_tick_minor(self, x):
+    
+        n = 3
+        a = self.setup_ticks(x, count=2, minor=n)
+        # I am not sure why matplotlib's minor ticks include the
+        # largest major location but exclude the smalllest one ...
+        expected = np.linspace(0, 1, n + 2)[1:]
+>       assert_array_equal(a.minor.locator(), expected)
+
+tests/_core/test_scales.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<built-in function eq>, array([0.  , 0.25, 0.5 , 0.75, 1.  ]), array([0.25, 0.5 , 0.75, 1.  ]))
+kwds = {'err_msg': '', 'header': 'Arrays are not equal', 'strict': False, 'verbose': True}
+
+    @wraps(func)
+    def inner(*args, **kwds):
+        with self._recreate_cm():
+>           return func(*args, **kwds)
+E           AssertionError: 
+E           Arrays are not equal
+E           
+E           (shapes (5,), (4,) mismatch)
+E            x: array([0.  , 0.25, 0.5 , 0.75, 1.  ])
+E            y: array([0.25, 0.5 , 0.75, 1.  ])
+
+/home/yuntong/miniconda3/envs/setup_mwaskom__seaborn__0.12/lib/python3.9/contextlib.py:79: AssertionError
+======================================================================== XFAILURES =========================================================================
+_______________________________________________________ TestNominal.test_color_numeric_int_float_mix _______________________________________________________
+
+self = <tests._core.test_scales.TestNominal object at 0x7fb12b61b610>
+
+    @pytest.mark.xfail(reason="Need to sort out float/int order")
+    def test_color_numeric_int_float_mix(self):
+    
+        z = pd.Series([1, 2], name="z")
+        s = Nominal(order=[1.0, 2])._setup(z, Color())
+        c1, c2 = color_palette(n_colors=2)
+        null = (np.nan, np.nan, np.nan)
+>       assert_array_equal(s(z), [c1, null, c2])
+
+tests/_core/test_scales.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+seaborn/_core/scales.py:124: in __call__
+    trans_data = func(trans_data)
+seaborn/_core/properties.py:646: in mapping
+    out[use] = np.take(colors, ixs[use], axis=0)
+/home/yuntong/miniconda3/envs/setup_mwaskom__seaborn__0.12/lib/python3.9/site-packages/numpy/core/fromnumeric.py:192: in take
+    return _wrapfunc(a, 'take', indices, axis=axis, out=out, mode=mode)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = array([[0.12156863, 0.46666667, 0.70588235],
+       [1.        , 0.49803922, 0.05490196]]), method = 'take', args = (array([2, 3]),)
+kwds = {'axis': 0, 'mode': 'raise', 'out': None}, bound = <built-in method take of numpy.ndarray object at 0x7fb12b1c5810>
+
+    def _wrapfunc(obj, method, *args, **kwds):
+        bound = getattr(obj, method, None)
+        if bound is None:
+            return _wrapit(obj, method, *args, **kwds)
+    
+        try:
+>           return bound(*args, **kwds)
+E           IndexError: index 2 is out of bounds for axis 0 with size 2
+
+/home/yuntong/miniconda3/envs/setup_mwaskom__seaborn__0.12/lib/python3.9/site-packages/numpy/core/fromnumeric.py:59: IndexError
+===================================================================== warnings summary =====================================================================
+tests/_core/test_scales.py: 46 warnings
+  /media/media0/yuntong/SWE-bench/testbed/mwaskom__seaborn/setup_mwaskom__seaborn__0.12/seaborn/_core/rules.py:66: DeprecationWarning: is_categorical_dtype is deprecated and will be removed in a future version. Use isinstance(dtype, pd.CategoricalDtype) instead
+    if pd.api.types.is_categorical_dtype(vector):
+
+tests/_core/test_scales.py::TestNominal::test_color_numeric_with_order_subset
+  /media/media0/yuntong/SWE-bench/testbed/mwaskom__seaborn/setup_mwaskom__seaborn__0.12/seaborn/_core/properties.py:643: RuntimeWarning: invalid value encountered in cast
+    ixs = np.asarray(x, np.intp)
+
+tests/_core/test_scales.py::TestNominal::test_object_order_subset
+  /media/media0/yuntong/SWE-bench/testbed/mwaskom__seaborn/setup_mwaskom__seaborn__0.12/seaborn/_core/properties.py:366: RuntimeWarning: invalid value encountered in cast
+    ixs = np.asarray(x, np.intp)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================================================================== PASSES ==========================================================================
+
+---------- coverage: platform linux, python 3.9.18-final-0 -----------
+Name                          Stmts   Miss  Cover
+-------------------------------------------------
+seaborn/__init__.py              16      0   100%
+seaborn/_compat.py               99     80    19%
+seaborn/_core/__init__.py         0      0   100%
+seaborn/_core/groupby.py         54     43    20%
+seaborn/_core/properties.py     374    145    61%
+seaborn/_core/rules.py           53      7    87%
+seaborn/_core/scales.py         434     62    86%
+seaborn/_core/typing.py          21      1    95%
+seaborn/_decorators.py           10      0   100%
+seaborn/_docstrings.py           40      5    88%
+seaborn/_oldcore.py             732    648    11%
+seaborn/_statistics.py          264    229    13%
+seaborn/_stats/__init__.py        0      0   100%
+seaborn/_stats/base.py           26     14    46%
+seaborn/_stats/counting.py       98     67    32%
+seaborn/algorithms.py            72     66     8%
+seaborn/axisgrid.py            1036    939     9%
+seaborn/categorical.py         1377   1244    10%
+seaborn/distributions.py        960    897     7%
+seaborn/matrix.py               551    497    10%
+seaborn/miscplot.py              27     20    26%
+seaborn/palettes.py             250    131    48%
+seaborn/rcmod.py                104     78    25%
+seaborn/regression.py           324    281    13%
+seaborn/relational.py           332    298    10%
+seaborn/utils.py                355    308    13%
+tests/__init__.py                 0      0   100%
+tests/_core/__init__.py           0      0   100%
+tests/_core/test_scales.py      456      1    99%
+tests/conftest.py                97     47    52%
+-------------------------------------------------
+TOTAL                          8162   6108    25%
+
+================================================================= short test summary info ==================================================================
+PASSED tests/_core/test_scales.py::TestContinuous::test_coordinate_defaults
+PASSED tests/_core/test_scales.py::TestContinuous::test_coordinate_transform
+PASSED tests/_core/test_scales.py::TestContinuous::test_coordinate_transform_with_parameter
+PASSED tests/_core/test_scales.py::TestContinuous::test_coordinate_transform_error
+PASSED tests/_core/test_scales.py::TestContinuous::test_interval_defaults
+PASSED tests/_core/test_scales.py::TestContinuous::test_interval_with_range
+PASSED tests/_core/test_scales.py::TestContinuous::test_interval_with_norm
+PASSED tests/_core/test_scales.py::TestContinuous::test_interval_with_range_norm_and_transform
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_defaults
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_named_values
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_tuple_values
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_callable_values
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_with_norm
+PASSED tests/_core/test_scales.py::TestContinuous::test_color_with_transform
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_locator
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_locator_input_check
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_upto
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_every
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_every_between
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_at
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_count
+PASSED tests/_core/test_scales.py::TestContinuous::test_tick_count_between
+PASSED tests/_core/test_scales.py::TestContinuous::test_log_tick_default
+PASSED tests/_core/test_scales.py::TestContinuous::test_log_tick_upto
+PASSED tests/_core/test_scales.py::TestContinuous::test_log_tick_count
+PASSED tests/_core/test_scales.py::TestContinuous::test_log_tick_format_disabled
+PASSED tests/_core/test_scales.py::TestContinuous::test_log_tick_every
+PASSED tests/_core/test_scales.py::TestContinuous::test_symlog_tick_default
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_formatter
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_like_pattern
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_like_string
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_like_function
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_base
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_unit
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_unit_with_sep
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_empty_unit
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_base_from_transform
+PASSED tests/_core/test_scales.py::TestContinuous::test_label_type_checks
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_defaults
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_with_order
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_with_subset_order
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_axis
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_axis_with_order
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_axis_with_subset_order
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_axis_with_category_dtype
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_numeric_data
+PASSED tests/_core/test_scales.py::TestNominal::test_coordinate_numeric_data_with_order
+PASSED tests/_core/test_scales.py::TestNominal::test_color_defaults
+PASSED tests/_core/test_scales.py::TestNominal::test_color_named_palette
+PASSED tests/_core/test_scales.py::TestNominal::test_color_list_palette
+PASSED tests/_core/test_scales.py::TestNominal::test_color_dict_palette
+PASSED tests/_core/test_scales.py::TestNominal::test_color_numeric_data
+PASSED tests/_core/test_scales.py::TestNominal::test_color_numeric_with_order_subset
+PASSED tests/_core/test_scales.py::TestNominal::test_color_alpha_in_palette
+PASSED tests/_core/test_scales.py::TestNominal::test_color_unknown_palette
+PASSED tests/_core/test_scales.py::TestNominal::test_object_defaults
+PASSED tests/_core/test_scales.py::TestNominal::test_object_list
+PASSED tests/_core/test_scales.py::TestNominal::test_object_dict
+PASSED tests/_core/test_scales.py::TestNominal::test_object_order
+PASSED tests/_core/test_scales.py::TestNominal::test_object_order_subset
+PASSED tests/_core/test_scales.py::TestNominal::test_objects_that_are_weird
+PASSED tests/_core/test_scales.py::TestNominal::test_alpha_default
+PASSED tests/_core/test_scales.py::TestNominal::test_fill
+PASSED tests/_core/test_scales.py::TestNominal::test_fill_dict
+PASSED tests/_core/test_scales.py::TestNominal::test_fill_nunique_warning
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_defaults
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_tuple
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_tuple_numeric
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_list
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_dict
+PASSED tests/_core/test_scales.py::TestNominal::test_interval_with_transform
+PASSED tests/_core/test_scales.py::TestNominal::test_empty_data
+PASSED tests/_core/test_scales.py::TestTemporal::test_coordinate_defaults
+PASSED tests/_core/test_scales.py::TestTemporal::test_interval_defaults
+PASSED tests/_core/test_scales.py::TestTemporal::test_interval_with_range
+PASSED tests/_core/test_scales.py::TestTemporal::test_interval_with_norm
+PASSED tests/_core/test_scales.py::TestTemporal::test_color_defaults
+PASSED tests/_core/test_scales.py::TestTemporal::test_color_named_values
+PASSED tests/_core/test_scales.py::TestTemporal::test_coordinate_axis
+PASSED tests/_core/test_scales.py::TestTemporal::test_tick_locator
+PASSED tests/_core/test_scales.py::TestTemporal::test_tick_upto
+PASSED tests/_core/test_scales.py::TestTemporal::test_label_formatter
+PASSED tests/_core/test_scales.py::TestTemporal::test_label_concise
+XFAIL tests/_core/test_scales.py::TestNominal::test_color_numeric_int_float_mix - Need to sort out float/int order
+FAILED tests/_core/test_scales.py::TestContinuous::test_interval_with_bools - TypeError: numpy boolean subtract, the `-` operator, is not supported, use ...
+FAILED tests/_core/test_scales.py::TestContinuous::test_tick_minor - AssertionError: 
+=================================================== 2 failed, 83 passed, 1 xfailed, 48 warnings in 1.83s ===================================================

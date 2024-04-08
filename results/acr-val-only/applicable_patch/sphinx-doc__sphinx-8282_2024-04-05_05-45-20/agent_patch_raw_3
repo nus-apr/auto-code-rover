@@ -1,0 +1,34 @@
+Given the complexity of the issue with `autodoc_typehints` not affecting overloaded callables and the limitations of the previous approaches, let's consider a more foundational aspect of the problem. The issue might not solely lie in the handling of the `show_annotation` flag or the differentiation between overloaded and non-overloaded functions at the point of formatting arguments. Instead, it could be related to the fundamental way Sphinx collects and processes signatures for documentation, especially in the context of the `autodoc_typehints` setting.
+
+A potential solution could involve ensuring that Sphinx's mechanism for collecting function signatures is aware of and properly handles overloaded functions, respecting the `autodoc_typehints` configuration throughout the process. This approach would require adjustments at a more central part of the signature collection and processing logic.
+
+### Hypothetical Patch for Signature Collection and Processing
+
+This modification aims to address the issue by ensuring that the signature collection process is sensitive to overloaded functions and the `autodoc_typehints` setting.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>sig = inspect.signature(self.object, follow_wrapped=True,
+                                  type_aliases=self.env.config.autodoc_type_aliases)</original>
+<patched># Adjust signature collection to account for overloaded functions
+try:
+    signatures = collect_signatures(self.object, follow_wrapped=True,
+                                     type_aliases=self.env.config.autodoc_type_aliases)
+except ValueError as e:
+    logger.warning(__("Failed to collect signatures for %s: %s"), self.fullname, e)
+    return None
+
+# Select the appropriate signature based on autodoc_typehints setting
+sig = select_signature(signatures, self.env.config.autodoc_typehints)</patched>
+```
+
+### Explanation
+- The `collect_signatures` function (hypothetical) is designed to collect all possible signatures for a given object, especially handling overloaded functions more comprehensively than `inspect.signature`.
+- The `select_signature` function (hypothetical) then selects the most appropriate signature to document, based on the `autodoc_typehints` setting. This could involve choosing a signature that best represents the overloaded set or adapting the representation based on the setting (e.g., showing all variants if `autodoc_typehints` is set to display more detailed type information).
+
+### Note
+- This proposed modification is conceptual and assumes the implementation of `collect_signatures` and `select_signature` functions, which would need to be designed to work within Sphinx's existing architecture and processing flow.
+- The approach focuses on enhancing how Sphinx collects and decides on presenting signatures, especially for overloaded functions, which could help in addressing the core issue related to `autodoc_typehints`.
+
+Implementing this solution would require a deep understanding of Sphinx's internals and a careful design to ensure that the new mechanism for handling signatures, especially for overloaded functions, integrates smoothly with the rest of the documentation generation process.

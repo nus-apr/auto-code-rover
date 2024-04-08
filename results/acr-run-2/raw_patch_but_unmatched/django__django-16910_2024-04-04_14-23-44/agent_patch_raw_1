@@ -1,0 +1,83 @@
+Given the context and the issue described, a direct patch cannot be provided without a deeper understanding of the Django ORM's internal workings and without testing the changes against Django's comprehensive test suite. However, I can suggest a conceptual approach to address the issue based on the provided information.
+
+The issue seems to stem from the interaction between `select_related` and `only` methods, particularly in how fields specified for immediate loading are handled in conjunction with fields specified through `select_related`. The goal would be to ensure that when `only` is used with `select_related`, the fields from the related model are correctly limited to those specified by the user.
+
+### Conceptual Patch
+
+This conceptual patch aims to adjust the `add_select_related` and `add_immediate_loading` methods to better handle the case where both are used together, ensuring that only the specified fields from the related model are included in the query.
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>def add_select_related(self, fields):
+    if isinstance(self.select_related, bool):
+        field_dict = {}
+    else:
+        field_dict = self.select_related
+    for field in fields:
+        d = field_dict
+        for part in field.split(LOOKUP_SEP):
+            d = d.setdefault(part, {})
+    self.select_related = field_dict</original>
+<patched>def add_select_related(self, fields):
+    if isinstance(self.select_related, bool):
+        field_dict = {}
+    else:
+        field_dict = self.select_related
+    for field in fields:
+        d = field_dict
+        for part in field.split(LOOKUP_SEP):
+            # Ensure that only the specified fields are set for selection,
+            # preventing automatic inclusion of all fields from the related model.
+            d = d.setdefault(part, {})
+            if part == fields[-1].split(LOOKUP_SEP)[-1]:
+                # This marks the last part of the field as explicitly requested,
+                # potentially allowing for better integration with add_immediate_loading logic.
+                d['_selected'] = True
+    self.select_related = field_dict</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/query.py</file>
+<original>def add_immediate_loading(self, field_names):
+    existing, defer = self.deferred_loading
+    field_names = set(field_names)
+    if "pk" in field_names:
+        field_names.remove("pk")
+        field_names.add(self.get_meta().pk.name)
+
+    if defer:
+        self.deferred_loading = field_names.difference(existing), False
+    else:
+        self.deferred_loading = frozenset(field_names), False</original>
+<patched>def add_immediate_loading(self, field_names):
+    existing, defer = self.deferred_loading
+    field_names = set(field_names)
+    if "pk" in field_names:
+        field_names.remove("pk")
+        field_names.add(self.get_meta().pk.name)
+
+    # Adjust logic to respect '_selected' flag from add_select_related,
+    # ensuring that only explicitly requested fields are loaded immediately.
+    new_field_names = set()
+    for field_name in field_names:
+        parts = field_name.split(LOOKUP_SEP)
+        d = self.select_related
+        for part in parts[:-1]:  # Navigate through the nested dictionary
+            if part in d:
+                d = d[part]
+            else:
+                break
+        else:
+            if '_selected' in d.get(parts[-1], {}):
+                new_field_names.add(field_name)
+
+    if defer:
+        self.deferred_loading = new_field_names.difference(existing), False
+    else:
+        self.deferred_loading = frozenset(new_field_names), False</patched>
+```
+
+### Note
+This conceptual patch is speculative and aims to illustrate a potential approach to resolving the issue. Actual implementation would require thorough testing and validation within the Django framework to ensure compatibility and non-regression. The modifications suggest adding a mechanism to mark fields as explicitly selected in `add_select_related` and adjusting `add_immediate_loading` to respect these selections. This approach would need to be validated and possibly adjusted to fit into Django's overall query construction logic.

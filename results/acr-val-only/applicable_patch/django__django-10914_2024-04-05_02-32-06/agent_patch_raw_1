@@ -1,0 +1,50 @@
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>if self.file_permissions_mode is not None:
+    os.chmod(full_path, self.file_permissions_mode)</original>
+<patched># Ensure default file permissions are set if FILE_UPLOAD_PERMISSIONS is not specified
+if self.file_permissions_mode is not None:
+    os.chmod(full_path, self.file_permissions_mode)
+else:
+    # Set default file permissions to 0o644 to align with common expectations
+    os.chmod(full_path, 0o644)</patched>
+```
+
+# modification 2
+```python
+<file>django/conf/global_settings.py</file>
+<original># FILE_UPLOAD_PERMISSIONS is not explicitly set in this file</original>
+<patched>FILE_UPLOAD_PERMISSIONS = 0o644
+# Note: Setting default file upload permissions to 0o644 for consistency and security</patched>
+```
+
+# modification 3
+```python
+<file>django/core/files/uploadhandler.py</file>
+<original>class TemporaryFileUploadHandler(FileUploadHandler):
+    """
+    Upload handler that streams data into a temporary file.
+    """
+    def new_file(self, *args, **kwargs):
+        """
+        Create the file object to append to as data is coming in.
+        """
+        super().new_file(*args, **kwargs)
+        self.file = TemporaryUploadedFile(self.file_name, self.content_type, 0, self.charset, self.content_type_extra)</original>
+<patched>class TemporaryFileUploadHandler(FileUploadHandler):
+    """
+    Upload handler that streams data into a temporary file.
+    """
+    def new_file(self, *args, **kwargs):
+        """
+        Create the file object to append to as data is coming in.
+        Adjusting file permissions explicitly to align with FILE_UPLOAD_PERMISSIONS setting.
+        """
+        from django.conf import settings
+        super().new_file(*args, **kwargs)
+        file_permissions = getattr(settings, 'FILE_UPLOAD_PERMISSIONS', 0o644)
+        self.file = TemporaryUploadedFile(self.file_name, self.content_type, 0, self.charset, self.content_type_extra, permissions=file_permissions)</patched>
+```
+
+These modifications aim to address the inconsistency in file permissions for uploaded files by ensuring a default permission set is applied if `FILE_UPLOAD_PERMISSIONS` is not explicitly configured. Additionally, it adjusts the `TemporaryFileUploadHandler` to respect the `FILE_UPLOAD_PERMISSIONS` setting, aligning temporary file permissions with the expected default.

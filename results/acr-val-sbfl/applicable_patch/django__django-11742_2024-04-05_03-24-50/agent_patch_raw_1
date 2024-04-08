@@ -1,0 +1,118 @@
+# modification 1
+```python
+<file>django/db/models/fields/__init__.py</file>
+<original>    def _check_choices(self):
+        if not self.choices:
+            return []
+
+        def is_value(value, accept_promise=True):
+            return isinstance(value, (str, Promise) if accept_promise else str) or not is_iterable(value)
+
+        if is_value(self.choices, accept_promise=False):
+            return [
+                checks.Error(
+                    "'choices' must be an iterable (e.g., a list or tuple).",
+                    obj=self,
+                    id='fields.E004',
+                )
+            ]
+
+        # Expect [group_name, [value, display]]
+        for choices_group in self.choices:
+            try:
+                group_name, group_choices = choices_group
+            except (TypeError, ValueError):
+                # Containing non-pairs
+                break
+            try:
+                if not all(
+                    is_value(value) and is_value(human_name)
+                    for value, human_name in group_choices
+                ):
+                    break
+            except (TypeError, ValueError):
+                # No groups, choices in the form [value, display]
+                value, human_name = group_name, group_choices
+                if not is_value(value) or not is_value(human_name):
+                    break
+
+            # Special case: choices=['ab']
+            if isinstance(choices_group, str):
+                break
+        else:
+            return []
+
+        return [
+            checks.Error(
+                "'choices' must be an iterable containing "
+                "(actual value, human readable name) tuples.",
+                obj=self,
+                id='fields.E005',
+            )
+        ]
+</original>
+<patched>    def _check_choices(self):
+        if not self.choices:
+            return []
+
+        def is_value(value, accept_promise=True):
+            return isinstance(value, (str, Promise) if accept_promise else str) or not is_iterable(value)
+
+        if is_value(self.choices, accept_promise=False):
+            return [
+                checks.Error(
+                    "'choices' must be an iterable (e.g., a list or tuple).",
+                    obj=self,
+                    id='fields.E004',
+                )
+            ]
+
+        max_choice_length = 0
+        # Expect [group_name, [value, display]]
+        for choices_group in self.choices:
+            try:
+                group_name, group_choices = choices_group
+            except (TypeError, ValueError):
+                # Containing non-pairs
+                break
+            try:
+                if not all(
+                    is_value(value) and is_value(human_name)
+                    for value, human_name in group_choices
+                ):
+                    break
+                # Calculate max choice length
+                max_choice_length = max(max_choice_length, *(len(value) for value, human_name in group_choices))
+            except (TypeError, ValueError):
+                # No groups, choices in the form [value, display]
+                value, human_name = group_name, group_choices
+                if not is_value(value) or not is_value(human_name):
+                    break
+                # Calculate max choice length for non-grouped choices
+                max_choice_length = max(max_choice_length, len(value))
+
+            # Special case: choices=['ab']
+            if isinstance(choices_group, str):
+                break
+        else:
+            if self.max_length is not None and max_choice_length > self.max_length:
+                return [
+                    checks.Error(
+                        f"The 'max_length' is too small to fit the longest choice. "
+                        f"Max choice length is {max_choice_length}, but 'max_length' is {self.max_length}.",
+                        obj=self,
+                        id='fields.E006',
+                    )
+                ]
+            return []
+
+        return [
+            checks.Error(
+                "'choices' must be an iterable containing "
+                "(actual value, human readable name) tuples.",
+                obj=self,
+                id='fields.E005',
+            )
+        ]
+</patched>
+```

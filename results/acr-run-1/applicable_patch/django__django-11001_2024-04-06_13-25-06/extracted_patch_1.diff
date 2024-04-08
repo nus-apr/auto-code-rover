@@ -1,0 +1,34 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 7649c39262..6bf836d70c 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -32,7 +32,8 @@ class SQLCompiler:
+         self.select = None
+         self.annotation_col_map = None
+         self.klass_info = None
+-        self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)')
++        # Updated regex to handle multiline strings by including newline characters in the match
++        self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)', re.DOTALL)
+         self._meta_ordering = None
+ 
+     def setup_query(self):
+@@ -353,11 +354,16 @@ class SQLCompiler:
+             # not taken into account so we strip it. When this entire method
+             # is refactored into expressions, then we can check each part as we
+             # generate it.
+-            without_ordering = self.ordering_parts.search(sql).group(1)
++            # Adjusted to handle multiline RawSQL expressions more accurately
++            # Flatten SQL to a single line to ensure unique identification
++            sql_flattened = ' '.join(sql.splitlines()).strip()
++            without_ordering = self.ordering_parts.search(sql_flattened).group(1)
+             params_hash = make_hashable(params)
+-            if (without_ordering, params_hash) in seen:
++            # Enhanced duplicate check to consider the entire SQL expression, not just the last line
++            # This change complements the flattened SQL adjustment for accurate duplicate detection
++            if (sql_flattened, params_hash) in seen:
+                 continue
+-            seen.add((without_ordering, params_hash))
++            seen.add((sql_flattened, params_hash))
+             result.append((resolved, (sql, params, is_ref)))
+         return result
+ 

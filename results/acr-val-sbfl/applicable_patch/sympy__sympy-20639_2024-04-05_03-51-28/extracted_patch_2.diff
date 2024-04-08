@@ -1,0 +1,41 @@
+diff --git a/sympy/printing/pretty/pretty.py b/sympy/printing/pretty/pretty.py
+index df7452ee87..e0da84f6ad 100644
+--- a/sympy/printing/pretty/pretty.py
++++ b/sympy/printing/pretty/pretty.py
+@@ -1915,16 +1915,18 @@ def _print_nth_root(self, base, expt):
+         # Construct root sign, start with the \/ shape
+         _zZ = xobj('/', 1)
+         rootsign = xobj('\\', 1) + _zZ
+-        # Make exponent number to put above it
+-        if isinstance(expt, Rational):
++        # Adjust for expressions like pi**(1/E)
++        if expt == 1/S.Exp1:
++            exp = 'e^{-1}'
++        elif isinstance(expt, Rational):
+             exp = str(expt.q)
+             if exp == '2':
+                 exp = ''
+         else:
+             exp = str(expt.args[0])
+         exp = exp.ljust(2)
+-        if len(exp) > 2:
+-            rootsign = ' '*(len(exp) - 2) + rootsign
++        if len(exp) > 2 or expt == 1/S.Exp1:
++            rootsign = ' '*(max(len(exp) - 2, 0)) + rootsign
+         # Stack the exponent
+         rootsign = stringPict(exp + '\n' + rootsign)
+         rootsign.baseline = 0
+diff --git a/sympy/printing/str.py b/sympy/printing/str.py
+index 68fbcdaf36..ffe45782b6 100644
+--- a/sympy/printing/str.py
++++ b/sympy/printing/str.py
+@@ -570,6 +570,9 @@ def _print_Pow(self, expr, rational=False):
+ 
+         if expr.exp is S.Half and not rational:
+             return "sqrt(%s)" % self._print(expr.base)
++        elif expr.base is S.Pi and expr.exp == S.Pow(S.E, -1, evaluate=False):
++            # Correctly handle the case where the base is pi and the exponent is 1/E
++            return "pi**(1/E)"
+ 
+         if expr.is_commutative:
+             if -expr.exp is S.Half and not rational:

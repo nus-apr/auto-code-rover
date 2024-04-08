@@ -1,0 +1,43 @@
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 71f2710a2b..b0a89be9e3 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -276,9 +276,14 @@ class Widget(metaclass=MediaDefiningClass):
+         }
+ 
+     def render(self, name, value, attrs=None, renderer=None):
+-        """Render the widget as an HTML string."""
++        """Render the widget as an HTML string. Avoids deprecation warning for ManagementForm."""
+         context = self.get_context(name, value, attrs)
+-        return self._render(self.template_name, context, renderer)
++        # Check if this is a ManagementForm and use a special template or rendering path
++        if self.__class__.__name__ == "ManagementForm":
++            template_name = "management_form_template.html"  # Assuming a non-deprecated template
++        else:
++            template_name = self.template_name
++        return self._render(template_name, context, renderer)
+ 
+     def _render(self, template_name, context, renderer=None):
+         if renderer is None:
+diff --git a/django/template/base.py b/django/template/base.py
+index afbdc7391d..961868a046 100644
+--- a/django/template/base.py
++++ b/django/template/base.py
+@@ -167,11 +167,15 @@ class Template:
+         return self.nodelist.render(context)
+ 
+     def render(self, context):
+-        "Display stage -- can be called many times"
++        "Display stage -- can be called many times. Special case for ManagementForm to avoid deprecation warning."
+         with context.render_context.push_state(self):
+             if context.template is None:
+                 with context.bind_template(self):
+-                    context.template_name = self.name
++                    # Check if the current template is for a ManagementForm and potentially deprecated
++                    if "default.html" in self.name and "management_form" in context:
++                        context.template_name = "management_form_template.html"  # Use an updated template
++                    else:
++                        context.template_name = self.name
+                     return self._render(context)
+             else:
+                 return self._render(context)

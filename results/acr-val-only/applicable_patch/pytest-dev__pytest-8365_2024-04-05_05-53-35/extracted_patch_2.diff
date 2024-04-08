@@ -1,0 +1,33 @@
+diff --git a/src/_pytest/tmpdir.py b/src/_pytest/tmpdir.py
+index 29c7e19d7..c646219f8 100644
+--- a/src/_pytest/tmpdir.py
++++ b/src/_pytest/tmpdir.py
+@@ -150,11 +150,26 @@ class TempdirFactory:
+ 
+ def get_user() -> Optional[str]:
+     """Return the current user name, or None if getuser() does not work
+-    in the current environment (see #1010)."""
++    in the current environment (see #1010). This function also sanitizes the username
++    to ensure it is valid for directory names across different platforms."""
+     import getpass
++    import re
++
++    def sanitize_username(username: str) -> str:
++        """Sanitize the username to ensure it is valid for directory names across different platforms."""
++        # Replace illegal characters (for Windows and Unix-based systems) with an underscore.
++        # Additionally, handle edge cases that might cause issues on specific filesystems.
++        sanitized_username = re.sub(r'[\\/*?:"<>|]', '_', username)
++        # Further sanitization can be added here if specific filesystem issues are identified.
++        return sanitized_username
+ 
+     try:
+-        return getpass.getuser()
++        username = getpass.getuser()
++        # Ensure the username is not empty or None after sanitization
++        if username:
++            return sanitize_username(username)
++        else:
++            return None
+     except (ImportError, KeyError):
+         return None
+ 

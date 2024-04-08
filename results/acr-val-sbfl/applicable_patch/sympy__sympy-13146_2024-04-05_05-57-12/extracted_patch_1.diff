@@ -1,0 +1,36 @@
+diff --git a/sympy/core/add.py b/sympy/core/add.py
+index 2ec4fff073..e4235ec2c4 100644
+--- a/sympy/core/add.py
++++ b/sympy/core/add.py
+@@ -187,9 +187,11 @@ def flatten(cls, seq):
+             # 2*x**2 + 3*x**2  ->  5*x**2
+             if s in terms:
+                 terms[s] += c
++                # Improved handling for NaN terms to ensure they do not prevent simplification
++                # of other terms that could be simplified.
+                 if terms[s] is S.NaN:
+-                    # we know for sure the result will be nan
+-                    return [S.NaN], [], None
++                    # Instead of immediately returning, we remove the term and continue simplification
++                    del terms[s]
+             else:
+                 terms[s] = c
+ 
+@@ -264,8 +266,16 @@ def flatten(cls, seq):
+         _addsort(newseq)
+ 
+         # current code expects coeff to be first
++        # Check if the coefficient is almost zero in a numerical context
++        # This helps in simplifying expressions where the coefficient
++        # is a very small number close to zero but not exactly zero due to numerical errors.
++        from sympy import nsimplify
+         if coeff is not S.Zero:
+-            newseq.insert(0, coeff)
++            simplified_coeff = nsimplify(coeff, tolerance=1e-10, rational=True)
++            if simplified_coeff is not S.Zero:
++                newseq.insert(0, simplified_coeff)
++            else:
++                coeff = S.Zero
+ 
+         # we are done
+         if noncommutative:

@@ -1,0 +1,36 @@
+# modification 1
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if not issparse(y) and y.dtype == object and not isinstance(y.flat[0], str):
+    # [obj_1] and not ["label_1"]
+    return "unknown"</original>
+<patched>if not issparse(y):
+    if y.dtype == object:
+        # Check if it's a pandas series with nullable type which gets converted to object
+        if hasattr(y, "dtype") and str(y.dtype) in ["Int64", "Float64", "boolean"]:
+            if str(y.dtype) == "boolean":
+                return "binary"
+            else:
+                return "multiclass"
+        if not isinstance(y.flat[0], str):
+            # [obj_1] and not ["label_1"]
+            return "unknown"</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/utils/multiclass.py</file>
+<original>if not valid:
+    raise ValueError(
+        "Expected array-like (array or non-string sequence), got %r" % y
+    )</original>
+<patched>if not valid:
+    raise ValueError(
+        "Expected array-like (array or non-string sequence), got %r" % y
+    )
+# Additional check for pandas nullable types to ensure they are handled correctly
+if hasattr(y, "dtype") and str(y.dtype) in ["Int64", "Float64", "boolean"]:
+    y = y.to_numpy(dtype=str(y.dtype).lower())  # Convert to numpy with correct dtype</patched>
+```
+
+These modifications aim to address the issue with handling nullable pandas dtypes in the `type_of_target` function. The first modification ensures that nullable pandas dtypes are recognized and classified correctly instead of being marked as 'unknown'. The second modification ensures that when a pandas series with a nullable dtype is encountered, it is converted to a numpy array with the corresponding non-nullable dtype, allowing for correct processing downstream.

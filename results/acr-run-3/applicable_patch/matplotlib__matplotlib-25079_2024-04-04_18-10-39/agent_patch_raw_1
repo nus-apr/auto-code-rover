@@ -1,0 +1,51 @@
+Given the context of the issue and the analysis of the `update_scalarmappable` method in `lib/matplotlib/collections.py`, the bug seems to revolve around the handling of normalization, specifically when updating the norm to `LogNorm` after a colorbar has been created. The error "Invalid vmin or vmax" suggests a problem with how these parameters are validated or applied during the update. However, without explicit details on the incorrect behavior within the `update_scalarmappable` method or the `LogNorm` implementation, we can hypothesize a potential patch that ensures `vmin` and `vmax` are correctly handled when the norm is updated.
+
+Please note, the following patch is speculative and aims to address the potential cause based on the provided context. It assumes that the issue might be related to the need for revalidating or correctly applying `vmin` and `vmax` values when the norm is changed to `LogNorm`.
+
+# modification 1
+```python
+<file>lib/matplotlib/collections.py</file>
+<original>if self._A is not None:
+    # QuadMesh can map 2d arrays (but pcolormesh supplies 1d array)
+    if self._A.ndim > 1 and not isinstance(self, QuadMesh):
+        raise ValueError('Collections can only map rank 1 arrays')
+    if np.iterable(self._alpha):
+        if self._alpha.size != self._A.size:
+            raise ValueError(
+                f'Data array shape, {self._A.shape} '
+                'is incompatible with alpha array shape, '
+                f'{self._alpha.shape}. '
+                'This can occur with the deprecated '
+                'behavior of the "flat" shading option, '
+                'in which a row and/or column of the data '
+                'array is dropped.')
+        # pcolormesh, scatter, maybe others flatten their _A
+        self._alpha = self._alpha.reshape(self._A.shape)
+    self._mapped_colors = self.to_rgba(self._A, self._alpha)</original>
+<patched>if self._A is not None:
+    # Ensure vmin and vmax are correctly applied for LogNorm or other norms
+    if hasattr(self.norm, 'vmin') and hasattr(self.norm, 'vmax'):
+        self.norm.vmin = np.min(self._A) if self.norm.vmin is None else self.norm.vmin
+        self.norm.vmax = np.max(self._A) if self.norm.vmax is None else self.norm.vmax
+
+    # QuadMesh can map 2d arrays (but pcolormesh supplies 1d array)
+    if self._A.ndim > 1 and not isinstance(self, QuadMesh):
+        raise ValueError('Collections can only map rank 1 arrays')
+    if np.iterable(self._alpha):
+        if self._alpha.size != self._A.size:
+            raise ValueError(
+                f'Data array shape, {self._A.shape} '
+                'is incompatible with alpha array shape, '
+                f'{self._alpha.shape}. '
+                'This can occur with the deprecated '
+                'behavior of the "flat" shading option, '
+                'in which a row and/or column of the data '
+                'array is dropped.')
+        # pcolormesh, scatter, maybe others flatten their _A
+        self._alpha = self._alpha.reshape(self._A.shape)
+    self._mapped_colors = self.to_rgba(self._A, self._alpha)</patched>
+```
+
+This patch adds a check and adjustment for `vmin` and `vmax` within the `update_scalarmappable` method, ensuring that if the norm is set and has `vmin` and `vmax` attributes, they are correctly applied based on the data array (`_A`). This approach aims to address potential issues with `vmin` and `vmax` validation or application when the norm is updated, especially in interactive scenarios where the colorbar and norm might be updated after initial plot creation.
+
+Remember, actual implementation and testing are crucial for validating whether this patch correctly addresses the issue without introducing other problems.

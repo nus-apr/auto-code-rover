@@ -1,0 +1,35 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 425db22c..bcfe4a23 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -87,6 +87,8 @@ class SessionRedirectMixin(object):
+ 
+         i = 0
+ 
++        # Initialize current_method with the method of the original request
++        current_method = req.method
+         while resp.is_redirect:
+             prepared_request = req.copy()
+ 
+@@ -135,7 +137,20 @@ class SessionRedirectMixin(object):
+             if resp.status_code == codes.moved and method == 'POST':
+                 method = 'GET'
+ 
+-            prepared_request.method = method
++            # Instead of directly setting the method on the prepared_request,
++            # maintain a variable to track the current effective method across redirects.
++            # This change assumes the addition of a 'current_method' variable initialized with req.method at the start of the resolve_redirects method.
++            
++            # Check if the redirect response requires a method change and update current_method accordingly
++            if (resp.status_code == codes.see_other and method != 'HEAD') or \
++               (resp.status_code == codes.found and method != 'HEAD') or \
++               (resp.status_code == codes.moved and method == 'POST'):
++                current_method = 'GET'
++            else:
++                current_method = method  # Preserve the current method if no change is required
++            
++            # Apply the current effective method to the prepared request
++            prepared_request.method = current_method
+ 
+             # https://github.com/kennethreitz/requests/issues/1084
+             if resp.status_code not in (codes.temporary, codes.resume):

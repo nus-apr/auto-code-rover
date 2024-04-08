@@ -1,0 +1,42 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index e19c881cda..faadad8e71 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -337,12 +337,18 @@ def serializer_factory(value):
+         value = value.__reduce__()[1][0]
+ 
+     if isinstance(value, models.Field):
++        # Ensure the migration writer knows to import models when a field is serialized
++        MigrationWriter.needs_models_import = True
+         return ModelFieldSerializer(value)
+     if isinstance(value, models.manager.BaseManager):
++        # Ensure the migration writer knows to import models when a manager is serialized
++        MigrationWriter.needs_models_import = True
+         return ModelManagerSerializer(value)
+     if isinstance(value, Operation):
+         return OperationSerializer(value)
+-    if isinstance(value, type):
++    if isinstance(value, type) and issubclass(value, models.Model):
++        # Ensure the migration writer knows to import models when a model class is serialized
++        MigrationWriter.needs_models_import = True
+         return TypeSerializer(value)
+     # Anything that knows how to deconstruct itself.
+     if hasattr(value, 'deconstruct'):
+diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
+index 4918261fb0..e66313be2a 100644
+--- a/django/db/migrations/writer.py
++++ b/django/db/migrations/writer.py
+@@ -163,8 +163,11 @@ class MigrationWriter:
+                 self.needs_manual_porting = True
+ 
+         # django.db.migrations is always used, but models import may not be.
+-        # If models import exists, merge it with migrations import.
+-        if "from django.db import models" in imports:
++        # Ensure models import is added if any model or field class is referenced.
++        models_import_needed = "from django.db import models" in imports or any(
++            isinstance(value, (models.Model, models.Field)) for value in self.migration.operations
++        )
++        if models_import_needed:
+             imports.discard("from django.db import models")
+             imports.add("from django.db import migrations, models")
+         else:

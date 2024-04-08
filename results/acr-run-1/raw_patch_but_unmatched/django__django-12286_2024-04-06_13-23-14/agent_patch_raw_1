@@ -1,0 +1,34 @@
+Given the context and understanding of the issue, the patch would involve modifying the system check that raises `translation.E004` to incorporate logic that allows for the use of base languages when specific sublanguages are not listed in `LANGUAGES`. Since the exact location and code snippet that raises `translation.E004` were not provided, I will outline a conceptual patch based on the understanding of Django's language handling mechanisms.
+
+Assuming the validation logic that raises `translation.E004` is simplistic and does not account for the nuanced handling of language codes (specifically, the allowance of base languages when sublanguages are not available), the patch would introduce a check similar to what `get_supported_language_variant` does in `trans_real.py`.
+
+# modification 1
+```python
+<file>django/core/checks/translation.py</file>
+<original>
+# Hypothetical original code snippet that raises translation.E004
+if settings.LANGUAGE_CODE not in settings.LANGUAGES:
+    errors.append(Error(
+        'You have provided a value for the LANGUAGE_CODE setting that is not in the LANGUAGES setting.',
+        id='translation.E004',
+    ))
+</original>
+<patched>
+from django.utils.translation.trans_real import get_supported_language_variant
+
+# Attempt to find a supported language variant for the given LANGUAGE_CODE.
+# This includes checking for base languages if a specific sublanguage is not available.
+try:
+    get_supported_language_variant(settings.LANGUAGE_CODE)
+except LookupError:
+    # If no supported language variant is found, raise translation.E004.
+    errors.append(Error(
+        'You have provided a value for the LANGUAGE_CODE setting that is not supported.',
+        id='translation.E004',
+    ))
+</patched>
+```
+
+This modification leverages the existing logic in `get_supported_language_variant` to check if the `LANGUAGE_CODE` setting corresponds to a supported language or a valid base language of a more specific sublanguage. If `get_supported_language_variant` raises a `LookupError`, it indicates that neither the specific sublanguage nor its base language is supported, and only then is `translation.E004` raised.
+
+Please note, the above modification is conceptual and assumes a direct correlation between the system check's logic and the handling of `LANGUAGE_CODE` settings. The actual implementation may require adjustments based on the specific structure and flow of the Django checks framework.

@@ -1,0 +1,36 @@
+Given the constraints and the need to address the issue without causing test failures, a more conservative approach is required. The initial attempt aimed to directly convert non-numeric labels to a numeric format within the `mutual_info_score` function. However, considering the feedback, it's important to ensure compatibility and avoid altering the behavior for existing users who rely on the current functionality.
+
+A revised approach would involve adding a pre-validation step to handle non-numeric data more gracefully, ensuring that any modifications do not impact the existing functionality and pass all tests. This could involve a check to see if the data is already in a suitable numeric format and only applying transformations if necessary. Additionally, it's crucial to maintain the original behavior when numeric data is provided.
+
+Given the limitations of the initial patch and the need to avoid test failures, here's a revised patch that focuses on ensuring compatibility and addressing the issue without altering the core functionality of the `mutual_info_score` method.
+
+# modification 1
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</original>
+<patched>if contingency is None:
+        # Ensure input is numeric or convertible to numeric
+        try:
+            labels_true = np.array(labels_true, dtype=np.float64)
+            labels_pred = np.array(labels_pred, dtype=np.float64)
+        except ValueError:
+            # Fallback for non-numeric labels: Encode labels as categories
+            from sklearn.preprocessing import LabelEncoder
+            le = LabelEncoder()
+            labels_true = le.fit_transform(labels_true)
+            labels_pred = le.transform(labels_pred)
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</patched>
+```
+
+This revised patch attempts to first convert the labels to a numeric format directly. If this conversion fails due to the presence of non-numeric data (e.g., strings), it falls back to using `LabelEncoder` to transform the labels into a numeric format. This approach aims to preserve the original behavior when possible, while providing a robust fallback for handling non-numeric labels. This should address the issue without introducing changes that could cause test failures, assuming the tests expect the function to handle numeric inputs directly.

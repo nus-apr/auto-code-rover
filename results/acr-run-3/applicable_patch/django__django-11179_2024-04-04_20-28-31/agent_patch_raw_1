@@ -1,0 +1,21 @@
+Based on the retrieved context and the issue described, here is a proposed patch to address the issue of not setting the primary key (`pk`) to `None` on instances of models without any dependencies after they have been deleted. This patch modifies the `delete` method in the `Model` class to include setting the `pk` to `None` after successful deletion.
+
+# modification 1
+```python
+<file>django/db/models/base.py</file>
+<original>        collector = Collector(using=using)
+        collector.collect([self], keep_parents=keep_parents)
+        return collector.delete()</original>
+<patched>        collector = Collector(using=using)
+        collector.collect([self], keep_parents=keep_parents)
+        result = collector.delete()
+        # Set the primary key to None after successful deletion
+        self.pk = None
+        return result</patched>
+```
+
+This modification directly addresses the issue by adding a line to set the `pk` attribute of the model instance to `None` after the `collector.delete()` call has been made. This ensures that once a model instance is deleted from the database, its `pk` attribute reflects that it no longer corresponds to an entry in the database.
+
+Please note, this patch assumes that setting the `pk` to `None` is the desired behavior across all use cases in the application. If this behavior should only apply under certain conditions (e.g., only for models without dependencies), additional logic would need to be introduced to check those conditions before setting the `pk` to `None`.
+
+Additionally, thorough testing should be conducted to ensure this change does not introduce unintended side effects, especially in complex applications with extensive use of Django's ORM features. This includes testing with models that have various types of relationships and ensuring that the new behavior aligns with the expectations for Django signals related to model deletion (`pre_delete` and `post_delete`).

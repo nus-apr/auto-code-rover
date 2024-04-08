@@ -1,0 +1,35 @@
+# modification 1
+```python
+<file>django/contrib/sessions/backends/base.py</file>
+<original>encoded_data = base64.b64decode(session_data.encode('ascii'))</original>
+<patched>try:
+    encoded_data = base64.b64decode(session_data.encode('ascii'), validate=True)
+except binascii.Error:
+    raise SuspiciousSession("Session data corrupted or malformed")</patched>
+```
+
+# modification 2
+```python
+<file>django/contrib/sessions/backends/base.py</file>
+<original>except Exception as e:
+    # ValueError, SuspiciousOperation, unpickling exceptions. If any of
+    # these happen, just return an empty dictionary (an empty session).
+    if isinstance(e, SuspiciousOperation):
+        logger = logging.getLogger('django.security.%s' % e.__class__.__name__)
+        logger.warning(str(e))
+    return {}</original>
+<patched>except Exception as e:
+    # ValueError, SuspiciousOperation, unpickling exceptions, binascii.Error. If any of
+    # these happen, just return an empty dictionary (an empty session).
+    if isinstance(e, (SuspiciousOperation, binascii.Error)):
+        logger = logging.getLogger('django.security.%s' % e.__class__.__name__)
+        logger.warning(str(e))
+    return {}</patched>
+```
+
+**Explanation**:
+- **Modification 1**: This patch adds error handling for base64 decoding errors directly within the `_legacy_decode` method. By adding `validate=True` to the `b64decode` call, it explicitly checks for correct padding and valid base64 data, raising a `binascii.Error` if the data is malformed. This is caught and re-raised as a `SuspiciousSession` exception, which is more descriptive and can be handled appropriately further up the call stack.
+  
+- **Modification 2**: This patch updates the exception handling block to include `binascii.Error` in the list of exceptions that trigger a warning log. This ensures that any issues with base64 decoding are logged correctly, providing visibility into decoding failures due to malformed session data. 
+
+These modifications aim to improve the robustness of session data handling, especially for legacy formatted data, by ensuring that decoding errors do not lead to crashes but are instead handled gracefully and logged for further investigation.

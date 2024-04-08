@@ -1,0 +1,60 @@
+# modification 1
+```python
+<file>django/db/backends/base/creation.py</file>
+<original>if self.connection.settings_dict['TEST']['MIGRATE']:
+    # We report migrate messages at one level lower than that
+    # requested. This ensures we don't get flooded with messages during
+    # testing (unless you really ask to be flooded).
+    call_command(
+        'migrate',
+        verbosity=max(verbosity - 1, 0),
+        interactive=False,
+        database=self.connection.alias,
+        run_syncdb=True,
+    )</original>
+<patched># Check if 'MIGRATE' is in the 'TEST' settings and only then decide to migrate or not.
+if self.connection.settings_dict['TEST'].get('MIGRATE', True):
+    # We report migrate messages at one level lower than that
+    # requested. This ensures we don't get flooded with messages during
+    # testing (unless you really ask to be flooded).
+    call_command(
+        'migrate',
+        verbosity=max(verbosity - 1, 0),
+        interactive=False,
+        database=self.connection.alias,
+        run_syncdb=True,
+    )</patched>
+```
+
+# modification 2
+```python
+<file>django/db/backends/base/creation.py</file>
+<original>if serialize:
+    self.connection._test_serialized_contents = self.serialize_db_to_string()</original>
+<patched># Before serializing, check if 'MIGRATE' is False, and if so, skip serialization to avoid errors with missing tables.
+if serialize and self.connection.settings_dict['TEST'].get('MIGRATE', True):
+    self.connection._test_serialized_contents = self.serialize_db_to_string()</patched>
+```
+
+# modification 3
+```python
+<file>django/test/utils.py</file>
+<original>connection.creation.create_test_db(
+    verbosity=verbosity,
+    autoclobber=not interactive,
+    keepdb=keepdb,
+    serialize=connection.settings_dict['TEST'].get('SERIALIZE', True),
+)</original>
+<patched># Add a check to ensure that if 'MIGRATE' is False, 'SERIALIZE' is also set to False to avoid attempting to serialize a potentially incomplete database schema.
+serialize_option = connection.settings_dict['TEST'].get('SERIALIZE', True)
+if not connection.settings_dict['TEST'].get('MIGRATE', True):
+    serialize_option = False
+connection.creation.create_test_db(
+    verbosity=verbosity,
+    autoclobber=not interactive,
+    keepdb=keepdb,
+    serialize=serialize_option,
+)</patched>
+```
+
+These modifications ensure that the Django test runner respects the `MIGRATE: False` setting by adjusting the serialization behavior accordingly. The first modification explicitly checks the `MIGRATE` setting before running migrations. The second modification prevents serialization if migrations are skipped, addressing the issue of missing tables. The third modification ensures that the `serialize` parameter passed to `create_test_db` is set to `False` when migrations are disabled, further aligning the test database setup process with the user's configuration.

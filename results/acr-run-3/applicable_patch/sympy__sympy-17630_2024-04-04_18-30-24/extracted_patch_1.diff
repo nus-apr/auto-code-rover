@@ -1,0 +1,49 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 95302a05ca..83104db2e4 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -162,9 +162,17 @@ def structurally_equal(self, other):
+             and self.colblocksizes == other.colblocksizes)
+ 
+     def _blockmul(self, other):
++        from sympy import ZeroMatrix
+         if (isinstance(other, BlockMatrix) and
+                 self.colblocksizes == other.rowblocksizes):
+-            return BlockMatrix(self.blocks*other.blocks)
++            new_blocks = [[None for _ in range(len(other.blocks[0]))] for _ in range(len(self.blocks))]
++            for i in range(len(self.blocks)):
++                for j in range(len(other.blocks[0])):
++                    sum_blocks = ZeroMatrix(self.blocks[i][0].rows, other.blocks[0][j].cols)
++                    for k in range(len(self.blocks[0])):
++                        sum_blocks += self.blocks[i][k] * other.blocks[k][j]
++                    new_blocks[i][j] = sum_blocks
++            return BlockMatrix(new_blocks)
+ 
+         return self * other
+ 
+@@ -464,13 +472,22 @@ def bc_matmul(expr):
+     while (i+1 < len(matrices)):
+         A, B = matrices[i:i+2]
+         if isinstance(A, BlockMatrix) and isinstance(B, BlockMatrix):
+-            matrices[i] = A._blockmul(B)
++            try:
++                matrices[i] = A._blockmul(B)
++            except AttributeError:
++                matrices[i] = ZeroMatrix(A.rows, B.cols)
+             matrices.pop(i+1)
+         elif isinstance(A, BlockMatrix):
+-            matrices[i] = A._blockmul(BlockMatrix([[B]]))
++            try:
++                matrices[i] = A._blockmul(BlockMatrix([[B]]))
++            except AttributeError:
++                matrices[i] = ZeroMatrix(A.rows, B.cols)
+             matrices.pop(i+1)
+         elif isinstance(B, BlockMatrix):
+-            matrices[i] = BlockMatrix([[A]])._blockmul(B)
++            try:
++                matrices[i] = BlockMatrix([[A]])._blockmul(B)
++            except AttributeError:
++                matrices[i] = ZeroMatrix(A.rows, B.cols)
+             matrices.pop(i+1)
+         else:
+             i+=1

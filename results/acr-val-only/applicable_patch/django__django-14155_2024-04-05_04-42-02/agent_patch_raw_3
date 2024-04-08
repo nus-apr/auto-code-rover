@@ -1,0 +1,31 @@
+Given the feedback and the need to accurately address the issue without causing test failures, it seems there was a misunderstanding in the approach to modifying the `__repr__` method for `ResolverMatch`. The initial patches attempted to directly modify the representation of the `func` attribute without correctly handling the case where `self.func` is not a `functools.partial` object or not handling the representation accurately. Let's correct this approach by ensuring we properly check and format the `func` attribute, taking into account the structure of `functools.partial` objects and ensuring compatibility with all types of `func` values.
+
+# modification 1
+```python
+<file>django/urls/resolvers.py</file>
+<original>    def __repr__(self):
+        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
+            self._func_path, self.args, self.kwargs, self.url_name,
+            self.app_names, self.namespaces, self.route,
+        )
+</original>
+<patched>    def __repr__(self):
+        from functools import partial
+        # Determine the appropriate representation for the func attribute
+        if isinstance(self.func, partial):
+            func_repr = f"{self.func.func.__module__}.{self.func.func.__name__}"
+            if self.func.args:
+                func_repr += f", args={self.func.args}"
+            if self.func.keywords:
+                func_repr += f", kwargs={self.func.keywords}"
+            func_repr = f"functools.partial({func_repr})"
+        else:
+            func_repr = self._func_path
+        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
+            func_repr, self.args, self.kwargs, self.url_name,
+            self.app_names, self.namespaces, self.route,
+        )
+</patched>
+```
+
+This patch takes a more refined approach by checking if `self.func` is an instance of `functools.partial`. If it is, it constructs a detailed representation that includes the module and name of the underlying function, as well as any arguments and keyword arguments supplied to it, formatted in a way that clearly indicates it's a `functools.partial` object. If `self.func` is not a `functools.partial`, it defaults to using `self._func_path` for the representation. This approach aims to provide detailed and useful information in the `__repr__` output for debugging purposes, especially when `functools.partial` objects are used, without affecting the representation of other types of functions.

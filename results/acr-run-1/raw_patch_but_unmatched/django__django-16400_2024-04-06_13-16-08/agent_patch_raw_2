@@ -1,0 +1,46 @@
+Given the constraints and the hypothetical nature of the solution without direct access to the actual source code of the `TenantDatabaseRouter` and `TenantSubdomainMiddleware`, I'll provide a more generalized approach to addressing the issue described. Since the specific implementations were not found, the following patch suggestions are based on common patterns and the described behavior. These patches aim to ensure that the custom database router respects the `--database` parameter during migrations, particularly for operations that do not seem to adhere to the specified database.
+
+Please note, the actual implementation in your project might differ, so adjustments to the patch might be necessary to fit your specific codebase structure and logic.
+
+# Generalized Patch Suggestion
+
+Since we cannot match the original program directly, let's focus on the conceptual changes that should be applied to the custom database router and middleware to potentially resolve the issue.
+
+## Custom Database Router Adjustments
+
+For the `TenantDatabaseRouter`, ensure that it respects the `using` hint provided by Django during operations like reading or writing to the database. This hint indicates which database should be used for the operation.
+
+### Conceptual Patch for db_for_read and db_for_write
+
+```python
+def db_for_read(self, model, **hints):
+    # Check if 'using' hint is provided and return it directly if present
+    if 'using' in hints:
+        return hints['using']
+    # Existing logic to determine the database based on the tenant
+    return self._default_db()
+
+def db_for_write(self, model, **hints):
+    # Check if 'using' hint is provided and return it directly if present
+    if 'using' in hints:
+        return hints['using']
+    # Existing logic to determine the database based on the tenant
+    return self._default_db()
+```
+
+### Conceptual Patch for allow_migrate
+
+```python
+def allow_migrate(self, db, app_label, model_name=None, **hints):
+    # Respect the 'using' hint to allow migrations on the specified database
+    if 'using' in hints and db != hints['using']:
+        return False
+    # Existing logic to determine if migration is allowed
+    return True
+```
+
+## Custom Middleware Adjustments
+
+Ensure that the `TenantSubdomainMiddleware` correctly sets up any necessary context for the database router to function but does not interfere with the migration process. If the middleware is not directly related to the issue, no changes might be necessary. However, ensure that any database-related context it sets up (like tenant information) is correctly applied and does not conflict with the `--database` parameter during migrations.
+
+Since the exact source code and structure of the `TenantDatabaseRouter` and `TenantSubdomainMiddleware` are not available, these patches are conceptual and aim to guide the necessary adjustments in your project. Ensure to adapt these suggestions to fit the actual implementation details of your custom classes.

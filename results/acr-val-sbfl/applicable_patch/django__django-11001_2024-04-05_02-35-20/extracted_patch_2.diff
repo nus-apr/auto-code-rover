@@ -1,0 +1,26 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 7649c39262..574cda35e9 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -353,11 +353,18 @@ class SQLCompiler:
+             # not taken into account so we strip it. When this entire method
+             # is refactored into expressions, then we can check each part as we
+             # generate it.
+-            without_ordering = self.ordering_parts.search(sql).group(1)
++            # Enhance the duplicate detection logic to consider the entire SQL expression
++            # Normalize SQL by removing leading/trailing whitespace from each line
++            sql_normalized_lines = [line.strip() for line in sql.splitlines()]
++            # Join the normalized lines with a single space to preserve SQL syntax without altering semantics
++            sql_normalized = ' '.join(sql_normalized_lines).strip()
++            without_ordering = self.ordering_parts.search(sql_normalized).group(1)
+             params_hash = make_hashable(params)
+-            if (without_ordering, params_hash) in seen:
++            # Use a more comprehensive key for the 'seen' set to include both the normalized SQL and parameters
++            if (without_ordering, params_hash) not in seen:
++                seen.add((without_ordering, params_hash))
++            else:
+                 continue
+-            seen.add((without_ordering, params_hash))
+             result.append((resolved, (sql, params, is_ref)))
+         return result
+ 

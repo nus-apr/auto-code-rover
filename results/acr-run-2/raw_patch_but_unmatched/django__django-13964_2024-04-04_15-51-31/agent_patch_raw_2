@@ -1,0 +1,48 @@
+Given the constraints and the nature of the discussion, it's clear that providing a precise patch without access to the actual codebase or specific file paths is challenging. However, I can offer a conceptual solution to the issue described, which involves ensuring that the `ForeignKey` relationship correctly reflects changes to the primary key of the related object. This solution is based on general Django ORM practices and understanding.
+
+Since we cannot directly modify the program, let's outline a conceptual approach that could be adapted to the specific project:
+
+### Conceptual Patch
+
+The issue arises when the `ForeignKey` field (`product_id` in `Order`) does not get updated after the related `Product` instance's primary key (`sku`) is set and saved. This problem is particularly tricky because it involves the timing of when the `ForeignKey` field is updated to reflect the primary key of the related object.
+
+#### Approach:
+
+1. **Ensure Immediate Update of ForeignKey Field**: Modify the logic where the `ForeignKey` relationship is established between `Order` and `Product` to ensure that any change to the `Product` instance's primary key immediately updates the `Order` instance's `ForeignKey` field.
+
+2. **Override the Save Method**: If the application logic allows setting the `Product` instance to the `Order` before the `Product`'s primary key is determined, override the `save` method of the `Order` model to check and update the `ForeignKey` field if necessary.
+
+#### Conceptual Code:
+
+```python
+# Assuming models.py contains the Order and Product models
+
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    def save(self, *args, **kwargs):
+        # Ensure the product_id field is updated based on the related Product instance's primary key
+        if self.product_id is None and self.product.pk is not None:
+            self.product_id = self.product.pk
+        super().save(*args, **kwargs)
+```
+
+#### Usage Adjustment:
+
+Ensure that the `Product` instance is fully initialized and saved before associating it with an `Order` instance. This can be enforced in the view or logic where instances of these models are created and saved.
+
+```python
+from django.db import transaction
+
+with transaction.atomic():
+    product = Product(sku="foo")
+    product.save()  # Ensure the product is saved and has a primary key
+
+    order = Order()
+    order.product = product
+    order.save()  # At this point, product_id should correctly reference the Product's primary key
+```
+
+### Note:
+
+This conceptual solution aims to address the issue based on the description provided. However, the exact implementation may need to be adjusted to fit the specific details of the project's codebase, Django version, and the models involved. Testing in a development environment is crucial to ensure that the solution effectively resolves the issue without unintended side effects.

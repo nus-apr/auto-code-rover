@@ -1,0 +1,39 @@
+Given the context and the nature of the issue, it seems the problem might be related to how SQLite handles concurrent access, especially when using persistent databases in tests. SQLite, being a file-based database, has limitations in handling concurrent writes, which can lead to the "database is locked" error. However, without changing the core behavior of SQLite or Django's handling of databases, we can attempt to mitigate the issue by introducing explicit transaction management in the test setup to ensure that database operations are more controlled and less likely to conflict.
+
+Here's a patch that introduces transaction management around the creation of superusers and books in the `setUpTestData` method. This approach aims to reduce the likelihood of encountering a database lock by ensuring that these operations are committed as a single transaction, which might help in scenarios where concurrent access patterns are causing locks.
+
+# modification 1
+```python
+<file>tests/admin_views/test_multidb.py</file>
+<original>    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            cls.superusers[db] = User.objects.create_superuser(
+                username='admin', password='something', email='test@test.org',
+            )
+            b = Book(name='Test Book')
+            b.save(using=db)
+            cls.test_book_ids[db] = b.id
+</original>
+<patched>    from django.db import transaction
+
+    def setUpTestData(cls):
+        cls.superusers = {}
+        cls.test_book_ids = {}
+        for db in connections:
+            Router.target_db = db
+            with transaction.atomic(using=db):
+                cls.superusers[db] = User.objects.create_superuser(
+                    username='admin', password='something', email='test@test.org',
+                )
+                b = Book(name='Test Book')
+                b.save(using=db)
+                cls.test_book_ids[db] = b.id
+</patched>
+```
+
+This modification wraps the operations within each database connection in a `transaction.atomic` block, specifying the `using=db` argument to ensure that the transaction is applied to the correct database. This should help in ensuring that the operations are executed more atomically, reducing the chance of encountering a lock due to concurrent access.
+
+Please note, this patch assumes that the `transaction` module is available from `django.db`, and that the `Router` and model classes (`User`, `Book`) are correctly handling database routing and operations. Further testing is required to ensure that this change effectively resolves the issue without introducing other side effects, especially in complex test environments or when using multiple databases.

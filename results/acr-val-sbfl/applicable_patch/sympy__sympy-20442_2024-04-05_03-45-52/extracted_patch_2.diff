@@ -1,0 +1,29 @@
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..1d553a2146 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -102,11 +102,22 @@ def get_total_scale_factor(expr):
+         return expr
+ 
+     depmat = _get_conversion_matrix_for_expr(expr, target_units, unit_system)
++    # Instead of returning the expression directly when no conversion matrix is found,
++    # attempt to decompose the expression and apply unit conversion to individual components.
+     if depmat is None:
+-        return expr
++        if isinstance(expr, (Mul, Add)):
++            # Apply conversion to each component of the expression separately.
++            return expr.func(*[convert_to(arg, target_units, unit_system) for arg in expr.args])
++        else:
++            return expr
+ 
+     expr_scale_factor = get_total_scale_factor(expr)
+-    return expr_scale_factor * Mul.fromiter((1/get_total_scale_factor(u) * u) ** p for u, p in zip(target_units, depmat))
++    # Ensure that the final expression is constructed in a way that respects the original unit structure.
++    # This involves recalculating the scale factor for the converted units and applying it correctly.
++    converted_units_expr = Mul.fromiter((u ** p for u, p in zip(target_units, depmat)), evaluate=False)
++    final_expr = expr_scale_factor * converted_units_expr
++    # Use simplify to clean up the expression, ensuring that any unnecessary complexities are removed.
++    return simplify(final_expr)
+ 
+ 
+ def quantity_simplify(expr):

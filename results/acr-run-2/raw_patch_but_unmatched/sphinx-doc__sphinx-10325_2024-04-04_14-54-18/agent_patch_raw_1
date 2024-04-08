@@ -1,0 +1,43 @@
+Given the context and the nature of the issue with Sphinx's `:inherited-members:` option, a hypothetical patch could involve modifying the Sphinx extension responsible for handling class documentation, typically found in the `autodoc` extension. This patch aims to extend the `:inherited-members:` option to accept a list of classes from which members should be ignored. Please note, the actual implementation might differ based on the current Sphinx version and its internal architecture. The following is a conceptual representation of what such modifications could look like:
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>
+if self.options.inherited_members:
+    # Original logic for handling inherited members
+</original>
+<patched>
+# Check if inherited_members is a list and filter base classes accordingly
+if isinstance(self.options.inherited_members, list):
+    base_classes_to_ignore = self.options.inherited_members
+    def should_document_member(member):
+        return member.__class__.__name__ not in base_classes_to_ignore
+    self.options.inherited_members = should_document_member
+else:
+    # Fallback to the original single class or all handling
+    if self.options.inherited_members:
+        # Original logic for handling inherited members
+</patched>
+```
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>
+def get_object_members(self, want_all):
+    # Logic to get members from the object
+</original>
+<patched>
+def get_object_members(self, want_all):
+    members = None
+    # Modification to use the should_document_member function from modification 1
+    if hasattr(self.options, 'inherited_members') and callable(self.options.inherited_members):
+        members = [member for member in members if self.options.inherited_members(member)]
+    # Rest of the original logic to get members
+</patched>
+```
+
+This patch introduces a check to determine if `:inherited-members:` is specified as a list and, if so, uses this list to filter out members from the specified base classes. The `should_document_member` function is a placeholder for the logic that would determine whether a member should be documented based on its class name not being in the `base_classes_to_ignore` list. 
+
+Please note, this is a simplified and conceptual patch. Actual implementation might require more comprehensive changes, including handling edge cases, integrating with Sphinx's configuration system, and ensuring compatibility with other parts of the Sphinx ecosystem. Additionally, testing and documentation updates would be necessary to complete this feature enhancement.

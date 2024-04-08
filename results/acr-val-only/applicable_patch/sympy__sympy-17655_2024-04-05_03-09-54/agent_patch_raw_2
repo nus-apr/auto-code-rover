@@ -1,0 +1,35 @@
+Given the feedback, it seems the initial approach might not have fully addressed the issue or introduced unintended side effects. Let's consider a more robust solution that directly addresses the problem without potentially affecting other functionalities. The goal is to enhance the `__add__` method to better handle cases where the operation involves a `Point` object and a `Mul` object, ensuring both `point1 + sympy.sympify(2.0) * point2` and `point1 + point2 * sympy.sympify(2.0)` work as expected.
+
+# modification 1
+```python
+<file>sympy/geometry/point.py</file>
+<original>        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</original>
+<patched>        from sympy.core.mul import Mul
+        from sympy.core import sympify
+
+        # Attempt to handle multiplication of a Point by a scalar in a commutative manner.
+        if isinstance(other, Mul):
+            for arg in other.args:
+                if isinstance(arg, Point):
+                    # Extract the scalar part of the multiplication.
+                    scalar_part = other / arg
+                    # Ensure the scalar part is simplified and then perform the operation.
+                    scalar_part_simplified = sympify(scalar_part)
+                    return self + (arg * scalar_part_simplified)
+        
+        try:
+            s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+        except TypeError:
+            raise GeometryError("Don't know how to add {} and a Point object".format(other))
+
+        coords = [simplify(a + b) for a, b in zip(s, o)]
+        return Point(coords, evaluate=False)</patched>
+```
+
+This revised patch focuses on identifying when the `other` operand is a `Mul` object involving a `Point` and a scalar. It iterates through the arguments of the `Mul` object to find the `Point` and then calculates the scalar part by dividing the `Mul` object by the found `Point`. This scalar part is then simplified using `sympify` to ensure it's in a form that can be multiplied with the `Point`. Finally, it performs the addition operation with the `self` `Point` and the product of the found `Point` and its scalar multiplier. This approach should ensure that the addition operation works correctly regardless of the order of operands, addressing the issue more directly and without introducing side effects.

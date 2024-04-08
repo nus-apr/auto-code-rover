@@ -1,0 +1,46 @@
+{
+    "task_id": "sympy__sympy-19254",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.7",
+        "env_name": "setup_sympy__sympy__1.7",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/polys/tests/test_factortools.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-19254",
+        "base_commit": "e0ef1da13e2ab2a77866c05246f73c871ca9388c",
+        "hints_text": "",
+        "created_at": "2020-05-04T13:38:13Z",
+        "test_patch": "diff --git a/sympy/polys/tests/test_factortools.py b/sympy/polys/tests/test_factortools.py\n--- a/sympy/polys/tests/test_factortools.py\n+++ b/sympy/polys/tests/test_factortools.py\n@@ -27,7 +27,8 @@ def test_dmp_trial_division():\n \n def test_dup_zz_mignotte_bound():\n     R, x = ring(\"x\", ZZ)\n-    assert R.dup_zz_mignotte_bound(2*x**2 + 3*x + 4) == 32\n+    assert R.dup_zz_mignotte_bound(2*x**2 + 3*x + 4) == 6\n+    assert R.dup_zz_mignotte_bound(x**3 + 14*x**2 + 56*x + 64) == 152\n \n \n def test_dmp_zz_mignotte_bound():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "sympy.polys.factortools.dmp_zz_mignotte_bound improvement\nThe method `dup_zz_mignotte_bound(f, K)` can be significantly improved by using the **Knuth-Cohen bound** instead. After our research with Prof. Ag.Akritas we have implemented the Knuth-Cohen bound among others, and compare them among dozens of polynomials with different degree, density and coefficients range. Considering the results and the feedback from Mr.Kalevi Suominen, our proposal is that the mignotte_bound should be replaced by the knuth-cohen bound.\r\nAlso, `dmp_zz_mignotte_bound(f, u, K)` for mutli-variants polynomials should be replaced appropriately.\n",
+        "version": "1.7",
+        "FAIL_TO_PASS": [
+            "test_dup_zz_mignotte_bound"
+        ],
+        "PASS_TO_PASS": [
+            "test_dmp_ext_factor",
+            "test_dmp_factor_list",
+            "test_dmp_trial_division",
+            "test_dmp_zz_factor",
+            "test_dmp_zz_mignotte_bound",
+            "test_dmp_zz_wang",
+            "test_dup_cyclotomic_p",
+            "test_dup_ext_factor",
+            "test_dup_factor_list",
+            "test_dup_irreducible_p",
+            "test_dup_trial_division",
+            "test_dup_zz_cyclotomic_factor",
+            "test_dup_zz_cyclotomic_poly",
+            "test_dup_zz_factor",
+            "test_dup_zz_hensel_lift",
+            "test_dup_zz_hensel_step",
+            "test_dup_zz_irreducible_p",
+            "test_issue_6355"
+        ],
+        "environment_setup_commit": "cffd4e0f86fefd4802349a9f9b19ed70934ea354",
+        "patch": "diff --git a/sympy/polys/factortools.py b/sympy/polys/factortools.py\n--- a/sympy/polys/factortools.py\n+++ b/sympy/polys/factortools.py\n@@ -124,13 +124,64 @@ def dmp_trial_division(f, factors, u, K):\n \n \n def dup_zz_mignotte_bound(f, K):\n-    \"\"\"Mignotte bound for univariate polynomials in `K[x]`. \"\"\"\n-    a = dup_max_norm(f, K)\n-    b = abs(dup_LC(f, K))\n-    n = dup_degree(f)\n+    \"\"\"\n+    The Knuth-Cohen variant of Mignotte bound for\n+    univariate polynomials in `K[x]`.\n \n-    return K.sqrt(K(n + 1))*2**n*a*b\n+    Examples\n+    ========\n+\n+    >>> from sympy.polys import ring, ZZ\n+    >>> R, x = ring(\"x\", ZZ)\n+\n+    >>> f = x**3 + 14*x**2 + 56*x + 64\n+    >>> R.dup_zz_mignotte_bound(f)\n+    152\n+\n+    By checking `factor(f)` we can see that max coeff is 8\n+\n+    Also consider a case that `f` is irreducible for example `f = 2*x**2 + 3*x + 4`\n+    To avoid a bug for these cases, we return the bound plus the max coefficient of `f`\n+\n+    >>> f = 2*x**2 + 3*x + 4\n+    >>> R.dup_zz_mignotte_bound(f)\n+    6\n+\n+    Lastly,To see the difference between the new and the old Mignotte bound\n+    consider the irreducible polynomial::\n+\n+    >>> f = 87*x**7 + 4*x**6 + 80*x**5 + 17*x**4 + 9*x**3 + 12*x**2 + 49*x + 26\n+    >>> R.dup_zz_mignotte_bound(f)\n+    744\n+\n+    The new Mignotte bound is 744 whereas the old one (SymPy 1.5.1) is 1937664.\n+\n+\n+    References\n+    ==========\n+\n+    ..[1] [Abbott2013]_\n+\n+    \"\"\"\n+    from sympy import binomial\n+\n+    d = dup_degree(f)\n+    delta = _ceil(d / 2)\n+    delta2 = _ceil(delta / 2)\n+\n+    # euclidean-norm\n+    eucl_norm = K.sqrt( sum( [cf**2 for cf in f] ) )\n+\n+    # biggest values of binomial coefficients (p. 538 of reference)\n+    t1 = binomial(delta - 1, delta2)\n+    t2 = binomial(delta - 1, delta2 - 1)\n+\n+    lc = K.abs(dup_LC(f, K))   # leading coefficient\n+    bound = t1 * eucl_norm + t2 * lc   # (p. 538 of reference)\n+    bound += dup_max_norm(f, K) # add max coeff for irreducible polys\n+    bound = _ceil(bound / 2) * 2   # round up to even integer\n \n+    return bound\n \n def dmp_zz_mignotte_bound(f, u, K):\n     \"\"\"Mignotte bound for multivariate polynomials in `K[X]`. \"\"\"\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/19254"
+    }
+}

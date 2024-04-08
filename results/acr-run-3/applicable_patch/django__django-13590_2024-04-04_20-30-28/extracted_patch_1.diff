@@ -1,0 +1,32 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 4648daf395..635f0884c1 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1075,12 +1075,21 @@ class Query(BaseExpression):
+                 self, reuse=can_reuse, allow_joins=allow_joins,
+             )
+         elif isinstance(value, (list, tuple)):
+-            # The items of the iterable may be expressions and therefore need
+-            # to be resolved independently.
+-            return type(value)(
+-                self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
+-                for sub_value in value
+-            )
++            # Check if 'value' is a named tuple by looking for '_fields' attribute
++            if hasattr(value, '_fields'):
++                # Named tuples have the '_fields' attribute
++                # Unpack the generator expression using '*'
++                return type(value)(
++                    *(self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
++                      for sub_value in value)
++                )
++            else:
++                # The items of the iterable may be expressions and therefore need
++                # to be resolved independently.
++                return type(value)(
++                    self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
++                    for sub_value in value
++                )
+         return value
+ 
+     def solve_lookup_type(self, lookup):

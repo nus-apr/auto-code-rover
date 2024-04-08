@@ -1,0 +1,28 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 425db22c..ea311628 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -88,7 +88,22 @@ class SessionRedirectMixin(object):
+         i = 0
+ 
+         while resp.is_redirect:
+-            prepared_request = req.copy()
++            # Instead of copying the original request, we now initialize prepared_request with None
++            # and only create a copy of the request if it's the first redirect (i.e., i == 0).
++            # For subsequent redirects, we modify the existing prepared_request to preserve changes made during the redirect chain.
++            if i == 0:
++                prepared_request = req.copy()
++            else:
++                prepared_request.method = method
++                prepared_request.url = to_native_string(url)
++                if 'Content-Length' in prepared_request.headers:
++                    del prepared_request.headers['Content-Length']
++                prepared_request.body = None
++                try:
++                    del prepared_request.headers['Cookie']
++                except KeyError:
++                    pass
++                prepared_request.prepare_cookies(prepared_request._cookies)
+ 
+             resp.content  # Consume socket so it can be released
+ 

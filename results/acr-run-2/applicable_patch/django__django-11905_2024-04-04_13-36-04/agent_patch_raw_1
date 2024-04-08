@@ -1,0 +1,47 @@
+To address the issue of preventing the use of `__isnull` lookup with non-boolean values, we need to ensure that wherever `__isnull` is used, it strictly checks for boolean values. The provided context does not show the exact points where the values passed to `__isnull` are validated, but we can infer the necessary changes based on the usage patterns and the goal of enforcing boolean-only values for `__isnull`.
+
+Given the nature of the issue, a direct patch to enforce this validation might involve changes in the ORM layer where lookups, including `__isnull`, are processed. However, without direct access to the lookup processing logic in the provided snippets, we'll focus on a conceptual patch that could be applied if we had access to the appropriate validation point in the codebase.
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>
+if contains_louter:
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, True),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</original>
+<patched>
+if contains_louter:
+    # Ensure the value passed to __isnull is a boolean
+    isnull_value = True
+    if not isinstance(isnull_value, bool):
+        raise ValueError("__isnull lookup requires a boolean value.")
+    or_null_condition, _ = self.build_filter(
+        ('%s__isnull' % trimmed_prefix, isnull_value),
+        current_negated=True, branch_negated=True, can_reuse=can_reuse)
+    condition.add(or_null_condition, OR)
+</patched>
+```
+
+This modification introduces a check to ensure that the value passed to the `__isnull` lookup is a boolean. While the original snippet directly uses `True`, in practice, this check should be applied wherever `__isnull` values are determined, potentially in a more centralized location within the ORM's filter construction logic.
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>
+).distinct().filter(plain_field__isnull=False).order_by(('-' if order == 'DESC' else '') + 'datefield')
+</original>
+<patched>
+# Assuming a more centralized validation is not feasible and checks are done at the point of use
+isnull_check_value = False
+if not isinstance(isnull_check_value, bool):
+    raise ValueError("The __isnull lookup requires a boolean value.")
+).distinct().filter(plain_field__isnull=isnull_check_value).order_by(('-' if order == 'DESC' else '') + 'datefield')
+</patched>
+```
+
+This modification similarly introduces a conceptual check for the `__isnull` lookup value in the `dates` method of `QuerySet` in `django/db/models/query.py`. The goal is to ensure that only boolean values are used with `__isnull`, aligning with the issue's objective to prevent confusion and maintain consistency.
+
+Note: These modifications are conceptual and illustrate the type of validation that could be introduced to address the issue. In practice, implementing these changes would require access to the specific points in the Django ORM where lookup values, including those for `__isnull`, are processed and validated.

@@ -1,0 +1,41 @@
+{
+    "task_id": "sympy__sympy-21055",
+    "setup_info": {
+        "repo_path": "/media/media0/yuntong/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.8",
+        "env_name": "setup_sympy__sympy__1.8",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/assumptions/tests/test_refine.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-21055",
+        "base_commit": "748ce73479ee2cd5c861431091001cc18943c735",
+        "hints_text": "",
+        "created_at": "2021-03-07T21:08:36Z",
+        "test_patch": "diff --git a/sympy/assumptions/tests/test_refine.py b/sympy/assumptions/tests/test_refine.py\n--- a/sympy/assumptions/tests/test_refine.py\n+++ b/sympy/assumptions/tests/test_refine.py\n@@ -1,5 +1,5 @@\n from sympy import (Abs, exp, Expr, I, pi, Q, Rational, refine, S, sqrt,\n-                   atan, atan2, nan, Symbol, re, im, sign)\n+                   atan, atan2, nan, Symbol, re, im, sign, arg)\n from sympy.abc import w, x, y, z\n from sympy.core.relational import Eq, Ne\n from sympy.functions.elementary.piecewise import Piecewise\n@@ -160,6 +160,10 @@ def test_sign():\n     x = Symbol('x', complex=True)\n     assert refine(sign(x), Q.zero(x)) == 0\n \n+def test_arg():\n+    x = Symbol('x', complex = True)\n+    assert refine(arg(x), Q.positive(x)) == 0\n+    assert refine(arg(x), Q.negative(x)) == pi\n \n def test_func_args():\n     class MyClass(Expr):\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "`refine()` does not understand how to simplify complex arguments\nJust learned about the refine-function, which would come in handy frequently for me.  But\r\n`refine()` does not recognize that argument functions simplify for real numbers.\r\n\r\n```\r\n>>> from sympy import *                                                     \r\n>>> var('a,x')                                                              \r\n>>> J = Integral(sin(x)*exp(-a*x),(x,0,oo))                                     \r\n>>> J.doit()\r\n\tPiecewise((1/(a**2 + 1), 2*Abs(arg(a)) < pi), (Integral(exp(-a*x)*sin(x), (x, 0, oo)), True))\r\n>>> refine(J.doit(),Q.positive(a))                                                 \r\n        Piecewise((1/(a**2 + 1), 2*Abs(arg(a)) < pi), (Integral(exp(-a*x)*sin(x), (x, 0, oo)), True))\r\n>>> refine(abs(a),Q.positive(a))                                            \r\n\ta\r\n>>> refine(arg(a),Q.positive(a))                                            \r\n\targ(a)\r\n```\r\nI cann't find any open issues identifying this.  Easy to fix, though.\r\n\r\n\n",
+        "version": "1.8",
+        "FAIL_TO_PASS": [
+            "test_arg"
+        ],
+        "PASS_TO_PASS": [
+            "test_Abs",
+            "test_Piecewise",
+            "test_atan2",
+            "test_complex",
+            "test_eval_refine",
+            "test_exp",
+            "test_func_args",
+            "test_im",
+            "test_pow1",
+            "test_pow2",
+            "test_re",
+            "test_refine_issue_12724",
+            "test_sign"
+        ],
+        "environment_setup_commit": "3ac1464b8840d5f8b618a654f9fbf09c452fe969",
+        "patch": "diff --git a/sympy/assumptions/refine.py b/sympy/assumptions/refine.py\n--- a/sympy/assumptions/refine.py\n+++ b/sympy/assumptions/refine.py\n@@ -297,6 +297,28 @@ def refine_im(expr, assumptions):\n         return - S.ImaginaryUnit * arg\n     return _refine_reim(expr, assumptions)\n \n+def refine_arg(expr, assumptions):\n+    \"\"\"\n+    Handler for complex argument\n+\n+    Explanation\n+    ===========\n+\n+    >>> from sympy.assumptions.refine import refine_arg\n+    >>> from sympy import Q, arg\n+    >>> from sympy.abc import x\n+    >>> refine_arg(arg(x), Q.positive(x))\n+    0\n+    >>> refine_arg(arg(x), Q.negative(x))\n+    pi\n+    \"\"\"\n+    rg = expr.args[0]\n+    if ask(Q.positive(rg), assumptions):\n+        return S.Zero\n+    if ask(Q.negative(rg), assumptions):\n+        return S.Pi\n+    return None\n+\n \n def _refine_reim(expr, assumptions):\n     # Helper function for refine_re & refine_im\n@@ -379,6 +401,7 @@ def refine_matrixelement(expr, assumptions):\n     'atan2': refine_atan2,\n     're': refine_re,\n     'im': refine_im,\n+    'arg': refine_arg,\n     'sign': refine_sign,\n     'MatrixElement': refine_matrixelement\n }  # type: Dict[str, Callable[[Expr, Boolean], Expr]]\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/21055"
+    }
+}

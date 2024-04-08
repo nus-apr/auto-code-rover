@@ -1,0 +1,32 @@
+Given the feedback, let's refine the approach to address the issue more precisely. The main goal is to ensure that the comparison and handling of `discrete_features` accommodate all valid types (`'auto'`, boolean, array of indices, or boolean mask) without causing errors in future numpy versions or failing tests. The original patch attempted to address these concerns but might have introduced complexity or missed the mark on ensuring compatibility with all scenarios, especially considering numpy's future changes.
+
+Let's simplify and focus on ensuring that the comparison with `'auto'` is correctly handled and that any array-like `discrete_features` are processed without assuming their type prematurely. This approach aims to maintain the original functionality while improving type handling and error messaging.
+
+# modification 1
+```python
+<file>sklearn/feature_selection/mutual_info_.py</file>
+<original>if discrete_features == 'auto':
+    discrete_features = issparse(X)</original>
+<patched>if discrete_features == 'auto':
+    discrete_features = issparse(X)
+else:
+    # Ensure discrete_features is either a boolean or a valid array-like of indices/mask without assuming its type
+    if not isinstance(discrete_features, (bool, np.ndarray, list)):
+        raise TypeError("discrete_features must be 'auto', a boolean, or an array-like of indices or mask.")
+    if isinstance(discrete_features, (list, np.ndarray)):
+        discrete_features = np.asarray(discrete_features)
+        if discrete_features.ndim > 1:
+            raise ValueError("discrete_features array must be one-dimensional.")
+        if discrete_features.dtype == bool and discrete_features.size != n_features:
+            raise ValueError("Boolean mask for discrete_features must have the same length as the number of features.")
+        if discrete_features.dtype != bool and not np.issubdtype(discrete_features.dtype, np.integer):
+            raise ValueError("Indices for discrete_features must be integers.")</patched>
+```
+
+This modification ensures that:
+- The `'auto'` case is handled as before, setting `discrete_features` based on the sparsity of `X`.
+- For non-`'auto'` values, it checks if `discrete_features` is a boolean, list, or ndarray, raising a `TypeError` if not.
+- If `discrete_features` is list-like, it is converted to an ndarray for consistent processing.
+- It adds checks to ensure that if `discrete_features` is an ndarray, it is one-dimensional, and if it's a boolean mask, its length matches the number of features. If it contains indices, they must be integers.
+
+This approach aims to correct the handling of `discrete_features` to be more robust and clear, addressing the issue's core concerns without introducing potential new failures.

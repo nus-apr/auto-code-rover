@@ -1,0 +1,30 @@
+Given the constraints and the need to address the issue without failing tests, a more nuanced approach is required. The core of the problem lies in the use of `eval` to execute potentially unsafe code represented as strings. However, completely replacing `eval` with `ast.literal_eval` might not be feasible due to the dynamic nature of the expressions SymPy needs to handle. Instead, we should focus on avoiding the execution of arbitrary code through `repr` in equality checks without limiting SymPy's capabilities.
+
+Considering the context and the need to maintain functionality, let's refine the approach:
+
+1. **Prevent execution of arbitrary code via `repr` in equality checks**: Modify the equality check mechanism to ensure that it does not rely on evaluating the `repr` of an object. This can be achieved by adding a check to see if the object being compared is a SymPy object or can be safely converted to one without evaluation.
+
+2. **Safeguard `sympify` without limiting its functionality**: Instead of changing how `sympify` evaluates expressions, which is a fundamental part of its functionality, we add a safeguard specifically for the scenario described in the issue.
+
+# modification 1
+```python
+<file>sympy/core/basic.py</file>
+<original>def __eq__(self, other):
+    from .sympify import sympify
+    other = sympify(other)
+    ...
+</original>
+<patched>def __eq__(self, other):
+    from .sympify import sympify, SympifyError
+    try:
+        other = sympify(other, strict=True)
+    except SympifyError:
+        return False
+    ...
+</patched>
+```
+
+**Explanation**:
+- **Modification 1**: This modification targets the equality check (`__eq__`) method, which is likely inherited by `Symbol` objects from a base class (e.g., `Basic`). The idea is to use the `strict=True` parameter with `sympify` within the `__eq__` method. This ensures that `sympify` only converts objects that it can safely convert without evaluating arbitrary expressions. If `sympify` raises a `SympifyError` due to the `strict` mode, it means the object cannot be safely converted, and thus, should not be considered equal, returning `False`. This approach prevents the execution of arbitrary code through `repr` during equality checks without fundamentally changing how `sympify` works or limiting SymPy's expression handling capabilities.
+
+This solution focuses on the specific scenario described in the issue (equality checks) and avoids altering the core functionality of `sympify` or `eval_expr`, which could have broader implications. It's a targeted fix that addresses the security concern without compromising the flexibility needed for symbolic computation in SymPy.

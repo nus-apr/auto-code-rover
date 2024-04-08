@@ -1,0 +1,56 @@
+# modification 1
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>canvas = property(lambda self: self.ref_artist.figure.canvas)</original>
+<patched>canvas = property(lambda self: self.ref_artist.figure.canvas if self.ref_artist.figure is not None else None)</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>    def disconnect(self):
+        """Disconnect the callbacks."""
+        for cid in self.cids:
+            self.canvas.mpl_disconnect(cid)
+        try:
+            c1 = self._c1
+        except AttributeError:
+            pass
+        else:
+            self.canvas.mpl_disconnect(c1)</original>
+<patched>    def disconnect(self):
+        """Disconnect the callbacks."""
+        if self.canvas is not None:
+            for cid in self.cids:
+                self.canvas.mpl_disconnect(cid)
+            try:
+                c1 = self._c1
+            except AttributeError:
+                pass
+            else:
+                self.canvas.mpl_disconnect(c1)</patched>
+```
+
+# modification 3
+```python
+<file>lib/matplotlib/offsetbox.py</file>
+<original>    def on_release(self, event):
+        if self._check_still_parented() and self.got_artist:
+            self.finalize_offset()
+            self.got_artist = False
+            self.canvas.mpl_disconnect(self._c1)
+
+            if self._use_blit:
+                self.ref_artist.set_animated(False)</original>
+<patched>    def on_release(self, event):
+        if self._check_still_parented() and self.got_artist:
+            self.finalize_offset()
+            self.got_artist = False
+            if self.canvas is not None:
+                self.canvas.mpl_disconnect(self._c1)
+
+            if self._use_blit:
+                self.ref_artist.set_animated(False)</patched>
+```
+
+These modifications ensure that before accessing or using the `canvas` property, there is a check to confirm that it is not `None`. This should prevent the `AttributeError: 'NoneType' object has no attribute 'canvas'` from occurring by adding safeguards around the use of `canvas` and ensuring that operations attempting to use `canvas` only proceed when it is not `None`.

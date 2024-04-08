@@ -1,0 +1,32 @@
+# modification 1
+```python
+<file>django/core/files/move.py</file>
+<original>os.rename(old_file_name, new_file_name)</original>
+<patched>os.rename(old_file_name, new_file_name)
+# After moving the file, set the file permissions based on FILE_UPLOAD_PERMISSIONS
+from django.conf import settings
+os.chmod(new_file_name, settings.FILE_UPLOAD_PERMISSIONS)</patched>
+```
+
+# modification 2
+```python
+<file>django/core/files/uploadedfile.py</file>
+<original>file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR)</original>
+<patched>file = tempfile.NamedTemporaryFile(suffix='.upload' + ext, dir=settings.FILE_UPLOAD_TEMP_DIR, mode='w+', delete=False)
+# Ensure the temporary file has the correct permissions set
+os.chmod(file.name, settings.FILE_UPLOAD_PERMISSIONS)</patched>
+```
+
+# modification 3
+```python
+<file>django/core/files/storage.py</file>
+<original>def file_permissions_mode(self):
+        return self._value_or_setting(self._file_permissions_mode, settings.FILE_UPLOAD_PERMISSIONS)</original>
+<patched>import os
+def file_permissions_mode(self):
+        # Ensure that the default permissions are set to 0o644 if not explicitly configured
+        default_permissions = os.environ.get('DJANGO_FILE_UPLOAD_PERMISSIONS', 0o644)
+        return self._value_or_setting(self._file_permissions_mode, settings.FILE_UPLOAD_PERMISSIONS or default_permissions)</patched>
+```
+
+These modifications aim to ensure that the file permissions for uploaded files are consistently set to the value specified by `FILE_UPLOAD_PERMISSIONS` in Django's settings, addressing the issue where permissions might not be applied correctly depending on the temporary storage mechanism used during the upload process. The third modification also introduces a fallback mechanism to use a default permission setting of `0o644` if `FILE_UPLOAD_PERMISSIONS` is not explicitly configured, enhancing the security and predictability of file uploads.

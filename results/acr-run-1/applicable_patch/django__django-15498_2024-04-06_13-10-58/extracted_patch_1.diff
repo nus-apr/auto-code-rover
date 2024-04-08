@@ -1,0 +1,50 @@
+diff --git a/django/utils/cache.py b/django/utils/cache.py
+index 90292ce4da..ade049b175 100644
+--- a/django/utils/cache.py
++++ b/django/utils/cache.py
+@@ -261,8 +261,11 @@ def _if_none_match_passes(target_etag, etags):
+ def _if_modified_since_passes(last_modified, if_modified_since):
+     """
+     Test the If-Modified-Since comparison as defined in section 3.3 of RFC 7232.
++    Handle empty string for if_modified_since by treating it as a None value.
+     """
+-    return not last_modified or last_modified > if_modified_since
++    if if_modified_since == "":
++        if_modified_since = None
++    return not last_modified or not if_modified_since or last_modified > if_modified_since
+ 
+ 
+ def patch_response_headers(response, cache_timeout=None):
+diff --git a/django/views/static.py b/django/views/static.py
+index 1c558a53ff..9153f25740 100644
+--- a/django/views/static.py
++++ b/django/views/static.py
+@@ -111,12 +111,15 @@ def directory_index(path, fullpath):
+     return HttpResponse(t.render(c))
+ 
+ 
++import re
++from django.utils.http import parse_http_date
++
+ def was_modified_since(header=None, mtime=0, size=0):
+     """
+     Was something modified since the user last downloaded it?
+ 
+     header
+-      This is the value of the If-Modified-Since header.  If this is None,
++      This is the value of the If-Modified-Since header.  If this is None or an empty string,
+       I'll just return True.
+ 
+     mtime
+@@ -125,9 +128,9 @@ def was_modified_since(header=None, mtime=0, size=0):
+     size
+       This is the size of the item we're talking about.
+     """
++    if header is None or header == "":
++        return True
+     try:
+-        if header is None:
+-            raise ValueError
+         matches = re.match(r"^([^;]+)(; length=([0-9]+))?$", header, re.IGNORECASE)
+         header_mtime = parse_http_date(matches[1])
+         header_len = matches[3]

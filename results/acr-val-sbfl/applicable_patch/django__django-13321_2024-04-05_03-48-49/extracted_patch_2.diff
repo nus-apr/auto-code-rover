@@ -1,0 +1,24 @@
+diff --git a/django/contrib/sessions/backends/base.py b/django/contrib/sessions/backends/base.py
+index 187e14b1b7..36181715e0 100644
+--- a/django/contrib/sessions/backends/base.py
++++ b/django/contrib/sessions/backends/base.py
+@@ -119,9 +119,16 @@ class SessionBase:
+     def decode(self, session_data):
+         try:
+             return signing.loads(session_data, salt=self.key_salt, serializer=self.serializer)
+-        # RemovedInDjango40Warning: when the deprecation ends, handle here
+-        # exceptions similar to what _legacy_decode() does now.
+-        except Exception:
++        except signing.BadSignature:
++            # Instead of raising, log the bad signature and return an empty session
++            logging.warning("Bad signature for session data detected, initializing empty session.")
++            return {}
++        except binascii.Error as e:
++            # Handle incorrect padding with a more specific error message and return an empty session
++            logging.error("Incorrect padding in session data: %s", e)
++            return {}
++        except Exception as e:
++            logging.error("Unexpected error decoding session data: %s", e)
+             return self._legacy_decode(session_data)
+ 
+     def _legacy_encode(self, session_dict):

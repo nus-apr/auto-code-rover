@@ -1,0 +1,50 @@
+# modification 1
+```python
+<file>sklearn/preprocessing/_encoders.py</file>
+<original>        if not hasattr(X, 'dtype') and np.issubdtype(X_temp.dtype, np.str_):
+            X = check_array(X, dtype=np.object)
+        else:
+            X = X_temp</original>
+<patched>        # Ensure that the input is always treated as an object to safely handle varying string lengths
+        X = check_array(X, dtype=np.object)</patched>
+```
+
+# modification 2
+```python
+<file>sklearn/preprocessing/_encoders.py</file>
+<original>        X_int, X_mask = self._transform(X, handle_unknown=self.handle_unknown)
+
+        mask = X_mask.ravel()
+        n_values = [cats.shape[0] for cats in self.categories_]
+        n_values = np.array([0] + n_values)
+        feature_indices = np.cumsum(n_values)
+
+        indices = (X_int + feature_indices[:-1]).ravel()[mask]
+        indptr = X_mask.sum(axis=1).cumsum()
+        indptr = np.insert(indptr, 0, 0)
+        data = np.ones(n_samples * n_features)[mask]
+
+        out = sparse.csr_matrix((data, indices, indptr),
+                                shape=(n_samples, feature_indices[-1]),
+                                dtype=self.dtype)</original>
+<patched>        X_int, X_mask = self._transform(X, handle_unknown=self.handle_unknown)
+
+        # Adjust handling of unknown categories to prevent errors due to string length mismatches
+        # Instead of attempting to fit unknown strings into a fixed-size array, we now ignore them safely
+        mask = X_mask.ravel()
+        n_values = [cats.shape[0] for cats in self.categories_]
+        n_values = np.array([0] + n_values)
+        feature_indices = np.cumsum(n_values)
+
+        # Safely handle unknown categories by only using known categories for index calculation
+        indices = np.array([idx if mask[i] else 0 for i, idx in enumerate((X_int + feature_indices[:-1]).ravel())])
+        indptr = X_mask.sum(axis=1).cumsum()
+        indptr = np.insert(indptr, 0, 0)
+        data = np.ones(n_samples * n_features)[mask]
+
+        out = sparse.csr_matrix((data, indices, indptr),
+                                shape=(n_samples, feature_indices[-1]),
+                                dtype=self.dtype)</patched>
+```
+
+These modifications aim to address the issue by ensuring that all inputs are treated as objects, which allows for the safe handling of strings of varying lengths. Additionally, the handling of unknown categories has been adjusted to prevent errors related to string length mismatches by safely ignoring unknown categories without attempting to fit them into a fixed-size array.

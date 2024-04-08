@@ -1,0 +1,46 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..4a53368ed7 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,13 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Removed the check for duplicate elements in cycle notation to allow non-disjoint cycles
++        # if has_dups(temp):
++        #     if is_cycle:
++        #         raise ValueError('there were repeated elements; to resolve '
++        #         'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
++        #     else:
++        #         raise ValueError('there were repeated elements.')
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +910,15 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
+-            for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++                    # Modified to correctly handle non-disjoint cycles by applying them in left-to-right order
++                    from sympy.combinatorics import Permutation as Perm
++                    aform = list(range(max(flatten(args)) + 1)) if not size else list(range(size))
++                    for cycle in args:
++                        for i in range(len(cycle)):
++                            aform[cycle[i-1]] = cycle[i]
++                    # Ensure the permutation extends to the specified size
++                    if size and size > len(aform):
++                        aform.extend(list(range(len(aform), size)))
+         else:
+             aform = list(args)
+         if size and size > len(aform):

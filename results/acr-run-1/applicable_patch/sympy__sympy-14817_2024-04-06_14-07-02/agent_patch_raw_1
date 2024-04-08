@@ -1,0 +1,40 @@
+# modification 1
+```python
+<file>sympy/printing/pretty/pretty.py</file>
+<original>    def _print_MatAdd(self, expr):
+        s = None
+        for item in expr.args:
+            pform = self._print(item)
+            if s is None:
+                s = pform     # First element
+            else:
+                if S(item.args[0]).is_negative:
+                    s = prettyForm(*stringPict.next(s, ' '))
+                    pform = self._print(item)
+                else:
+                    s = prettyForm(*stringPict.next(s, ' + '))
+                s = prettyForm(*stringPict.next(s, pform))
+
+        return s
+</original>
+<patched>    def _print_MatAdd(self, expr):
+        s = None
+        for item in expr.args:
+            pform = self._print(item)
+            if s is None:
+                s = pform     # First element
+            else:
+                # Check if the item itself is negative, rather than its first argument
+                if item.could_extract_minus_sign():
+                    s = prettyForm(*stringPict.next(s, ' - '))
+                    # Correctly handle the item by extracting its minus sign
+                    pform = self._print(-item)
+                else:
+                    s = prettyForm(*stringPict.next(s, ' + '))
+                s = prettyForm(*stringPict.next(s, pform))
+
+        return s
+</patched>
+```
+
+This patch addresses the issue by changing the logic that checks if an item in the `MatAdd` expression is negative. Instead of checking the first argument of the item (`S(item.args[0]).is_negative`), which can lead to parsing errors and is not a reliable way to determine if the item is negative, it uses the `could_extract_minus_sign()` method on the item itself. This method is a more appropriate way to check if the item is effectively negative in the context of symbolic expressions. Additionally, when an item is found to be negative, the patch ensures that the minus sign is correctly extracted and handled by printing ' - ' instead of a space and by negating the item (`-item`) before printing it, which correctly reflects the subtraction operation in the pretty-printed output.

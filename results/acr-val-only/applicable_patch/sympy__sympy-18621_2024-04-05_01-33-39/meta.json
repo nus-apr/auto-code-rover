@@ -1,0 +1,43 @@
+{
+    "task_id": "sympy__sympy-18621",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.6",
+        "env_name": "setup_sympy__sympy__1.6",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/matrices/expressions/tests/test_blockmatrix.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-18621",
+        "base_commit": "b17ef6effe278d5b861d65896cc53442a6370d8f",
+        "hints_text": "```diff\r\ndiff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\r\nindex 11aebbc59f..b821c42845 100644\r\n--- a/sympy/matrices/expressions/blockmatrix.py\r\n+++ b/sympy/matrices/expressions/blockmatrix.py\r\n@@ -301,7 +301,7 @@ def blocks(self):\r\n         data = [[mats[i] if i == j else ZeroMatrix(mats[i].rows, mats[j].cols)\r\n                         for j in range(len(mats))]\r\n                         for i in range(len(mats))]\r\n-        return ImmutableDenseMatrix(data)\r\n+        return ImmutableDenseMatrix(data, evaluate=False)\r\n\r\n     @property\r\n     def shape(self):\r\n```\r\n\r\nOkay, someone should do the workaround and add some tests about the issue.\ni will submit a pr today.",
+        "created_at": "2020-02-10T05:36:30Z",
+        "test_patch": "diff --git a/sympy/matrices/expressions/tests/test_blockmatrix.py b/sympy/matrices/expressions/tests/test_blockmatrix.py\n--- a/sympy/matrices/expressions/tests/test_blockmatrix.py\n+++ b/sympy/matrices/expressions/tests/test_blockmatrix.py\n@@ -110,6 +110,10 @@ def test_issue_17624():\n     assert block_collapse(b * b) == BlockMatrix([[a**2, z], [z, z]])\n     assert block_collapse(b * b * b) == BlockMatrix([[a**3, z], [z, z]])\n \n+def test_issue_18618():\n+    A = Matrix([[1, 2, 3], [4, 5, 6], [7, 8, 9]])\n+    assert A == Matrix(BlockDiagMatrix(A))\n+\n def test_BlockMatrix_trace():\n     A, B, C, D = [MatrixSymbol(s, 3, 3) for s in 'ABCD']\n     X = BlockMatrix([[A, B], [C, D]])\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "BlockDiagMatrix with one element cannot be converted to regular Matrix\nCreating a BlockDiagMatrix with one Matrix element will raise if trying to convert it back to a regular Matrix:\r\n\r\n```python\r\nM = sympy.Matrix([[1, 2], [3, 4]])\r\nD = sympy.BlockDiagMatrix(M)\r\nB = sympy.Matrix(D)\r\n```\r\n\r\n```\r\nTraceback (most recent call last):\r\n\r\n  File \"<ipython-input-37-5b65c1f8f23e>\", line 3, in <module>\r\n    B = sympy.Matrix(D)\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/dense.py\", line 430, in __new__\r\n    return cls._new(*args, **kwargs)\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/dense.py\", line 442, in _new\r\n    rows, cols, flat_list = cls._handle_creation_inputs(*args, **kwargs)\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/matrices.py\", line 2528, in _handle_creation_inputs\r\n    return args[0].rows, args[0].cols, args[0].as_explicit()._mat\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/expressions/matexpr.py\", line 340, in as_explicit\r\n    for i in range(self.rows)])\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/expressions/matexpr.py\", line 340, in <listcomp>\r\n    for i in range(self.rows)])\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/expressions/matexpr.py\", line 339, in <listcomp>\r\n    for j in range(self.cols)]\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/expressions/matexpr.py\", line 289, in __getitem__\r\n    return self._entry(i, j)\r\n\r\n  File \"/home/rikard/.local/lib/python3.7/site-packages/sympy/matrices/expressions/blockmatrix.py\", line 248, in _entry\r\n    return self.blocks[row_block, col_block][i, j]\r\n\r\nTypeError: 'One' object is not subscriptable\r\n```\r\n\r\nInstead having two elements will work as expected:\r\n\r\n```python\r\nM = sympy.Matrix([[1, 2], [3, 4]])\r\nD = sympy.BlockDiagMatrix(M, M)\r\nB = sympy.Matrix(D)\r\n```\r\n\r\n```\r\nMatrix([\r\n[1, 2, 0, 0],\r\n[3, 4, 0, 0],\r\n[0, 0, 1, 2],\r\n[0, 0, 3, 4]])\r\n```\r\nThis issue exists for sympy 1.5.1 but not for sympy 1.4\n",
+        "version": "1.6",
+        "FAIL_TO_PASS": [
+            "test_issue_18618"
+        ],
+        "PASS_TO_PASS": [
+            "test_BlockDiagMatrix",
+            "test_BlockMatrix",
+            "test_BlockMatrix_Determinant",
+            "test_BlockMatrix_trace",
+            "test_bc_dist_diag",
+            "test_bc_matadd",
+            "test_bc_matmul",
+            "test_bc_transpose",
+            "test_block_collapse_explicit_matrices",
+            "test_block_plus_ident",
+            "test_blockcut",
+            "test_deblock",
+            "test_issue_17624",
+            "test_reblock_2x2",
+            "test_squareBlockMatrix"
+        ],
+        "environment_setup_commit": "28b41c73c12b70d6ad9f6e45109a80649c4456da",
+        "patch": "diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\n--- a/sympy/matrices/expressions/blockmatrix.py\n+++ b/sympy/matrices/expressions/blockmatrix.py\n@@ -301,7 +301,7 @@ def blocks(self):\n         data = [[mats[i] if i == j else ZeroMatrix(mats[i].rows, mats[j].cols)\n                         for j in range(len(mats))]\n                         for i in range(len(mats))]\n-        return ImmutableDenseMatrix(data)\n+        return ImmutableDenseMatrix(data, evaluate=False)\n \n     @property\n     def shape(self):\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/18621"
+    }
+}

@@ -1,0 +1,22 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 07d6ffd4ca..3b71c67efd 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1132,7 +1132,16 @@ class QuerySet:
+             "Cannot reorder a query once a slice has been taken."
+         obj = self._chain()
+         obj.query.clear_ordering(force_empty=False)
+-        obj.query.add_ordering(*field_names)
++        # Adjust the add_ordering method call to handle self-referencing foreign keys more gracefully
++        # This involves checking if the ordering field is a self-reference and adjusting accordingly
++        adjusted_field_names = []
++        for field_name in field_names:
++            if "__" in field_name and field_name.split("__")[0] == field_name.split("__")[-1]:
++                # This is a simplistic check for self-referencing fields; a more robust solution may be needed
++                adjusted_field_names.append(field_name.replace(field_name.split("__")[0] + "__", "", 1))
++            else:
++                adjusted_field_names.append(field_name)
++        obj.query.add_ordering(*adjusted_field_names)
+         return obj
+ 
+     def distinct(self, *field_names):

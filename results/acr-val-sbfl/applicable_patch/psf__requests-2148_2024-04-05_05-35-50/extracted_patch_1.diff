@@ -1,0 +1,34 @@
+diff --git a/requests/adapters.py b/requests/adapters.py
+index 1ce54470..de75dd99 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -191,10 +191,13 @@ class HTTPAdapter(BaseAdapter):
+         :param req: The :class:`PreparedRequest <PreparedRequest>` used to generate the response.
+         :param resp: The urllib3 response object.
+         """
+-        response = Response()
++        try:
++            response = Response()
+ 
+-        # Fallback to None if there's no status_code, for whatever reason.
+-        response.status_code = getattr(resp, 'status', None)
++            # Fallback to None if there's no status_code, for whatever reason.
++            response.status_code = getattr(resp, 'status', None)
++        except socket.error as e:
++            raise requests.exceptions.ConnectionError(e)
+ 
+         # Make headers case-insensitive.
+         response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
+diff --git a/requests/models.py b/requests/models.py
+index 0dc55568..c0a2c46f 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -647,6 +647,8 @@ class Response(object):
+                     if not chunk:
+                         break
+                     yield chunk
++            except socket.error as e:
++                raise requests.exceptions.ConnectionError(e)
+ 
+             self._content_consumed = True
+ 

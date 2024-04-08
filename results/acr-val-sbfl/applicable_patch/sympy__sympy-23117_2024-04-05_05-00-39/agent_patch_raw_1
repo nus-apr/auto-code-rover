@@ -1,0 +1,101 @@
+# modification 1
+```python
+<file>sympy/tensor/array/ndim_array.py</file>
+<original>    def _scan_iterable_shape(cls, iterable):
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+
+            result = []
+            elems, shapes = zip(*[f(i) for i in pointer])
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</original>
+<patched>    def _scan_iterable_shape(cls, iterable):
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+            if not pointer:  # Check if the pointer is empty
+                return [], ()
+
+            result = []
+            elems, shapes = zip(*[f(i) for i in pointer])
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</patched>
+```
+
+# modification 2
+```python
+<file>sympy/tensor/array/ndim_array.py</file>
+<original>    def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+        from sympy.matrices.matrices import MatrixBase
+        from sympy.tensor.array import SparseNDimArray
+
+        if shape is None:
+            if iterable is None:
+                shape = ()
+                iterable = ()
+            # Construction of a sparse array from a sparse array
+            elif isinstance(iterable, SparseNDimArray):
+                return iterable._shape, iterable._sparse_array
+
+            # Construct N-dim array from another N-dim array:
+            elif isinstance(iterable, NDimArray):
+                shape = iterable.shape
+
+            # Construct N-dim array from an iterable (numpy arrays included):
+            elif isinstance(iterable, Iterable):
+                iterable, shape = cls._scan_iterable_shape(iterable)
+
+            # Construct N-dim array from a Matrix:
+            elif isinstance(iterable, MatrixBase):
+                shape = iterable.shape
+
+            else:
+                shape = ()
+                iterable = (iterable,)
+</original>
+<patched>    def _handle_ndarray_creation_inputs(cls, iterable=None, shape=None, **kwargs):
+        from sympy.matrices.matrices import MatrixBase
+        from sympy.tensor.array import SparseNDimArray
+
+        if shape is None:
+            if iterable is None:
+                shape = ()
+                iterable = ()
+            # Construction of a sparse array from a sparse array
+            elif isinstance(iterable, SparseNDimArray):
+                return iterable._shape, iterable._sparse_array
+
+            # Construct N-dim array from another N-dim array:
+            elif isinstance(iterable, NDimArray):
+                shape = iterable.shape
+
+            # Construct N-dim array from an iterable (numpy arrays included):
+            elif isinstance(iterable, Iterable):
+                if not iterable:  # Check if the iterable is empty
+                    return (), ()
+                iterable, shape = cls._scan_iterable_shape(iterable)
+
+            # Construct N-dim array from a Matrix:
+            elif isinstance(iterable, MatrixBase):
+                shape = iterable.shape
+
+            else:
+                shape = ()
+                iterable = (iterable,)
+</patched>
+```
+
+These modifications address the issue by ensuring that both the `_scan_iterable_shape` and `_handle_ndarray_creation_inputs` methods can gracefully handle empty iterables, allowing for the creation of empty `Array` objects in SymPy.

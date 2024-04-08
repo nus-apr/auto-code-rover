@@ -1,0 +1,41 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index b0df8749..09f98944 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -1954,14 +1954,28 @@ class DataArray(AbstractArray, DataWithCoords):
+         if not isinstance(idx, pd.MultiIndex):
+             raise ValueError(f"'{dim}' is not a stacked coordinate")
+ 
+-        level_number = idx._get_level_number(level)
+-        variables = idx.levels[level_number]
+-        variable_dim = idx.names[level_number]
+-
+-        # pull variables out of datarray
+-        data_dict = {}
+-        for k in variables:
+-            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)
++        # Before attempting to unstack, check if the operation will result in single-dimension variables
++        try:
++            level_number = idx._get_level_number(level)
++            variables = idx.levels[level_number]
++            variable_dim = idx.names[level_number]
++        
++            # Initialize an empty dictionary to hold the unstacked variables
++            data_dict = {}
++        
++            for k in variables:
++                # Select the data for each variable and attempt to drop the level used for stacking
++                selected_data = self.sel({variable_dim: k})
++                
++                # If the resulting selection has more than one dimension, squeeze to drop the level
++                # Otherwise, retain the original dimensions to avoid collapsing to a scalar
++                if len(selected_data.dims) > 1:
++                    data_dict[k] = selected_data.squeeze(drop=True)
++                else:
++                    data_dict[k] = selected_data
++        except ValueError as e:
++            # Handle cases where unstacking is not straightforward due to dimensionality issues
++            raise ValueError("Error during unstacking: {}".format(e))
+ 
+         # unstacked dataset
+         return Dataset(data_dict)

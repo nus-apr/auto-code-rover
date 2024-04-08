@@ -1,0 +1,49 @@
+Given the issue description and the context retrieved, the main concern is the `ReadOnlyPasswordHashWidget`'s label having a 'for' attribute that points to a non-labelable element. Since the `ReadOnlyPasswordHashWidget` does not render an input element but rather displays text, the label's 'for' attribute is not appropriate. The patch will involve modifying the template used by `ReadOnlyPasswordHashWidget` to ensure it does not generate a 'for' attribute for the label, as the template's content and structure were not directly retrieved, we'll focus on the widget's Python code to ensure it's correctly set up for such a change.
+
+# modification 1
+```python
+<file>django/contrib/auth/forms.py</file>
+<original>class ReadOnlyPasswordHashWidget(forms.Widget):
+    template_name = 'auth/widgets/read_only_password_hash.html'
+    read_only = True
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        summary = []
+        if not value or value.startswith(UNUSABLE_PASSWORD_PREFIX):
+            summary.append({'label': gettext("No password set.")})
+        else:
+            try:
+                hasher = identify_hasher(value)
+            except ValueError:
+                summary.append({'label': gettext("Invalid password format or unknown hashing algorithm.")})
+            else:
+                for key, value_ in hasher.safe_summary(value).items():
+                    summary.append({'label': gettext(key), 'value': value_})
+        context['summary'] = summary
+        return context</original>
+<patched>class ReadOnlyPasswordHashWidget(forms.Widget):
+    template_name = 'auth/widgets/read_only_password_hash.html'
+    read_only = True
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        # Ensure attrs does not mistakenly include a 'for' attribute
+        attrs.pop('for', None)
+        summary = []
+        if not value or value.startswith(UNUSABLE_PASSWORD_PREFIX):
+            summary.append({'label': gettext("No password set.")})
+        else:
+            try:
+                hasher = identify_hasher(value)
+            except ValueError:
+                summary.append({'label': gettext("Invalid password format or unknown hashing algorithm.")})
+            else:
+                for key, value_ in hasher.safe_summary(value).items():
+                    summary.append({'label': gettext(key), 'value': value_})
+        context['summary'] = summary
+        context['attrs'] = attrs
+        return context</patched>
+```
+
+This modification ensures that any 'for' attribute is removed from the attributes passed to the template context, thus preventing the template from mistakenly generating a label with a 'for' attribute pointing to a non-input element. This approach assumes that the template respects the `attrs` passed in the context and does not hardcode a 'for' attribute for labels associated with the `ReadOnlyPasswordHashWidget`. If the template does include such hardcoded attributes, additional modifications to the template file would be necessary, specifically to remove or conditionally render the 'for' attribute based on the presence of input elements.

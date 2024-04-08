@@ -1,0 +1,40 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index fdac0f3560..53cc262e5d 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -2163,9 +2163,10 @@ class Axes(_AxesBase):
+         # x should be an array...
+         assert type(xconv) is np.ndarray
+ 
+-        if xconv.size == 0:
+-            # xconv has already been converted, but maybe empty...
+-            return convert(dx)
++        if xconv.size == 0 or np.all(np.isnan(xconv)):
++            # xconv has already been converted, but maybe empty or all NaNs...
++            # In case of all NaNs, we convert dx to 0 to avoid further errors
++            return 0 if np.all(np.isnan(xconv)) else convert(dx)
+ 
+         try:
+             # attempt to add the width to x0; this works for
+@@ -2178,15 +2179,17 @@ class Axes(_AxesBase):
+             # We can't just cast x0 and dx to numpy arrays because that
+             # removes the units from unit packages like `pint` that
+             # wrap numpy arrays.
++            # Handle cases where x0 or xconv are all NaNs by providing a default finite value
++            # This avoids StopIteration error when all values are NaN
+             try:
+                 x0 = cbook._safe_first_finite(x0)
+-            except (TypeError, IndexError, KeyError):
+-                pass
++            except (StopIteration, TypeError, IndexError, KeyError):
++                x0 = 0  # Default finite value if all values are NaN
+ 
+             try:
+                 x = cbook._safe_first_finite(xconv)
+-            except (TypeError, IndexError, KeyError):
+-                x = xconv
++            except (StopIteration, TypeError, IndexError, KeyError):
++                x = 0  # Default finite value if all values are NaN
+ 
+             delist = False
+             if not np.iterable(dx):

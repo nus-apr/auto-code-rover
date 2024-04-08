@@ -1,0 +1,27 @@
+Given the context and the nature of the issue, it seems that the problem lies in how the ordering specified in the `Parent` model's `Meta` class is not being correctly inherited or applied to the `Child` model during query construction. The `order_by` method in `django/db/models/query.py` is correctly designed to apply ordering to queries, but the issue might be in how the inheritance of the `ordering` option is handled when generating queries for child models.
+
+However, without a clear indication of a bug in the provided `order_by` method implementation or an explicit bug in the model inheritance code, proposing a direct patch is challenging. The issue might be more nuanced, possibly involving the internal mechanics of Django's model inheritance and query generation system, which are not fully exposed in the provided snippets.
+
+Given this, a hypothetical patch might involve ensuring that the inherited `ordering` is correctly recognized and applied in the query construction process for child models. Since we don't have a specific bug in the code to fix based on the provided snippets, the following is a conceptual approach rather than a direct code patch:
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>
+obj.query.add_ordering(*field_names)
+</original>
+<patched>
+# Conceptual patch: Ensure inherited ordering is correctly applied
+# This would involve checking if the model is a child model and if so,
+# ensuring the parent's ordering is correctly applied if not explicitly overridden.
+if self.model._meta.inherits and not field_names:
+    parent_ordering = self.model._meta.parent._meta.ordering
+    obj.query.add_ordering(*parent_ordering)
+else:
+    obj.query.add_ordering(*field_names)
+</patched>
+```
+
+Please note, this patch is conceptual and assumes the existence of `_meta.inherits` and `_meta.parent` properties for simplicity, which are not part of Django's actual model meta API. The real implementation would require a more nuanced approach to detect inheritance and retrieve the parent model's ordering, respecting Django's model inheritance and query construction architecture.
+
+This patch is meant to illustrate a potential direction for investigating and resolving the issue, emphasizing the need to ensure that inherited ordering is correctly applied to child models. For a real-world application, a deep dive into Django's ORM source code would be necessary to identify the precise location and nature of the bug, followed by a patch that fits seamlessly into the existing framework architecture.

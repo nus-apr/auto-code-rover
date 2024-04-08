@@ -1,0 +1,29 @@
+diff --git a/astropy/nddata/mixins/ndarithmetic.py b/astropy/nddata/mixins/ndarithmetic.py
+index 4153dfccb..314073424 100644
+--- a/astropy/nddata/mixins/ndarithmetic.py
++++ b/astropy/nddata/mixins/ndarithmetic.py
+@@ -728,6 +728,24 @@ class NDArithmeticMixin:
+             operand2 = cls(operand2)
+ 
+             # Now call the _arithmetics method to do the arithmetic.
++            # Modify the handling of the mask during arithmetic operations, especially when 'handle_mask' is involved.
++            # Check if 'handle_mask' is specified in kwargs and if it points to np.bitwise_or or a similar function that requires both operands to have masks.
++            if 'handle_mask' in kwargs and callable(kwargs['handle_mask']):
++                # Check if either operand does not have a mask, and if so, adjust the handling.
++                mask1 = getattr(operand, 'mask', None)
++                mask2 = getattr(operand2, 'mask', None)
++                
++                if mask1 is None or mask2 is None:
++                    # If either mask is None, the operation should not fail. Instead, use the mask that is not None, or default to no mask if both are None.
++                    effective_mask = mask1 if mask1 is not None else mask2
++                    if effective_mask is None:
++                        # If both masks are None, effectively there's no mask to handle.
++                        kwargs['handle_mask'] = lambda x, y: None
++                    else:
++                        # If one mask exists, use it directly without attempting a bitwise operation.
++                        kwargs['handle_mask'] = lambda x, y: effective_mask
++            
++            # Proceed with the arithmetic operation as originally intended.
+             result, init_kwds = operand._arithmetic(operation, operand2, **kwargs)
+         elif issubclass(operand2.__class__, NDArithmeticMixin):
+             # calling as class method:

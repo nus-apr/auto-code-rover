@@ -1,0 +1,40 @@
+Given the constraints and the feedback, it seems the initial approach to directly modify the type handling in `check_array` and the handling of labels in `mutual_info_score` might not be the most effective solution or could introduce other issues. A more focused approach might be needed, specifically targeting the use case of non-numeric data without altering the general behavior of `check_array` or the mutual information calculation process. 
+
+Considering this, a revised approach could involve adjusting the `mutual_info_score` function to better handle non-numeric inputs directly, without relying on the `check_array` function to convert object types to numeric types, which is not always desirable or possible (e.g., with string data).
+
+However, based on the feedback that the initial patch did not resolve the issue and caused test failures, and given the constraints of not being able to directly test or iterate on the code, I will provide a conceptual patch that focuses on preprocessing the inputs to `mutual_info_score` to ensure they are in a suitable format for mutual information calculation without requiring potentially problematic type conversions.
+
+# Conceptual Patch:
+
+The idea is to preprocess the inputs to `mutual_info_score` when they are of object type, converting them into a numeric format that represents the unique categories without assuming they can be directly converted to floats. This approach leverages the fact that mutual information calculation does not depend on the specific numeric values but rather on the grouping of categories.
+
+```python
+<file>sklearn/metrics/cluster/_supervised.py</file>
+<original>if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</original>
+<patched>from sklearn.preprocessing import LabelEncoder
+
+if contingency is None:
+        labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+        # Preprocess labels if they are of object type
+        if labels_true.dtype == object:
+            le_true = LabelEncoder()
+            labels_true = le_true.fit_transform(labels_true)
+        if labels_pred.dtype == object:
+            le_pred = LabelEncoder()
+            labels_pred = le_pred.fit_transform(labels_pred)
+        contingency = contingency_matrix(labels_true, labels_pred, sparse=True)
+    else:
+        contingency = check_array(contingency,
+                                  accept_sparse=['csr', 'csc', 'coo'],
+                                  dtype=[int, np.int32, np.int64])</patched>
+```
+
+This conceptual patch introduces the use of `LabelEncoder` from `sklearn.preprocessing` to convert non-numeric labels into a numeric format by encoding each unique label as an integer. This preprocessing step is applied before the calculation of the contingency matrix within the `mutual_info_score` function, ensuring that the inputs are in a suitable format for mutual information calculation without altering the core validation logic in `check_array`.
+
+This approach aims to maintain the integrity and flexibility of the input validation process while providing a targeted solution for handling non-numeric data in mutual information score calculations.

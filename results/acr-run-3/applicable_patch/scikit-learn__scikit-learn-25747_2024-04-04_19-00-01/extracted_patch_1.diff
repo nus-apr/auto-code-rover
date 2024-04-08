@@ -1,0 +1,36 @@
+diff --git a/sklearn/pipeline.py b/sklearn/pipeline.py
+index 94d9465d7..01cceba4a 100644
+--- a/sklearn/pipeline.py
++++ b/sklearn/pipeline.py
+@@ -1261,11 +1261,15 @@ class FeatureUnion(TransformerMixin, _BaseComposition):
+ 
+         Returns
+         -------
+-        X_t : array-like or sparse matrix of \
++        X_t : array-like, sparse matrix, or pandas DataFrame of \
+                 shape (n_samples, sum_n_components)
+             The `hstack` of results of transformers. `sum_n_components` is the
+             sum of `n_components` (output dimension) over transformers.
+         """
++        from sklearn.utils import _get_threadlocal_config
++        config = _get_threadlocal_config()
++        transform_output = config.get('transform_output', 'default')
++
+         Xs = Parallel(n_jobs=self.n_jobs)(
+             delayed(_transform_one)(trans, X, None, weight)
+             for name, trans, weight in self._iter()
+@@ -1274,7 +1278,13 @@ class FeatureUnion(TransformerMixin, _BaseComposition):
+             # All transformers are None
+             return np.zeros((X.shape[0], 0))
+ 
+-        return self._hstack(Xs)
++        if transform_output == 'pandas':
++            import pandas as pd
++            # Ensure all transformer outputs are DataFrames to concatenate them.
++            Xs = [pd.DataFrame(X) if not isinstance(X, pd.DataFrame) else X for X in Xs]
++            return pd.concat(Xs, axis=1)
++        else:
++            return self._hstack(Xs)
+ 
+     def _hstack(self, Xs):
+         config = _get_output_config("transform", self)

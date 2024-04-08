@@ -1,0 +1,37 @@
+Given the context and the issue at hand, the problem seems to stem from how deferred fields are managed when `defer()` and `only()` are chained together. The expected behavior is that chaining these methods should adjust the set of fields to be loaded immediately or deferred until access. However, the current implementation does not handle this interaction correctly. Here's a proposed patch to address this issue:
+
+# modification 1
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            clone.query.add_deferred_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        if fields == (None,):
+            clone.query.clear_deferred_loading()
+        else:
+            # Adjust the deferred fields considering the fields already set to be loaded immediately
+            immediate_fields = set(clone.query.immediate_loading)
+            new_fields = set(fields) - immediate_fields
+            clone.query.add_deferred_loading(new_fields)
+        return clone</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/query.py</file>
+<original>        clone = self._chain()
+        clone.query.add_immediate_loading(fields)
+        return clone</original>
+<patched>        clone = self._chain()
+        # Adjust the immediate loading fields considering the fields already deferred
+        deferred_fields = set(clone.query.deferred_loading[0])
+        new_fields = set(fields) - deferred_fields
+        clone.query.add_immediate_loading(new_fields)
+        return clone</patched>
+```
+
+These modifications aim to ensure that when `defer()` and `only()` are chained, the fields specified in `defer()` that are already marked for immediate loading by a preceding `only()` call are correctly handled, and vice versa. This should address the issue where chaining these methods does not behave as expected, particularly in terms of which fields are loaded immediately and which are deferred.

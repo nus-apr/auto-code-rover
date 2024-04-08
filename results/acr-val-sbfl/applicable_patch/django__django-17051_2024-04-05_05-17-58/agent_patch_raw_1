@@ -1,0 +1,69 @@
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>can_bulk = (
+    not self.returning_fields and self.connection.features.has_bulk_insert
+)</original>
+<patched>can_bulk = (
+    not (self.returning_fields and self.query.update_conflicts) and self.connection.features.has_bulk_insert
+)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>if (
+    self.returning_fields
+    and self.connection.features.can_return_columns_from_insert
+):
+    if self.connection.features.can_return_rows_from_bulk_insert:
+        result.append(
+            self.connection.ops.bulk_insert_sql(fields, placeholder_rows)
+        )
+        params = param_rows
+    else:
+        result.append("VALUES (%s)" % ", ".join(placeholder_rows[0]))
+        params = [param_rows[0]]
+    if on_conflict_suffix_sql:
+        result.append(on_conflict_suffix_sql)
+    # Skip empty r_sql to allow subclasses to customize behavior for
+    # 3rd party backends. Refs #19096.
+    r_sql, self.returning_params = self.connection.ops.return_insert_columns(
+        self.returning_fields
+    )
+    if r_sql:
+        result.append(r_sql)
+        params += [self.returning_params]
+    return [(" ".join(result), tuple(chain.from_iterable(params)))]
+</original>
+<patched>if (
+    self.returning_fields
+    and self.connection.features.can_return_columns_from_insert
+):
+    if self.connection.features.can_return_rows_from_bulk_insert or self.query.update_conflicts:
+        result.append(
+            self.connection.ops.bulk_insert_sql(fields, placeholder_rows)
+        )
+        params = param_rows
+    else:
+        result.append("VALUES (%s)" % ", ".join(placeholder_rows[0]))
+        params = [param_rows[0]]
+    if on_conflict_suffix_sql:
+        result.append(on_conflict_suffix_sql)
+    # Adjust to include returning_fields when update_conflicts is True
+    if self.query.update_conflicts:
+        returning_fields_sql, returning_params = self.connection.ops.return_insert_columns(
+            [self.query.model._meta.pk] + list(self.query.update_fields or [])
+        )
+    else:
+        returning_fields_sql, returning_params = self.connection.ops.return_insert_columns(
+            self.returning_fields
+        )
+    if returning_fields_sql:
+        result.append(returning_fields_sql)
+        params += [returning_params]
+    return [(" ".join(result), tuple(chain.from_iterable(params)))]
+</patched>
+```
+
+This patch aims to address the issue by modifying the `SQLInsertCompiler`'s `as_sql` method in `django/db/models/sql/compiler.py` to ensure that when `update_conflicts` is true, the primary key field is included in the `returning_fields`, allowing the `RETURNING` clause for IDs of updated or inserted rows. The first modification adjusts the condition for bulk insert capability to account for `update_conflicts`. The second modification ensures that when `update_conflicts` is true, the `RETURNING` clause is properly added to the SQL statement, including the primary key and specified update fields.

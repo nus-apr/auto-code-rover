@@ -1,0 +1,62 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 9ce46e3f73..9651518795 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -257,39 +257,32 @@ class Field(RegisterLookupMixin):
+                 )
+             ]
+ 
++        max_choice_length = 0
+         # Expect [group_name, [value, display]]
+         for choices_group in self.choices:
+             try:
+                 group_name, group_choices = choices_group
+-            except (TypeError, ValueError):
+-                # Containing non-pairs
+-                break
+-            try:
+-                if not all(
+-                    is_value(value) and is_value(human_name)
+-                    for value, human_name in group_choices
+-                ):
+-                    break
++                # Calculate max choice length for grouped choices
++                max_choice_length = max(max_choice_length, *(len(value) for value, human_name in group_choices))
+             except (TypeError, ValueError):
+                 # No groups, choices in the form [value, display]
+-                value, human_name = group_name, group_choices
+-                if not is_value(value) or not is_value(human_name):
+-                    break
++                if is_value(choices_group, accept_promise=False):
++                    value, human_name = choices_group
++                    max_choice_length = max(max_choice_length, len(value))
++                else:
++                    continue  # Skip invalid choice formats
+ 
+-            # Special case: choices=['ab']
+-            if isinstance(choices_group, str):
+-                break
+-        else:
+-            return []
++        if self.max_length is not None and max_choice_length > self.max_length:
++            return [
++                checks.Error(
++                    f"The 'max_length' is too small to fit the longest choice. "
++                    f"Max choice length is {max_choice_length}, but 'max_length' is {self.max_length}.",
++                    obj=self,
++                    id='fields.E006',
++                )
++            ]
+ 
+-        return [
+-            checks.Error(
+-                "'choices' must be an iterable containing "
+-                "(actual value, human readable name) tuples.",
+-                obj=self,
+-                id='fields.E005',
+-            )
+-        ]
++        return []
+ 
+     def _check_db_index(self):
+         if self.db_index not in (None, True, False):

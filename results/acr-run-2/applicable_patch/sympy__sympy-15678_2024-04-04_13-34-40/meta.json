@@ -1,0 +1,31 @@
+{
+    "task_id": "sympy__sympy-15678",
+    "setup_info": {
+        "repo_path": "/home/haifeng/projects/reverse-prompt/SWE-bench/testbed/sympy__sympy/setup_sympy__sympy__1.4",
+        "env_name": "setup_sympy__sympy__1.4",
+        "pre_install": [],
+        "install": "python -m pip install -e .",
+        "test_cmd": "bin/test -C --verbose sympy/geometry/tests/test_util.py"
+    },
+    "task_info": {
+        "instance_id": "sympy__sympy-15678",
+        "base_commit": "31c68eef3ffef39e2e792b0ec92cd92b7010eb2a",
+        "hints_text": "Hi i am a beginner and i would like to work on this issue.\n@krishna-akula are you still working on this?... I'd like to work on it too",
+        "created_at": "2018-12-20T18:11:56Z",
+        "test_patch": "diff --git a/sympy/geometry/tests/test_util.py b/sympy/geometry/tests/test_util.py\n--- a/sympy/geometry/tests/test_util.py\n+++ b/sympy/geometry/tests/test_util.py\n@@ -1,5 +1,5 @@\n-from sympy import Symbol, sqrt, Derivative, S\n-from sympy.geometry import Point, Point2D, Line, Circle ,Polygon, Segment, convex_hull, intersection, centroid\n+from sympy import Symbol, sqrt, Derivative, S, Function, exp\n+from sympy.geometry import Point, Point2D, Line, Circle, Polygon, Segment, convex_hull, intersection, centroid\n from sympy.geometry.util import idiff, closest_points, farthest_points, _ordered_points\n from sympy.solvers.solvers import solve\n from sympy.utilities.pytest import raises\n@@ -9,6 +9,8 @@ def test_idiff():\n     x = Symbol('x', real=True)\n     y = Symbol('y', real=True)\n     t = Symbol('t', real=True)\n+    f = Function('f')\n+    g = Function('g')\n     # the use of idiff in ellipse also provides coverage\n     circ = x**2 + y**2 - 4\n     ans = -3*x*(x**2 + y**2)/y**5\n@@ -19,6 +21,10 @@ def test_idiff():\n     assert ans.subs(y, solve(circ, y)[0]).equals(explicit)\n     assert True in [sol.diff(x, 3).equals(explicit) for sol in solve(circ, y)]\n     assert idiff(x + t + y, [y, t], x) == -Derivative(t, x) - 1\n+    assert idiff(f(x) * exp(f(x)) - x * exp(x), f(x), x) == (x + 1) * exp(x - f(x))/(f(x) + 1)\n+    assert idiff(f(x) - y * exp(x), [f(x), y], x) == (y + Derivative(y, x)) * exp(x)\n+    assert idiff(f(x) - y * exp(x), [y, f(x)], x) == -y + exp(-x) * Derivative(f(x), x)\n+    assert idiff(f(x) - g(x), [f(x), g(x)], x) == Derivative(g(x), x)\n \n \n def test_intersection():\n",
+        "repo": "sympy/sympy",
+        "problem_statement": "Some issues with idiff\nidiff doesn't support Eq, and it also doesn't support f(x) instead of y. Both should be easy to correct.\r\n\r\n```\r\n>>> idiff(Eq(y*exp(y), x*exp(x)), y, x)\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"./sympy/geometry/util.py\", line 582, in idiff\r\n    yp = solve(eq.diff(x), dydx)[0].subs(derivs)\r\nIndexError: list index out of range\r\n>>> idiff(f(x)*exp(f(x)) - x*exp(x), f(x), x)\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"./sympy/geometry/util.py\", line 574, in idiff\r\n    raise ValueError(\"expecting x-dependent symbol(s) but got: %s\" % y)\r\nValueError: expecting x-dependent symbol(s) but got: f(x)\r\n>>> idiff(y*exp(y)- x*exp(x), y, x)\r\n(x + 1)*exp(x - y)/(y + 1)\r\n```\n",
+        "version": "1.4",
+        "FAIL_TO_PASS": [
+            "test_idiff"
+        ],
+        "PASS_TO_PASS": [
+            "test_centroid",
+            "test_convex_hull",
+            "test_intersection"
+        ],
+        "environment_setup_commit": "73b3f90093754c5ed1561bd885242330e3583004",
+        "patch": "diff --git a/sympy/geometry/util.py b/sympy/geometry/util.py\n--- a/sympy/geometry/util.py\n+++ b/sympy/geometry/util.py\n@@ -570,12 +570,19 @@ def idiff(eq, y, x, n=1):\n         y = y[0]\n     elif isinstance(y, Symbol):\n         dep = {y}\n+    elif isinstance(y, Function):\n+        pass\n     else:\n-        raise ValueError(\"expecting x-dependent symbol(s) but got: %s\" % y)\n+        raise ValueError(\"expecting x-dependent symbol(s) or function(s) but got: %s\" % y)\n \n     f = dict([(s, Function(\n         s.name)(x)) for s in eq.free_symbols if s != x and s in dep])\n-    dydx = Function(y.name)(x).diff(x)\n+\n+    if isinstance(y, Symbol):\n+        dydx = Function(y.name)(x).diff(x)\n+    else:\n+        dydx = y.diff(x)\n+\n     eq = eq.subs(f)\n     derivs = {}\n     for i in range(n):\n",
+        "pr_link": "https://github.com/sympy/sympy/pull/15678"
+    }
+}

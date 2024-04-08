@@ -1,0 +1,83 @@
+# modification 1
+```python
+<file>lib/matplotlib/backends/backend_macosx.py</file>
+<original>    def resize(self, width, height):
+        # Size from macOS is logical pixels, dpi is physical.
+        scale = self.figure.dpi / self.device_pixel_ratio
+        width /= scale
+        height /= scale
+        self.figure.set_size_inches(width, height, forward=False)
+        ResizeEvent("resize_event", self)._process()
+        self.draw_idle()</original>
+<patched>    def resize(self, width, height):
+        # Size from macOS is logical pixels, dpi is physical.
+        # Ensure that DPI scaling is applied only once to avoid doubling.
+        if not hasattr(self, '_initial_dpi'):
+            self._initial_dpi = self.figure.dpi
+        scale = self._initial_dpi / self.device_pixel_ratio
+        width /= scale
+        height /= scale
+        self.figure.set_size_inches(width, height, forward=False)
+        ResizeEvent("resize_event", self)._process()
+        self.draw_idle()</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>    def __setstate__(self, state):
+        version = state.pop('__mpl_version__')
+        restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+        if version != mpl.__version__:
+            _api.warn_external(
+                f"This figure was saved with matplotlib version {version} and "
+                f"is unlikely to function correctly.")
+
+        self.__dict__ = state
+
+        # re-initialise some of the unstored state information
+        FigureCanvasBase(self)  # Set self.canvas.
+
+        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()
+
+        self.stale = True</original>
+<patched>    def __setstate__(self, state):
+        version = state.pop('__mpl_version__')
+        restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+        if version != mpl.__version__:
+            _api.warn_external(
+                f"This figure was saved with matplotlib version {version} and "
+                f"is unlikely to function correctly.")
+
+        self.__dict__ = state
+
+        # re-initialise some of the unstored state information
+        # Ensure DPI is not altered during the canvas re-initialization
+        original_dpi = self.dpi
+        FigureCanvasBase(self)  # Set self.canvas.
+        self.dpi = original_dpi
+
+        if restore_to_pylab:
+            # lazy import to avoid circularity
+            import matplotlib.pyplot as plt
+            import matplotlib._pylab_helpers as pylab_helpers
+            allnums = plt.get_fignums()
+            num = max(allnums) + 1 if allnums else 1
+            mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+            pylab_helpers.Gcf._set_new_active_manager(mgr)
+            plt.draw_if_interactive()
+
+        self.stale = True</patched>
+```
+
+These modifications aim to address the DPI doubling issue by ensuring that DPI scaling is applied correctly and consistently across different operations, particularly after unpickling a figure on M1 Macs. The first modification prevents the `resize` method in the MacOSX backend from applying DPI scaling multiple times, by introducing a check to apply scaling based on the initial DPI value of the figure. The second modification ensures that the DPI of a figure is preserved during the unpickling process, by explicitly setting it back to its original value after re-initializing the canvas.

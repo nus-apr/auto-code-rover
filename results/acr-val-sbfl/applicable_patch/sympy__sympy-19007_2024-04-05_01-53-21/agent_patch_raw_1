@@ -1,0 +1,39 @@
+# modification 1
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def _entry(self, i, j, **kwargs):
+        # Find row entry
+        for row_block, numrows in enumerate(self.rowblocksizes):
+            if (i < numrows) != False:
+                break
+            else:
+                i -= numrows
+        for col_block, numcols in enumerate(self.colblocksizes):
+            if (j < numcols) != False:
+                break
+            else:
+                j -= numcols
+        return self.blocks[row_block, col_block][i, j]</original>
+<patched>    def _entry(self, i, j, **kwargs):
+        from sympy.core.logic import fuzzy_bool
+        # Find row entry
+        row_block = None
+        col_block = None
+        for rb, numrows in enumerate(self.rowblocksizes):
+            if fuzzy_bool(i < numrows):
+                row_block = rb
+                break
+            else:
+                i -= numrows
+        for cb, numcols in enumerate(self.colblocksizes):
+            if fuzzy_bool(j < numcols):
+                col_block = cb
+                break
+            else:
+                j -= numcols
+        if row_block is None or col_block is None:
+            raise IndexError("BlockMatrix index out of range")
+        return self.blocks[row_block, col_block][i, j]</patched>
+```
+
+This patch addresses the issue by using `fuzzy_bool` for comparison, which is more appropriate for symbolic logic used in SymPy. It also adds a check to raise an `IndexError` if the indices are out of range, providing clearer feedback when incorrect indices are used. This should ensure that the element access through `_entry` method in `BlockMatrix` behaves correctly, especially in symbolic contexts.

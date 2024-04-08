@@ -1,0 +1,19 @@
+Based on the provided context and the issue described, the core of the problem seems to be how annotated members in superclasses are treated when determining if they should be documented, especially in the absence of explicit docstrings. The current logic does not account for members that are only annotated (without docstrings) as being documented when the `:inherited-members:` option is used. To address this, we can modify the `filter_members` function to treat type-annotated members as documented, thus ensuring they are not skipped unless the `:undoc-members:` option is explicitly set to exclude them.
+
+Here is a proposed patch:
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>elif name in self.get_attr(cls, '__annotations__', {}):
+    return False</original>
+<patched>elif name in self.get_attr(cls, '__annotations__', {}):
+    # Treat members with type annotations as documented
+    has_annotation = name in self.get_attr(cls, '__annotations__', {})
+    has_doc = has_doc or has_annotation
+    return False</patched>
+```
+
+This modification adjusts the `is_filtered_inherited_member` function to consider whether a member has a type annotation when determining if it is documented. By checking if the member's name is in the `__annotations__` dictionary of the class, we can infer that the member is intended to be documented even if it lacks an explicit docstring. This change ensures that such members are not automatically filtered out when processing inherited members.
+
+Please note, the specific implementation might need adjustments based on the broader context of the `filter_members` function and how `has_doc` is used throughout. This patch assumes that `has_doc` is a variable used to track whether a member is considered documented, which might not directly align with the provided code snippet but follows logically from the issue description and the goal of treating annotated members as documented.

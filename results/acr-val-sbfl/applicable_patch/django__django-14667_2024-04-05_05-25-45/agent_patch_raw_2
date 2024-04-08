@@ -1,0 +1,60 @@
+Given the feedback and the need to address the issue more accurately, let's refine our approach. The core of the problem seems to be in how deferred and immediate loading fields are managed when `.defer()` and `.only()` are chained. The initial patch attempted to adjust the handling within the `add_deferred_loading` and `add_immediate_loading` methods but may not have correctly addressed the interaction between deferred and immediate loading in all cases.
+
+A more precise approach would ensure that when `.only()` is followed by `.defer()`, the fields specified in `.defer()` are indeed deferred even if they were previously specified in `.only()`. This requires a careful adjustment to ensure that the deferred fields are not loaded, and the immediate fields specified by `.only()` are correctly managed without affecting other functionalities.
+
+Let's attempt a revised patch focusing on ensuring the correct behavior without introducing regressions:
+
+# modification 1
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def add_deferred_loading(self, field_names):
+        existing, defer = self.deferred_loading
+        if defer:
+            self.deferred_loading = existing.union(field_names), True
+        else:
+            self.deferred_loading = existing.difference(field_names), False
+</original>
+<patched>    def add_deferred_loading(self, field_names):
+        existing, defer = self.deferred_loading
+        if defer:
+            self.deferred_loading = existing.union(field_names), True
+        else:
+            # Ensure that fields specified in only() are correctly deferred when defer() is called afterwards.
+            immediate_fields = set(self.get_loaded_field_names())
+            new_deferred = immediate_fields.intersection(field_names)
+            self.deferred_loading = existing.union(new_deferred), True
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/query.py</file>
+<original>    def add_immediate_loading(self, field_names):
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if 'pk' in field_names:
+            field_names.remove('pk')
+            field_names.add(self.get_meta().pk.name)
+
+        if defer:
+            self.deferred_loading = field_names.difference(existing), False
+        else:
+            self.deferred_loading = frozenset(field_names), False
+</original>
+<patched>    def add_immediate_loading(self, field_names):
+        existing, defer = self.deferred_loading
+        field_names = set(field_names)
+        if 'pk' in field_names:
+            field_names.remove('pk')
+            field_names.add(self.get_meta().pk.name)
+
+        if defer:
+            # Adjust handling to ensure that fields specified in only() are not removed by subsequent defer() calls.
+            new_immediate = existing.difference(field_names)
+            self.deferred_loading = new_immediate, defer and bool(new_immediate)
+        else:
+            self.deferred_loading = frozenset(field_names), False
+</patched>
+```
+
+This revised approach aims to more accurately manage the interaction between deferred and immediate loading, ensuring that `.defer()` effectively defers fields even after `.only()` has been called, and vice versa, without introducing unintended side effects.

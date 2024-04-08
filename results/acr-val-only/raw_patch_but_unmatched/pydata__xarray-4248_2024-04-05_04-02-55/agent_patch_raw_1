@@ -1,0 +1,44 @@
+To address the feature request, we would need to modify the functions responsible for generating the string and HTML representations of a `Dataset` to include units in the dataset overview. However, without direct access to the implementations of `formatting.dataset_repr` and `formatting_html.dataset_repr`, and given the lack of a standardized method for accessing units directly from the dataset's variables, we'll conceptualize a patch that assumes units are stored in the attributes of data variables and coordinates. This patch will be hypothetical and aims to illustrate the approach rather than provide executable code.
+
+# modification 1
+```python
+<file>xarray/core/formatting.py</file>
+<original>
+def dataset_repr(dataset):
+    # Existing implementation that generates the string representation of the dataset.
+</original>
+<patched>
+def dataset_repr(dataset):
+    from html import escape
+    summary = []
+    for name, variable in dataset.variables.items():
+        dims = ", ".join(variable.dims)
+        data_type = variable.dtype
+        unit_str = f", in {variable.attrs.get('units', 'unknown units')}" if 'units' in variable.attrs else ""
+        summary.append(f"{name}{unit_str} ({dims}) {data_type}")
+    return "\\n".join(summary)
+</patched>
+```
+
+# modification 2
+```python
+<file>xarray/core/formatting_html.py</file>
+<original>
+def dataset_repr(dataset):
+    # Existing implementation that generates the HTML representation of the dataset.
+</original>
+<patched>
+def dataset_repr(dataset):
+    from html import escape
+    rows = []
+    for name, variable in dataset.variables.items():
+        dims = ", ".join(variable.dims)
+        data_type = variable.dtype
+        unit_str = f", in {variable.attrs.get('units', 'unknown units')}" if 'units' in variable.attrs else ""
+        rows.append(f"<tr><th>{escape(name)}</th><td>{escape(dims)}</td><td>{escape(str(data_type))}</td><td>{escape(unit_str)}</td></tr>")
+    header = "<tr><th>Name</th><th>Dimensions</th><th>Data Type</th><th>Units</th></tr>"
+    return f"<table>{header}{''.join(rows)}</table>"
+</patched>
+```
+
+Please note, these modifications are conceptual and assume that the `formatting.dataset_repr` and `formatting_html.dataset_repr` functions are located in `xarray/core/formatting.py` and `xarray/core/formatting_html.py` respectively, which might not be the actual file paths. The actual implementation would require access to the specific project structure and might need adjustments based on how units are represented and stored in the dataset's variables.

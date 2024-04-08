@@ -1,0 +1,29 @@
+# modification 1
+```python
+<file>sympy/solvers/diophantine.py</file>
+<original>if syms:
+            if not is_sequence(syms):
+                raise TypeError(
+                    'syms should be given as a sequence, e.g. a list')
+            syms = [i for i in syms if i in var]
+            if syms != var:
+                dict_sym_index = dict(zip(syms, range(len(syms))))
+                return {tuple([t[dict_sym_index[i]] for i in var])
+                            for t in diophantine(eq, param)}</original>
+<patched>if syms:
+            if not is_sequence(syms):
+                raise TypeError(
+                    'syms should be given as a sequence, e.g. a list')
+            syms = [i for i in syms if i in var]
+            if set(syms) != set(var):
+                dict_sym_index = dict(zip(var, range(len(var))))
+                var_ordered = sorted(var, key=lambda x: syms.index(x) if x in syms else -1)
+                return {tuple([t[dict_sym_index[i]] for i in var_ordered])
+                            for t in diophantine(eq, param, permute=permute)}</patched>
+```
+
+Explanation:
+The original code block attempts to reorder the solutions based on the `syms` parameter but does so incorrectly by returning early if `syms` does not match `var` exactly. This can lead to inconsistent results when `permute=True` is used, as the permutation logic is not applied after reordering. The patched version fixes this by:
+1. Checking if the set of symbols in `syms` matches the set of symbols in `var` to ensure all symbols are considered, regardless of order.
+2. Sorting `var` based on the order of symbols in `syms`, while ensuring symbols not in `syms` are placed at the end.
+3. Correctly passing the `permute` parameter to the recursive call to `diophantine`, ensuring that permutation logic is applied after reordering.

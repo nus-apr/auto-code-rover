@@ -1,0 +1,36 @@
+Given the context and the issue described, the patch aims to address the intermittent "ValueError: embedded null byte" error encountered during the auto-reloading process with `StatReloader`. The error likely stems from handling file paths that, under certain conditions, may contain or be interpreted to contain null bytes. Since the direct cause and reproduction steps are unclear, a cautious approach is to enhance error handling around file path operations, particularly in the `snapshot_files` method where file paths are processed.
+
+# modification 1
+```python
+<file>django/utils/autoreload.py</file>
+<original>for file in self.watched_files():
+    if file in seen_files:
+        continue
+    try:
+        mtime = file.stat().st_mtime
+    except OSError:
+        # This is thrown when the file does not exist.
+        continue
+    seen_files.add(file)
+    yield file, mtime</original>
+<patched>for file in self.watched_files():
+    if file in seen_files:
+        continue
+    try:
+        # Sanitize the file path to ensure it does not contain null bytes
+        sanitized_path = file.as_posix().replace('\x00', '')
+        file = file.__class__(sanitized_path)
+        mtime = file.stat().st_mtime
+    except OSError:
+        # This is thrown when the file does not exist.
+        continue
+    except ValueError as e:
+        logger.error(f"Error processing file path {file}: {e}")
+        continue
+    seen_files.add(file)
+    yield file, mtime</patched>
+```
+
+This patch introduces a sanitization step for file paths to remove any null bytes before attempting to access the file's metadata (`stat`). Additionally, it adds error handling for `ValueError`, which is the specific exception type mentioned in the issue. This approach aims to prevent the error from occurring by ensuring that file paths are in a valid format before they are processed further. It also logs errors related to file path processing, which could help in diagnosing the issue further if it persists or reoccurs. 
+
+Note: This patch assumes that the `file` variable is an instance of `pathlib.Path` or a similar object that supports the `as_posix` method and can be reconstructed with a sanitized path string. Adjustments may be necessary depending on the exact type of `file` and the project's specific path handling implementation.

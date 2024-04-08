@@ -1,0 +1,22 @@
+Understanding the need to preserve the user's intended template while also ensuring that only valid fields are used, a more refined approach is required. The issue arises from the method stripping out unrecognized arguments, which could be valid for custom usage scenarios. To address this without breaking existing functionality or tests, we can modify the approach to log a warning without removing the unrecognized arguments from the template. This way, users are informed about potential issues with their template, but their custom formatting is preserved.
+
+Here's an updated patch that aims to balance between warning the user about potentially unrecognized arguments and preserving custom template arguments:
+
+# modification 1
+```python
+<file>pylint/reporters/text.py</file>
+<original>                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint?"
+                )
+                template = re.sub(r"\{" + argument[0] + r"(:.*?)?\}", "", template)</original>
+<patched>                warnings.warn(
+                    f"Don't recognize the argument '{argument[0]}' in the --msg-template. "
+                    "Are you sure it is supported on the current version of pylint? "
+                    "Custom arguments are allowed but may not be processed as expected."
+                )</patched>
+```
+
+This modification removes the line that strips out the unrecognized arguments from the template, thus preserving the user's custom formatting. Instead, it updates the warning message to inform the user that while custom arguments are allowed, they may not be processed as expected if they are not recognized by Pylint. This approach ensures that users are made aware of potential issues with their custom templates without forcibly removing parts of their specified formatting.
+
+This patch assumes that the rest of the Pylint system can handle or ignore these custom arguments without causing errors in the linting process. If further issues arise from unrecognized arguments being present in the template, additional handling logic may be required elsewhere in the code to gracefully ignore or process these custom arguments.

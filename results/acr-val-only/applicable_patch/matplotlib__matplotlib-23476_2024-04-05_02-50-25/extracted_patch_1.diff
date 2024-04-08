@@ -1,0 +1,60 @@
+diff --git a/lib/matplotlib/backends/backend_macosx.py b/lib/matplotlib/backends/backend_macosx.py
+index 700d1d4c58..ac920891e7 100644
+--- a/lib/matplotlib/backends/backend_macosx.py
++++ b/lib/matplotlib/backends/backend_macosx.py
+@@ -94,10 +94,14 @@ class FigureCanvasMac(FigureCanvasAgg, _macosx.FigureCanvas, FigureCanvasBase):
+ 
+     def resize(self, width, height):
+         # Size from macOS is logical pixels, dpi is physical.
+-        scale = self.figure.dpi / self.device_pixel_ratio
++        # Ensure device_pixel_ratio is considered correctly to prevent DPI doubling.
++        if hasattr(self, 'device_pixel_ratio') and self.device_pixel_ratio > 0:
++            scale = self.figure.dpi / self.device_pixel_ratio
++        else:
++            scale = 1
+         width /= scale
+         height /= scale
+-        self.figure.set_size_inches(width, height, forward=False)
++        self.figure.set_size_inches(width / self.figure.dpi, height / self.figure.dpi, forward=False)
+         ResizeEvent("resize_event", self)._process()
+         self.draw_idle()
+ 
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index c55864243a..5b2cdcedb1 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -3035,17 +3035,21 @@ class Figure(FigureBase):
+     def __setstate__(self, state):
+         version = state.pop('__mpl_version__')
+         restore_to_pylab = state.pop('_restore_to_pylab', False)
+-
++    
+         if version != mpl.__version__:
+             _api.warn_external(
+                 f"This figure was saved with matplotlib version {version} and "
+                 f"is unlikely to function correctly.")
+-
++    
++        original_dpi = state.get('dpi', 100)  # Assuming 100 as a default DPI if not specified
+         self.__dict__ = state
+-
++    
++        # Ensure DPI is not inadvertently changed during state restoration
++        self.dpi = original_dpi
++    
+         # re-initialise some of the unstored state information
+         FigureCanvasBase(self)  # Set self.canvas.
+-
++    
+         if restore_to_pylab:
+             # lazy import to avoid circularity
+             import matplotlib.pyplot as plt
+@@ -3055,7 +3059,7 @@ class Figure(FigureBase):
+             mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+             pylab_helpers.Gcf._set_new_active_manager(mgr)
+             plt.draw_if_interactive()
+-
++    
+         self.stale = True
+ 
+     def add_axobserver(self, func):

@@ -1,0 +1,35 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 28374272f4..72af7237b1 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -514,19 +514,26 @@ class Field(RegisterLookupMixin):
+         return self.__class__(*args, **kwargs)
+ 
+     def __eq__(self, other):
+-        # Needed for @total_ordering
++        # Adjusted to include model comparison for equality
+         if isinstance(other, Field):
+-            return self.creation_counter == other.creation_counter
++            same_model = self.model == other.model if self.model and other.model else True
++            return (self.creation_counter == other.creation_counter) and same_model
+         return NotImplemented
+ 
+     def __lt__(self, other):
+-        # This is needed because bisect does not take a comparison function.
++        # Adjusted to consider model label for ordering if creation counters are equal
+         if isinstance(other, Field):
++            if self.creation_counter == other.creation_counter:
++                self_model_label = self.model._meta.label_lower if self.model else ''
++                other_model_label = other.model._meta.label_lower if other.model else ''
++                return self_model_label < other_model_label
+             return self.creation_counter < other.creation_counter
+         return NotImplemented
+ 
+     def __hash__(self):
+-        return hash(self.creation_counter)
++        # Adjust hash to consider the model's label (as a proxy for the model itself) if available
++        model_label = self.model._meta.label_lower if self.model else 'no-model'
++        return hash((self.creation_counter, model_label))
+ 
+     def __deepcopy__(self, memodict):
+         # We don't have to deepcopy very much here, since most things are not

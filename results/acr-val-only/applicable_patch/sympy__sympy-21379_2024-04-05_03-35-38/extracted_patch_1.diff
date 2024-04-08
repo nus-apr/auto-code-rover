@@ -1,0 +1,26 @@
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index 3894f4fd1c..e06ba425d2 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -946,9 +946,18 @@ def subs(self, *args, **kwargs):
+         else:
+             rv = self
+             for old, new in sequence:
+-                rv = rv._subs(old, new, **kwargs)
+-                if not isinstance(rv, Basic):
+-                    break
++                # Before applying substitution, check if the expression is a Piecewise instance
++                # and handle it with a more tailored approach if necessary.
++                if isinstance(rv, Piecewise) and any(isinstance(arg, Expr) and arg.has(Piecewise) for arg in (old, new)):
++                    try:
++                        rv = Piecewise(*[(e.subs(old, new, **kwargs), c) for e, c in rv.args])
++                    except PolynomialError:
++                        # Handle or log the PolynomialError in a way that's appropriate for your application
++                        pass
++                else:
++                    rv = rv._subs(old, new, **kwargs)
++                    if not isinstance(rv, Basic):
++                        break
+             return rv
+ 
+     @cacheit

@@ -1,0 +1,56 @@
+diff --git a/src/_pytest/pathlib.py b/src/_pytest/pathlib.py
+index e43310ef0..952cc9094 100644
+--- a/src/_pytest/pathlib.py
++++ b/src/_pytest/pathlib.py
+@@ -522,22 +522,35 @@ def import_path(
+         raise ImportError(path)
+ 
+     if mode is ImportMode.importlib:
+-        module_name = module_name_from_path(path, root)
+-
+-        for meta_importer in sys.meta_path:
+-            spec = meta_importer.find_spec(module_name, [str(path.parent)])
+-            if spec is not None:
+-                break
+-        else:
+-            spec = importlib.util.spec_from_file_location(module_name, str(path))
+-
+-        if spec is None:
+-            raise ImportError(f"Can't find module {module_name} at location {path}")
+-        mod = importlib.util.module_from_spec(spec)
+-        sys.modules[module_name] = mod
+-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+-        insert_missing_modules(sys.modules, module_name)
+-        return mod
++            module_name = module_name_from_path(path, root)
++    
++            # Check if the module or a parent package is already in sys.modules
++            module_parts = module_name.split('.')
++            for i in range(len(module_parts), 0, -1):
++                parent_module_name = '.'.join(module_parts[:i])
++                if parent_module_name in sys.modules:
++                    parent_module = sys.modules[parent_module_name]
++                    # If the parent module is a namespace package, continue with import
++                    if hasattr(parent_module, '__path__'):
++                        break
++                    else:
++                        # Return the already loaded module or package
++                        return sys.modules[module_name] if module_name in sys.modules else parent_module
++    
++            for meta_importer in sys.meta_path:
++                spec = meta_importer.find_spec(module_name, [str(path.parent)])
++                if spec is not None:
++                    break
++            else:
++                spec = importlib.util.spec_from_file_location(module_name, str(path))
++    
++            if spec is None:
++                raise ImportError(f"Can't find module {module_name} at location {path}")
++            mod = importlib.util.module_from_spec(spec)
++            sys.modules[module_name] = mod
++            spec.loader.exec_module(mod)  # type: ignore[union-attr]
++            insert_missing_modules(sys.modules, module_name)
++            return mod
+ 
+     pkg_path = resolve_package_path(path)
+     if pkg_path is not None:

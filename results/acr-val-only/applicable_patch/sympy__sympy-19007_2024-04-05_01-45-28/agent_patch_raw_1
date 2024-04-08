@@ -1,0 +1,44 @@
+# modification 1
+```python
+<file>sympy/matrices/expressions/blockmatrix.py</file>
+<original>    def _entry(self, i, j, **kwargs):
+        # Find row entry
+        for row_block, numrows in enumerate(self.rowblocksizes):
+            if (i < numrows) != False:
+                break
+            else:
+                i -= numrows
+        for col_block, numcols in enumerate(self.colblocksizes):
+            if (j < numcols) != False:
+                break
+            else:
+                j -= numcols
+        return self.blocks[row_block, col_block][i, j]</original>
+<patched>    def _entry(self, i, j, **kwargs):
+        # Find row entry
+        row_block = None
+        col_block = None
+        for idx, numrows in enumerate(self.rowblocksizes):
+            if i < numrows:
+                row_block = idx
+                break
+            else:
+                i -= numrows
+        # If i is not less than any individual block's numrows, it means i is out of bounds
+        if row_block is None:
+            raise IndexError("Row index out of range")
+
+        for idx, numcols in enumerate(self.colblocksizes):
+            if j < numcols:
+                col_block = idx
+                break
+            else:
+                j -= numcols
+        # If j is not less than any individual block's numcols, it means j is out of bounds
+        if col_block is None:
+            raise IndexError("Column index out of range")
+
+        return self.blocks[row_block, col_block][i, j]</patched>
+```
+
+This patch addresses the issue by explicitly checking if the indices `i` and `j` are out of bounds after the loops for determining the row and column blocks. If either `row_block` or `col_block` is not set (i.e., remains `None`), it indicates that the provided index is out of the range of the matrix, and an `IndexError` is raised accordingly. This ensures that the method behaves correctly when indices are at or beyond the boundaries of the block matrix, providing clearer error handling and preventing incorrect element access.

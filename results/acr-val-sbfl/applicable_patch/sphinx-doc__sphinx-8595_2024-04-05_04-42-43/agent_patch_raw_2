@@ -1,0 +1,32 @@
+Given the complexity of the issue and the initial attempt not resolving the issue as expected, it's crucial to re-evaluate the approach towards handling the `__all__` attribute within the Sphinx autodoc extension. The goal remains to ensure that an empty `__all__` list results in no members being documented, contrary to the current behavior where it's ignored.
+
+Upon further reflection, the modification should perhaps more directly address how members are selected for documentation in the presence of an `__all__` attribute, specifically within the `get_object_members` method of the `ModuleDocumenter` class, which is responsible for determining which members of a module are documented.
+
+# modification 1 (Revised)
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if want_all:
+            if not self.__all__:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())
+            else:
+                for member in members.values():
+                    if member.__name__ not in self.__all__:
+                        member.skipped = True
+
+                return False, list(members.values())</original>
+<patched>if want_all:
+            if self.__all__ is not None:
+                # Explicitly defined __all__ should always be respected, even if empty
+                filtered_members = [member for member in members.values() if member.__name__ in self.__all__]
+                return False, filtered_members
+            else:
+                # for implicit module members, check __module__ to avoid
+                # documenting imported objects
+                return True, list(members.values())</patched>
+```
+
+This revised modification directly filters out members not listed in `__all__` when `__all__` is explicitly defined, including handling an empty `__all__` by returning an empty list of members to document. This approach ensures that the presence of an empty `__all__` list results in no members being documented, aligning with the expected behavior described in the issue.
+
+The key change here is the introduction of a list comprehension that filters `members.values()` based on whether their names are in `__all__`, which is only applied if `__all__` is explicitly defined (not `None`). This should ensure that an empty `__all__` leads to no members being included in the documentation, addressing the issue more directly than the initial attempt.

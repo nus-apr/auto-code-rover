@@ -1,0 +1,32 @@
+# modification 1
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>without_ordering = self.ordering_parts.search(sql).group(1)</original>
+<patched># Adjusted to handle multiline RawSQL expressions more accurately
+# Flatten SQL to a single line to ensure unique identification
+sql_flattened = ' '.join(sql.splitlines()).strip()
+without_ordering = self.ordering_parts.search(sql_flattened).group(1)</patched>
+```
+
+# modification 2
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)')</original>
+<patched># Updated regex to handle multiline strings by including newline characters in the match
+self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)', re.DOTALL)</patched>
+```
+
+# modification 3
+```python
+<file>django/db/models/sql/compiler.py</file>
+<original>if (without_ordering, params_hash) in seen:
+    continue
+seen.add((without_ordering, params_hash))</original>
+<patched># Enhanced duplicate check to consider the entire SQL expression, not just the last line
+# This change complements the flattened SQL adjustment for accurate duplicate detection
+if (sql_flattened, params_hash) in seen:
+    continue
+seen.add((sql_flattened, params_hash))</patched>
+```
+
+These modifications aim to address the issue of incorrect removal of `order_by` clauses created as multiline `RawSQL` expressions. The first modification ensures that the SQL string is flattened to a single line, which helps in accurately identifying unique expressions. The second modification updates the regular expression used to parse the SQL string to consider multiline strings properly. The third modification enhances the logic for checking duplicates by considering the entire flattened SQL expression, thus preventing the incorrect identification of different `RawSQL` expressions as duplicates.

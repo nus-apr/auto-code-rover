@@ -1,0 +1,42 @@
+To address the issue with the LaTeX printer not respecting the same order of monomials as the pretty and str printers, we need to ensure that the polynomial expression passed to the LaTeX printer is ordered correctly. The `_print_Poly` method in `sympy/printing/latex.py` uses `poly.as_expr()`, which should respect the polynomial's order. However, the issue suggests that the order might not be correctly applied or interpreted in the LaTeX output.
+
+A potential fix is to ensure that the `order` parameter is explicitly considered when converting the polynomial to an expression. Since the original code does not manipulate the order in which the monomials are printed, we can introduce an enhancement to explicitly sort the monomials according to the desired order before generating the LaTeX code. However, without modifying the core functionality of `as_expr()` or introducing significant changes to the polynomial class, a direct patch in the `_print_Poly` method might not be feasible without further context on how `order` is intended to be used across the system.
+
+Given the limitations, a hypothetical patch might involve ensuring that the expression passed to `_print` is ordered, but without specific details on how ordering preferences are passed and handled within the broader system, this patch is speculative:
+
+# modification 1
+```python
+<file>sympy/printing/latex.py</file>
+<original>    def _print_Poly(self, poly):
+        cls = poly.__class__.__name__
+        expr = self._print(poly.as_expr())
+        gens = list(map(self._print, poly.gens))
+        domain = "domain=%s" % self._print(poly.get_domain())
+
+        args = ", ".join([expr] + gens + [domain])
+        if cls in accepted_latex_functions:
+            tex = r"\%s {\left (%s \right )}" % (cls, args)
+        else:
+            tex = r"\operatorname{%s}{\left( %s \right)}" % (cls, args)
+
+        return tex
+</original>
+<patched>    def _print_Poly(self, poly):
+        cls = poly.__class__.__name__
+        # Ensure the expression is ordered before printing
+        ordered_expr = poly.as_expr().sort(order='lex')
+        expr = self._print(ordered_expr)
+        gens = list(map(self._print, poly.gens))
+        domain = "domain=%s" % self._print(poly.get_domain())
+
+        args = ", ".join([expr] + gens + [domain])
+        if cls in accepted_latex_functions:
+            tex = r"\%s {\left (%s \right )}" % (cls, args)
+        else:
+            tex = r"\operatorname{%s}{\left( %s \right)}" % (cls, args)
+
+        return tex
+</patched>
+```
+
+Note: The `.sort(order='lex')` method call is hypothetical and does not exist in the current SymPy API. The actual implementation would require a method to sort the expression's terms according to the desired order, which might involve deeper changes to the polynomial handling or printing logic. This patch is intended to illustrate the concept of ensuring order consistency rather than providing a directly applicable solution.

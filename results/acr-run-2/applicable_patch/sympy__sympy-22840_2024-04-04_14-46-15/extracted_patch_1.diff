@@ -1,0 +1,39 @@
+diff --git a/sympy/simplify/cse_main.py b/sympy/simplify/cse_main.py
+index d649dd02a9..548163b8ed 100644
+--- a/sympy/simplify/cse_main.py
++++ b/sympy/simplify/cse_main.py
+@@ -790,8 +790,12 @@ def cse(exprs, symbols=None, optimizations=None, postprocess=None,
+     copy = exprs
+     temp = []
+     for e in exprs:
+-        if isinstance(e, (Matrix, ImmutableMatrix)):
+-            temp.append(Tuple(*e.flat()))
++        if isinstance(e, (Matrix, ImmutableMatrix, MatrixSymbol)):
++            # For MatrixSymbol, we ensure that the structure is preserved by not flattening.
++            if isinstance(e, MatrixSymbol):
++                temp.append(e)
++            else:
++                temp.append(Tuple(*e.flat()))
+         elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+             temp.append(Tuple(*e.todok().items()))
+         else:
+@@ -829,12 +833,14 @@ def cse(exprs, symbols=None, optimizations=None, postprocess=None,
+     reduced_exprs = [postprocess_for_cse(e, optimizations)
+                      for e in reduced_exprs]
+ 
+-    # Get the matrices back
++    # Get the matrices back, ensuring MatrixSymbol objects are correctly handled
+     for i, e in enumerate(exprs):
+-        if isinstance(e, (Matrix, ImmutableMatrix)):
+-            reduced_exprs[i] = Matrix(e.rows, e.cols, reduced_exprs[i])
+-            if isinstance(e, ImmutableMatrix):
+-                reduced_exprs[i] = reduced_exprs[i].as_immutable()
++        if isinstance(e, (Matrix, ImmutableMatrix, MatrixSymbol)):
++            # Directly handling MatrixSymbol to preserve its structure without conversion
++            if not isinstance(e, MatrixSymbol):
++                reduced_exprs[i] = Matrix(e.rows, e.cols, reduced_exprs[i])
++                if isinstance(e, ImmutableMatrix):
++                    reduced_exprs[i] = reduced_exprs[i].as_immutable()
+         elif isinstance(e, (SparseMatrix, ImmutableSparseMatrix)):
+             m = SparseMatrix(e.rows, e.cols, {})
+             for k, v in reduced_exprs[i]:

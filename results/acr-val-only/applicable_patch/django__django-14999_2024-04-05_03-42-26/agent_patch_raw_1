@@ -1,0 +1,62 @@
+# modification 1
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        new_model = to_state.apps.get_model(app_label, self.new_name)
+        if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+            old_model = from_state.apps.get_model(app_label, self.old_name)
+            # Move the main table
+            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )
+            ...
+</original>
+<patched>    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        new_model = to_state.apps.get_model(app_label, self.new_name)
+        if self.allow_migrate_model(schema_editor.connection.alias, new_model):
+            old_model = from_state.apps.get_model(app_label, self.old_name)
+            # Check if custom db_table is defined and skip if so
+            if old_model._meta.db_table == new_model._meta.db_table:
+                return
+            # Move the main table
+            schema_editor.alter_db_table(
+                new_model,
+                old_model._meta.db_table,
+                new_model._meta.db_table,
+            )
+            ...
+</patched>
+```
+
+# modification 2
+```python
+<file>django/db/migrations/operations/models.py</file>
+<original>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        self.database_forwards(app_label, schema_editor, from_state, to_state)
+
+        self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+        self.new_name, self.old_name = self.old_name, self.new_name
+</original>
+<patched>    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+        self.new_name, self.old_name = self.old_name, self.new_name
+
+        new_model = to_state.apps.get_model(app_label, self.old_name)
+        old_model = from_state.apps.get_model(app_label, self.new_name)
+        # Check if custom db_table is defined and skip if so
+        if old_model._meta.db_table == new_model._meta.db_table:
+            return
+
+        self.database_forwards(app_label, schema_editor, from_state, to_state)
+
+        self.new_name_lower, self.old_name_lower = self.old_name_lower, self.new_name_lower
+        self.new_name, self.old_name = self.old_name, self.new_name
+</patched>
+```
+
+These modifications introduce a check to determine if the `db_table` property is the same for both the old and new model names, indicating that a custom table name is being used and that the operation should be skipped to avoid unnecessary database alterations. This approach aims to address the issue by making the `RenameModel` operation a no-operation (noop) when a custom `db_table` is defined, thus preventing the dropping and recreating of foreign key constraints in PostgreSQL and the recreation of the table in SQLite.

@@ -1,0 +1,49 @@
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..7842eee856 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -895,12 +895,15 @@ def __new__(cls, *args, **kwargs):
+         # counting starts from 1.
+ 
+         temp = flatten(args)
+-        if has_dups(temp):
+-            if is_cycle:
+-                raise ValueError('there were repeated elements; to resolve '
+-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+-            else:
+-                raise ValueError('there were repeated elements.')
++        # Removed the check for duplicate elements in cycle input to allow non-disjoint cycles
++        # Instead, we will handle non-disjoint cycles by applying them in left-to-right order
++        # The following code block that raises ValueError for repeated elements is commented out
++        # if has_dups(temp):
++        #     if is_cycle:
++        #         raise ValueError('there were repeated elements; to resolve '
++        #         'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
++        #     else:
++        #         raise ValueError('there were repeated elements.')
+         temp = set(temp)
+ 
+         if not is_cycle and \
+@@ -909,12 +912,17 @@ def __new__(cls, *args, **kwargs):
+                              max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+-            c = Cycle()
++            # Modified to apply non-disjoint cycles in left-to-right order
++            # This change allows the constructor to handle non-disjoint cycles correctly
++            from sympy.combinatorics.permutations import _af_new
++            aform = list(range(max(flatten(args))+1))  # Initialize aform with the identity permutation
+             for ci in args:
+-                c = c(*ci)
+-            aform = c.list()
++                # Apply each cycle in left-to-right order
++                cycle = Cycle(*ci)
++                for i in range(len(aform)):
++                    if i in cycle:
++                        aform[i] = cycle(aform[i])
++            # No need to call c.list() as aform is already updated
+         else:
+             aform = list(args)
+         if size and size > len(aform):

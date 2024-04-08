@@ -1,0 +1,44 @@
+diff --git a/sklearn/linear_model/logistic.py b/sklearn/linear_model/logistic.py
+index 1999f1dae..8bf7faa86 100644
+--- a/sklearn/linear_model/logistic.py
++++ b/sklearn/linear_model/logistic.py
+@@ -2167,21 +2167,24 @@ class LogisticRegressionCV(LogisticRegression, BaseEstimator,
+                 w = w[0]
+ 
+             else:
+-                # Take the best scores across every fold and the average of
+-                # all coefficients corresponding to the best scores.
+-                best_indices = np.argmax(scores, axis=1)
+-                if self.multi_class == 'ovr':
+-                    w = np.mean([coefs_paths[i, best_indices[i], :]
+-                                 for i in range(len(folds))], axis=0)
+-                else:
+-                    w = np.mean([coefs_paths[:, i, best_indices[i], :]
+-                                 for i in range(len(folds))], axis=0)
+-
+-                best_indices_C = best_indices % len(self.Cs_)
+-                self.C_.append(np.mean(self.Cs_[best_indices_C]))
+-
+-                best_indices_l1 = best_indices // len(self.Cs_)
+-                self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))
++                            # Take the best scores across every fold and the average of
++                            # all coefficients corresponding to the best scores.
++                            best_indices = np.argmax(scores, axis=1)
++                            # Fix for IndexError when refit=False and multi_class is not 'ovr'
++                            # Ensure correct indexing for coefs_paths based on multi_class setting
++                            if self.multi_class == 'ovr':
++                                w = np.mean([coefs_paths[i, best_indices[i], :]
++                                             for i in range(len(folds))], axis=0)
++                            else:
++                                # Adjusted indexing to handle multi_class='multinomial' case correctly
++                                w = np.mean([coefs_paths[:, best_indices[i], i, :]
++                                             for i in range(len(folds))], axis=0)
++            
++                            best_indices_C = best_indices % len(self.Cs_)
++                            self.C_.append(np.mean(self.Cs_[best_indices_C]))
++            
++                            best_indices_l1 = best_indices // len(self.Cs_)
++                            self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))
+ 
+             if multi_class == 'multinomial':
+                 self.C_ = np.tile(self.C_, n_classes)

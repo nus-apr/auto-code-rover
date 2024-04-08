@@ -1,0 +1,26 @@
+diff --git a/sklearn/utils/multiclass.py b/sklearn/utils/multiclass.py
+index 5eaef2fde..0c15ef372 100644
+--- a/sklearn/utils/multiclass.py
++++ b/sklearn/utils/multiclass.py
+@@ -74,6 +74,21 @@ def unique_labels(*ys):
+     array([ 1,  2,  5, 10, 11])
+     """
+     xp, is_array_api = get_namespace(*ys)
++    import pandas as pd
++    
++    # Preprocess input to convert nullable pandas dtypes to their numpy equivalents
++    def _convert_nullable_pd_types(y):
++        """Convert nullable pandas dtypes to their numpy equivalents."""
++        if isinstance(y, pd.Series) and pd.api.types.is_integer_dtype(y.dtype):
++            return y.astype('float64' if y.isnull().any() else 'int64')
++        elif isinstance(y, pd.Series) and pd.api.types.is_float_dtype(y.dtype):
++            return y.astype('float64')
++        elif isinstance(y, pd.Series) and pd.api.types.is_bool_dtype(y.dtype):
++            return y.astype('object')
++        return y
++    
++    ys = tuple(_convert_nullable_pd_types(y) for y in ys)
++    
+     if not ys:
+         raise ValueError("No argument has been passed.")
+     # Check that we don't mix label format

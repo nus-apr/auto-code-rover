@@ -1,0 +1,37 @@
+diff --git a/sympy/core/add.py b/sympy/core/add.py
+index 2ec4fff073..a719523c7b 100644
+--- a/sympy/core/add.py
++++ b/sympy/core/add.py
+@@ -167,6 +167,12 @@ def flatten(cls, seq):
+             # check for unevaluated Pow, e.g. 2**3 or 2**(-1/2)
+             elif o.is_Pow:
+                 b, e = o.as_base_exp()
++                # Attempt to normalize floating-point exponents to rational where possible
++                if e.is_Float:
++                    try:
++                        e = nsimplify(e, rational=True)
++                    except (ValueError, TypeError):
++                        pass
+                 if b.is_Number and (e.is_Integer or
+                                    (e.is_Rational and e.is_negative)):
+                     seq.append(b**e)
+@@ -186,8 +192,17 @@ def flatten(cls, seq):
+             # let's collect terms with the same s, so e.g.
+             # 2*x**2 + 3*x**2  ->  5*x**2
+             if s in terms:
+-                terms[s] += c
+-                if terms[s] is S.NaN:
++                # Ensure that terms with equivalent bases and exponents are combined
++                # even if one is represented as a float and the other as a rational
++                combined = False
++                for existing_s in terms.keys():
++                    if (s - existing_s).simplify() == 0:
++                        terms[existing_s] += c
++                        combined = True
++                        break
++                if not combined:
++                    terms[s] = c
++                if terms.get(s, S.NaN) is S.NaN:
+                     # we know for sure the result will be nan
+                     return [S.NaN], [], None
+             else:

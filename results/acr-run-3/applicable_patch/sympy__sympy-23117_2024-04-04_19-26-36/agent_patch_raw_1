@@ -1,0 +1,38 @@
+# modification 1
+```python
+<file>sympy/tensor/array/ndim_array.py</file>
+<original>    def _scan_iterable_shape(cls, iterable):
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+
+            result = []
+            elems, shapes = zip(*[f(i) for i in pointer])
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</original>
+<patched>    def _scan_iterable_shape(cls, iterable):
+        from collections.abc import Iterable
+        def f(pointer):
+            if not isinstance(pointer, Iterable):
+                return [pointer], ()
+            if not pointer:  # Check if the pointer is an empty iterable
+                return [], ()
+            result = []
+            elems, shapes = zip(*[f(i) for i in pointer])
+            if len(set(shapes)) != 1:
+                raise ValueError("could not determine shape unambiguously")
+            for i in elems:
+                result.extend(i)
+            return result, (len(shapes),)+shapes[0]
+
+        return f(iterable)
+</patched>
+```
+
+This modification addresses the issue by adding a check for an empty iterable in the `_scan_iterable_shape` method. If the iterable is empty, it returns an empty list and an empty tuple for the shape, thus avoiding the `ValueError` when trying to unpack zero values. This change ensures that creating an empty `Array` object behaves similarly to creating an empty `Matrix` object, providing consistency in handling empty inputs across different types of arrays in SymPy.

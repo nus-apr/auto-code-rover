@@ -1,0 +1,43 @@
+To address the issue of allowing the `:inherited-members:` option to support more than one class, we need to modify how Sphinx handles the documentation of inherited members, specifically within the context of the `automodule` and `autoclass` directives. The modifications will involve adding functionality to parse a list of classes from the `:inherited-members:` option and then use this list to filter out members from the specified base classes when generating documentation.
+
+Given the context provided, the modifications will be conceptual, focusing on the areas identified as relevant to the issue. The actual implementation may require additional adjustments based on the full context of the Sphinx project.
+
+# modification 1
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>app.add_config_value('autoclass_content', 'class', True, ENUM('both', 'class', 'init'))</original>
+<patched>app.add_config_value('autoclass_content', 'class', True, ENUM('both', 'class', 'init'))
+app.add_config_value('autoclass_ignore_bases', [], True)</patched>
+```
+This modification introduces a new configuration value `autoclass_ignore_bases` to specify base classes whose members should be ignored when documenting a class. This list will be used in conjunction with the `:inherited-members:` option.
+
+# modification 2
+```python
+<file>sphinx/ext/autodoc/__init__.py</file>
+<original>if classdoc_from in ('both', 'init'):
+    __init__ = self.get_attr(self.object, '__init__', None)
+    initdocstring = getdoc(__init__, self.get_attr,
+                           self.config.autodoc_inherit_docstrings,
+                           self.object, '__init__')
+    ...
+    if initdocstring:
+        if classdoc_from == 'init':
+            docstrings = [initdocstring]
+        else:
+            docstrings.append(initdocstring)</original>
+<patched>ignore_bases = self.config.autoclass_ignore_bases
+if classdoc_from in ('both', 'init') and not any(isinstance(self.object, base) for base in ignore_bases):
+    __init__ = self.get_attr(self.object, '__init__', None)
+    initdocstring = getdoc(__init__, self.get_attr,
+                           self.config.autodoc_inherit_docstrings,
+                           self.object, '__init__')
+    ...
+    if initdocstring:
+        if classdoc_from == 'init':
+            docstrings = [initdocstring]
+        else:
+            docstrings.append(initdocstring)</patched>
+```
+This modification checks if the current class being documented is a subclass of any class in the `autoclass_ignore_bases` list. If so, it skips adding documentation for inherited members from those base classes.
+
+Please note, the actual implementation of checking if a class is a subclass of any in a list of classes (`ignore_bases`) might need to be adjusted based on the specific data structures and types used in Sphinx's configuration system. Additionally, the `autoclass_ignore_bases` configuration should be properly documented and tested to ensure it works as expected with various types of classes and inheritance hierarchies.

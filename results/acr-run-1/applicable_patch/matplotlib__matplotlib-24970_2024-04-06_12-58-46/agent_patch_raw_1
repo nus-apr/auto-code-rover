@@ -1,0 +1,42 @@
+# modification 1
+```python
+<file>lib/matplotlib/colors.py</file>
+<original>        xa[xa > self.N - 1] = self._i_over
+        xa[xa < 0] = self._i_under
+        xa[mask_bad] = self._i_bad</original>
+<patched>        # Patch to address NumPy 1.24 deprecation warnings for out-of-bound integers
+        # Convert to float to avoid direct integer assignment that leads to deprecation warnings
+        xa = xa.astype(float)
+        xa[xa > self.N - 1] = float(self._i_over)
+        xa[xa < 0] = float(self._i_under)
+        xa[mask_bad] = float(self._i_bad)
+        # After handling, convert back to int if not in bytes mode
+        if not bytes:
+            xa = xa.astype(int)</patched>
+```
+
+# modification 2
+```python
+<file>lib/matplotlib/colors.py</file>
+<original>        if xa.dtype.kind == "f":
+            with np.errstate(invalid="ignore"):
+                xa *= self.N
+                # Negative values are out of range, but astype(int) would
+                # truncate them towards zero.
+                xa[xa < 0] = -1
+                # xa == 1 (== N after multiplication) is not out of range.
+                xa[xa == self.N] = self.N - 1
+                # Avoid converting large positive values to negative integers.
+                np.clip(xa, -1, self.N, out=xa)
+                xa = xa.astype(int)</original>
+<patched>        if xa.dtype.kind == "f":
+            with np.errstate(invalid="ignore"):
+                xa *= self.N
+                # Handle floating point values by clipping and converting to int
+                # This avoids potential issues with out-of-bound values
+                xa = np.clip(xa, -1, self.N - 1).astype(int)</patched>
+```
+
+These modifications aim to address the deprecation warnings by ensuring that operations on the array `xa` do not rely on behavior that will be deprecated in future versions of NumPy. The first modification explicitly converts `xa` to a floating-point array before assignment operations that could lead to out-of-bound integer values, thus avoiding the deprecation warning. After handling, it converts `xa` back to an integer array if not in bytes mode, maintaining the original method's behavior.
+
+The second modification simplifies the handling of floating-point values by using `np.clip` to ensure values are within the valid range before converting to integers. This approach avoids the need for conditional assignments that could lead to out-of-bound values and thus deprecation warnings.

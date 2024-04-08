@@ -1,0 +1,71 @@
+Given the constraints and the nature of our interaction, I'll provide a hypothetical patch based on the analysis and the context retrieved. This patch aims to address the DPI doubling issue upon unpickling figures on M1 Macs within the Matplotlib project. Please note, without direct access to the codebase and specific details on the bug's root cause, this patch is speculative and intended as a conceptual example.
+
+### Hypothetical Patch for DPI Doubling Issue
+
+#### Modification 1: Ensure DPI is not altered during figure restoration in `__setstate__` method
+
+```python
+<file>lib/matplotlib/figure.py</file>
+<original>
+def __setstate__(self, state):
+    version = state.pop('__mpl_version__')
+    restore_to_pylab = state.pop('_restore_to_pylab', False)
+
+    if version != mpl.__version__:
+        _api.warn_external(
+            f"This figure was saved with matplotlib version {version} and "
+            f"is unlikely to function correctly.")
+
+    self.__dict__ = state
+
+    # re-initialise some of the unstored state information
+    FigureCanvasBase(self)  # Set self.canvas.
+
+    if restore_to_pylab:
+        # lazy import to avoid circularity
+        import matplotlib.pyplot as plt
+        import matplotlib._pylab_helpers as pylab_helpers
+        allnums = plt.get_fignums()
+        num = max(allnums) + 1 if allnums else 1
+        mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+        pylab_helpers.Gcf._set_new_active_manager(mgr)
+        plt.draw_if_interactive()
+
+    self.stale = True
+</original>
+<patched>
+def __setstate__(self, state):
+    version = state.pop('__mpl_version__')
+    restore_to_pylab = state.pop('_restore_to_pylab', False)
+    original_dpi = state.get('dpi', 100)  # Assuming 100 as a default DPI value if not present
+
+    if version != mpl.__version__:
+        _api.warn_external(
+            f"This figure was saved with matplotlib version {version} and "
+            f"is unlikely to function correctly.")
+
+    self.__dict__ = state
+
+    # Ensure DPI is restored correctly without being altered
+    self.dpi = original_dpi
+
+    # re-initialise some of the unstored state information
+    FigureCanvasBase(self)  # Set self.canvas.
+
+    if restore_to_pylab:
+        # lazy import to avoid circularity
+        import matplotlib.pyplot as plt
+        import matplotlib._pylab_helpers as pylab_helpers
+        allnums = plt.get_fignums()
+        num = max(allnums) + 1 if allnums else 1
+        mgr = plt._backend_mod.new_figure_manager_given_figure(num, self)
+        pylab_helpers.Gcf._set_new_active_manager(mgr)
+        plt.draw_if_interactive()
+
+    self.stale = True
+</patched>
+```
+
+This modification explicitly restores the DPI value from the saved state without allowing it to be implicitly altered during the figure's restoration process. It assumes a default DPI value if one is not present in the state, which might need adjustment based on Matplotlib's standard practices.
+
+Please note, this patch is speculative and based on the analysis of the provided context. Actual implementation might require adjustments based on a deeper understanding of the issue and testing within the Matplotlib codebase.

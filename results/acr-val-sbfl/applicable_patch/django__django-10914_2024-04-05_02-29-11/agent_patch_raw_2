@@ -1,0 +1,18 @@
+Given the feedback, it seems the approach to directly modify the `_value_or_setting` method or to apply a default within the `file_permissions_mode` method may not be the best solution, possibly due to unintended side effects or incorrect handling of the default permissions. Let's revise the approach to ensure that the default permissions are set in a way that doesn't interfere with existing configurations or tests.
+
+A more targeted approach would be to ensure that the default permissions are set at the point where `settings.FILE_UPLOAD_PERMISSIONS` is defined or used, without altering the utility method `_value_or_setting`, which could affect other settings or use cases.
+
+# modification 1
+```python
+<file>django/core/files/storage.py</file>
+<original>    def file_permissions_mode(self):
+        return self._value_or_setting(self._file_permissions_mode, settings.FILE_UPLOAD_PERMISSIONS)
+</original>
+<patched>    def file_permissions_mode(self):
+        # Ensure FILE_UPLOAD_PERMISSIONS has a default value if not explicitly set
+        file_upload_permissions = settings.FILE_UPLOAD_PERMISSIONS if settings.FILE_UPLOAD_PERMISSIONS is not None else 0o644
+        return self._value_or_setting(self._file_permissions_mode, file_upload_permissions)
+</patched>
+```
+
+This modification directly addresses the issue by ensuring that `settings.FILE_UPLOAD_PERMISSIONS` is checked for `None` within the `file_permissions_mode` method itself, and a default value of `0o644` is used if it is not explicitly set. This approach minimizes the impact on other parts of the codebase and focuses on the specific issue at hand, ensuring that uploaded files have consistent permissions across different systems and configurations.

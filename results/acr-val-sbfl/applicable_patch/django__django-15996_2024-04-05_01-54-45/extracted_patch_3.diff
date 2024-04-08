@@ -1,0 +1,31 @@
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 38da1e6ecc..abff6c7dcf 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -125,10 +125,22 @@ class EnumSerializer(BaseSerializer):
+     def serialize(self):
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        return (
+-            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+-            {"import %s" % module},
+-        )
++        # Attempt to directly use the name attribute for single Enum values
++        try:
++            enum_name = self.value.name
++            return (
++                "%s.%s.%s" % (module, enum_class.__qualname__, enum_name),
++                {"import %s" % module},
++            )
++        except AttributeError:
++            # For combined Enum flags, which do not have a direct .name attribute
++            # Serialize by reconstructing the combined value from its individual flags
++            flags = [flag for flag in enum_class if flag.value & self.value == flag.value]
++            combined_expression = " | ".join(["%s.%s.%s" % (module, enum_class.__qualname__, flag.name) for flag in flags])
++            return (
++                combined_expression,
++                {"import %s" % module},
++            )
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):

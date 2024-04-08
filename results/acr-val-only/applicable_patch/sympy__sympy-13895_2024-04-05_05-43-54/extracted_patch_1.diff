@@ -1,0 +1,35 @@
+diff --git a/sympy/core/power.py b/sympy/core/power.py
+index b2832dd264..3be8b7da67 100644
+--- a/sympy/core/power.py
++++ b/sympy/core/power.py
+@@ -761,7 +761,11 @@ def _eval_expand_power_exp(self, **hints):
+             for x in e.args:
+                 expr.append(self.func(self.base, x))
+             return Mul(*expr)
+-        return self.func(b, e)
++        # Ensure that simplification of power expressions maintains equivalence
++        if should_simplify_exp(b, e):
++            return self.func(b, simplify(e))
++        else:
++            return self.func(b, e)
+ 
+     def _eval_expand_power_base(self, **hints):
+         """(a*b)**n -> a**n * b**n"""
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index 1acc00be3a..82972c56d2 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -569,7 +569,12 @@ def shorter(*choices):
+     expr = factor_terms(expr, sign=False)
+ 
+     # hyperexpand automatically only works on hypergeometric terms
+-    expr = hyperexpand(expr)
++    # Before applying hyperexpand, check if the expression involves powers and might lead to inequivalence
++    if not expr.has(Pow) or safe_to_hyperexpand(expr):
++        expr = hyperexpand(expr)
++    else:
++        # Log or handle cases where hyperexpand might lead to inequivalence
++        pass
+ 
+     expr = piecewise_fold(expr)
+ 

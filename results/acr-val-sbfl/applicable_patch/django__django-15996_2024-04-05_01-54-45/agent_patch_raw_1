@@ -1,0 +1,36 @@
+Based on the issue description and the provided context, here is a proposed patch for the `EnumSerializer.serialize` method to handle the serialization of combined Enum flags. This patch introduces logic to check if the Enum value can be decomposed into individual flags and serializes each flag accordingly.
+
+# modification 1
+```python
+<file>django/db/migrations/serializer.py</file>
+<original>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        return (
+            "%s.%s[%r]" % (module, enum_class.__qualname__, self.value.name),
+            {"import %s" % module},
+        )
+</original>
+<patched>    def serialize(self):
+        enum_class = self.value.__class__
+        module = enum_class.__module__
+        if isinstance(self.value, enum.Enum):
+            # Handling single Enum value
+            return (
+                "%s.%s.%s" % (module, enum_class.__qualname__, self.value.name),
+                {"import %s" % module},
+            )
+        else:
+            # Handling combined Enum flags
+            combined_names = [flag.name for flag in enum_class if flag in self.value]
+            combined_expression = " | ".join("%s.%s.%s" % (module, enum_class.__qualname__, name) for name in combined_names)
+            return (
+                combined_expression,
+                {"import %s" % module},
+            )
+</patched>
+```
+
+This patch modifies the `EnumSerializer.serialize` method to differentiate between single Enum values and combined Enum flags. For single Enum values, the serialization process remains unchanged. For combined Enum flags, it decomposes the value into individual flags, serializes each flag by its name, and combines them using the bitwise OR operator (`|`). This approach ensures that the serialized form accurately represents the combined Enum flags and can be correctly deserialized later.
+
+Please note, this patch assumes that the combined Enum flags can be iterated to extract individual flags, which is true for standard Python Enum classes designed to support bitwise operations. Additional error handling or adjustments may be necessary depending on the specific Enum classes used in your project.
