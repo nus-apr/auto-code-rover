@@ -54,7 +54,7 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/719c7a56-40b8-4f3d-a9
 First of all, build and start the docker image:
 
 ```
-docker build -f Dockerfile.one_task -t acr-one-task .
+docker build -f Dockerfile.scratch -t acr-one-task .
 docker run -it acr-one-task /bin/bash
 ```
 
