@@ -28,8 +28,8 @@ conda activate auto-code-rover
 Set some temp git info:
 
 ```
-git config --global user.name "auto-code-rover"
-git config --global user.email "auto-code-rover@gmail.com"
+git config --global user.email acr@nus.edu.sg
+git config --global user.name acr
 ```
 
 In the container, specify your OpenAI key in the `OPENAI_KEY` environment variable:
