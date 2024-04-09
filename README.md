@@ -67,7 +67,7 @@ export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Set up one or more tasks in SWE-bench
 
-In the docker container, we need to first set up the tasks to run (e.g., `django__django-11133`) in SWE-bench.
+In the docker container, we need to first set up the tasks to run (e.g., `django__django-11133`) in SWE-bench. The list of all tasks can be found in [this file](conf/vanilla-lite.conf).
 
 The tasks need to be put in a file, one per line:
 
