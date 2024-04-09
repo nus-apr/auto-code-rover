@@ -30,6 +30,13 @@ AutoCodeRover has two unique features:
 
 ## 🗎 arXiv Paper
 ### AutoCodeRover: Autonomous Program Improvement [[arXiv 2404.05427]](https://arxiv.org/abs/2404.05427)
+
+<p align="center">
+  <a href="https://arxiv.org/abs/2404.05427">
+    <img src="https://github.com/nus-apr/auto-code-rover/assets/48704330/5c55fb21-433c-4db3-abd3-8e0ad78b1946" alt="First page of arXiv paper" width="200">
+  </a>
+</p>
+
 For referring to our work, please cite and mention:
 ```
 @misc{zhang2024autocoderover,
