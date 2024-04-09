@@ -47,30 +47,43 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/719c7a56-40b8-4f3d-a9
 
 ## 🚀 Setup & Running
 
-### Run a single task
-
-To run a single task, build and start the docker image:
+First of all, build and start the docker image:
 
 ```
 docker build -f Dockerfile.one_task -t acr-one-task .
 docker run -it acr-one-task /bin/bash
 ```
 
-Then, set up a task in the container (e.g., django__django-11133):
+Also, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+
+```
+export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Set up one or more tasks in SWE-bench
+
+In the docker container, we need to first set up the tasks to run (e.g., django__django-11133) in SWE-bench.
+
+The tasks need to be put in a file, one per line:
+
+```
+cd /opt/SWE-bench
+echo django__django-11133 > tasks.txt
+```
+
+Then, set up these tasks by running:
 
 ```
 cd /opt/SWE-bench
 conda activate swe-bench
-echo django__django-11133 > task_subset.txt
-python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file task_subset.txt
+python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file tasks.txt
 ```
 
-Finally, start AutoCodeRover:
+### Run a single task
 
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
