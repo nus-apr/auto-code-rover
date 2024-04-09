@@ -61,7 +61,7 @@ git clone https://github.com/princeton-nlp/SWE-bench.git
 conda env create -f environment.yml
 ```
 
-Finally, specify your OpenAI key in the `OPENAI_KEY` environment variable:
+Finally, specify your ![OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) in the `OPENAI_KEY` environment variable:
 
 ```
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -73,11 +73,22 @@ And we are good to go!
 
 ### Run a single task
 
-To run a single task:
+To run a single task, build and start the docker image:
 
 ```
-PYTHONPATH=. python app/main.py --enable-layered --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-13933
+docker build -f Dockerfile.one_task -t acr-one-task .
+docker run -it acr-one-task /bin/bash
 ```
+
+In the started docker container, run
+
+```
+conda activate auto-code-rover
+export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PYTHONPATH=. python app/main.py --enable-layered --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task astropy__astropy-7336
+```
+
+The output can then be found in `output/`.
 
 ### Run multiple tasks
 

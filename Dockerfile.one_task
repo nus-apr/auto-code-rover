@@ -1,0 +1,37 @@
+FROM ubuntu:22.04
+
+RUN apt update && apt install -y git wget
+
+WORKDIR /root
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+RUN bash ./Miniconda3-latest-Linux-x86_64.sh -b -p /root/miniconda3
+ENV PATH="/root/miniconda3/bin:${PATH}"
+RUN conda init
+
+WORKDIR /opt
+RUN git clone https://github.com/yuntongzhang/SWE-bench.git
+
+WORKDIR SWE-bench
+RUN conda env create -f environment.yml
+RUN ln -sf /bin/bash /bin/sh
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt install -y libffi-dev python3-pytest libfreetype6-dev libqhull-dev
+RUN apt install -y pkg-config texlive cm-super dvipng python-tk ffmpeg
+RUN apt install -y imagemagick fontconfig
+RUN apt install -y ghostscript inkscape graphviz
+RUN apt install -y optipng fonts-comic-neue  python3-pikepdf
+
+RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
+RUN apt install -y ttf-mscorefonts-installer
+
+RUN git config --global user.email acr@nus.edu.sg
+RUN git config --global user.name acr
+WORKDIR /opt/SWE-bench
+SHELL ["conda", "run", "-n", "swe-bench", "/bin/bash", "-c"]
+RUN echo astropy__astropy-7336 > task_subset.txt
+RUN python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file task_subset.txt
+
+COPY . /opt/auto-code-rover
+WORKDIR /opt/auto-code-rover
+RUN conda env create -f environment.yml
