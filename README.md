@@ -99,7 +99,7 @@ conda activate auto-code-rover
 PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
-The output can then be found in `output/`.
+The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
 
 ### Run multiple tasks
 
