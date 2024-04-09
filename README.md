@@ -2,6 +2,12 @@
 
 ![overall-workflow](https://github.com/nus-apr/auto-code-rover/assets/48704330/0b8da9ad-588c-4f7d-9c99-53f33d723d35)
 
+<p align="center">
+  <a href="setup-&-running"><strong>Quick Start</strong></a>&nbsp; | &nbsp;
+  <a href="arxiv-paper"><strong>ArXiv Paper</strong></a>&nbsp; | &nbsp;
+  <a href="experiment-replication"><strong>Experiment</strong></a>&nbsp;
+</p>
+
 ## 👋 Overview
 
 AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fixing and feature addition) where LLMs are combined with analysis and debugging capabilities to prioritize patch locations ultimately leading to a patch.
