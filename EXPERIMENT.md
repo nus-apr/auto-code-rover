@@ -4,6 +4,9 @@
 
 ### Docker
 
+> [!IMPORTANT]
+> There can be minor improvements to the Docker image from time to time. Please pull the latest version of the image.
+
 We have built a docker image with all task instances environment in it (it's a large image ~25GB!).
 With this image, you can directly start an experiment run.
 
@@ -91,3 +94,8 @@ Here are a few useful fields in the conf file:
 - selected_tasks_file: a file containing ids of all tasks to be run
 - print: whether to the print more info to console
 - num_processes: number of parallel processes when running auto-code-rover. Should not be too large, otherwise parallelly running multiple task instances can exceed OpenAI token limit and cause the task instance to fail.
+
+### Contacts
+
+> [!NOTE]
+> If you encounter any issue in the replication experiment, you can open an GitHub issue or contact us at {yuntong,hruan,zhiyufan}@comp.nus.edu.sg.
