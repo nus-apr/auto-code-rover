@@ -24,15 +24,19 @@ AutoCodeRover has two unique features:
 - Code search APIs are *Program Structure Aware*. Instead of searching over files by plain string matching, AutoCodeRover searches for relevant code context (methods/classes) in the abstract syntax tree.
 - When a test suite is available, AutoCodeRover can take advantage of test cases to achieve an even higher repair rate, by performing *statistical fault localization*.
 
-## 🗎 Paper
-
-For referring to our work, please cite and mention our [arXiv paper](https://arxiv.org/abs/2404.05427):
-
-AutoCodeRover: Autonomous Program Improvement
-
-Authors: Yuntong Zhang, Haifeng Ruan, Zhiyu Fan, Abhik Roychoudhury
-
-ArXiv pre-print, released in public domain on 8 April 2024.
+## 🗎 arXiv Paper
+### AutoCodeRover: Autonomous Program Improvement [[arXiv 2404.05427]](https://arxiv.org/abs/2404.05427) 
+For referring to our work, please cite and mention: 
+```
+@misc{zhang2024autocoderover,
+      title={AutoCodeRover: Autonomous Program Improvement}, 
+      author={Yuntong Zhang and Haifeng Ruan and Zhiyu Fan and Abhik Roychoudhury},
+      year={2024},
+      eprint={2404.05427},
+      archivePrefix={arXiv},
+      primaryClass={cs.SE}
+}
+```
 
 ## ✔️ Example: Django Issue #32347
 
