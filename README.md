@@ -13,6 +13,10 @@ AutoCodeRover works in two stages:
 - 🔎 Context retrieval: The LLM is provided with code search APIs to navigate the codebase and collect relevant context.
 - 💊 Patch generation: The LLM tries to write a patch, based on retrieved context.
 
+<p align="center">
+<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/28e26111-5f15-4ee4-acd1-fa6e2e6e0593 width=330/>
+</p>
+
 ### ✨ Highlights
 
 AutoCodeRover has two unique features:
