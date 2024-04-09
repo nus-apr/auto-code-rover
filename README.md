@@ -84,9 +84,19 @@ docker build -f Dockerfile.one_task -t acr-one-task .
 docker run -it acr-one-task /bin/bash
 ```
 
-In the started docker container, run
+Then, set up a task in the container (e.g., django__django-11133):
 
 ```
+cd /opt/SWE-bench
+conda activate swe-bench
+echo django__django-11133 > task_subset.txt
+python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file task_subset.txt
+```
+
+Finally, start AutoCodeRover:
+
+```
+cd /opt/auto-code-rover
 conda activate auto-code-rover
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
