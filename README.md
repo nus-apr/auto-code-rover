@@ -65,7 +65,7 @@ git clone https://github.com/princeton-nlp/SWE-bench.git
 conda env create -f environment.yml
 ```
 
-Finally, specify your ![OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) in the `OPENAI_KEY` environment variable:
+Finally, specify your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) in the `OPENAI_KEY` environment variable:
 
 ```
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
