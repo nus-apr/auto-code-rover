@@ -97,13 +97,7 @@ python scripts/run.py conf/vanilla-lite.conf
 
 ## Experiment Replication
 
-We provide a Dockerfile for replicating all our experiments, using the following commands:
-
-```
-docker build -t auto-code-rover .
-docker run -it auto-code-rover /bin/bash
-python scripts/run.py conf/vanilla-lite.conf
-```
+Please refer to [EXPERIMENT.md](EXPERIMENT.md) for information on experiment replication.
 
 ## ✉️ Contacts
 
