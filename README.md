@@ -26,9 +26,9 @@ AutoCodeRover has two unique features:
 
 ## 🗎 Paper
 
-For referring to our work, please cite and mention the following paper:
+For referring to our work, please cite and mention our [arXiv paper](https://arxiv.org/abs/2404.05427):
 
-AutoCodeRover: Autonomous Program Improvement ([preprint](preprint.pdf))
+AutoCodeRover: Autonomous Program Improvement
 
 Authors: Yuntong Zhang, Haifeng Ruan, Zhiyu Fan, Abhik Roychoudhury
 
