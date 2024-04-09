@@ -48,6 +48,11 @@ As an example, AutoCodeRover successfully fixed issue [#32347](https://code.djan
 
 https://github.com/nus-apr/auto-code-rover/assets/48704330/719c7a56-40b8-4f3d-a90e-0069e37baad3
 
+### Enhancement: leveraging test cases
+
+AutoCodeRover can resolve even more issues, if test cases are available. See an example in the video:
+
+https://github.com/nus-apr/auto-code-rover/assets/48704330/26c9d5d4-04e0-4b98-be55-61c1d10a36e5
 
 ## 🚀 Setup & Running
 
