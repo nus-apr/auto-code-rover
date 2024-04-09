@@ -428,3 +428,6 @@ def main():
     if running_combined:
         create_separate_reports(expr_dir, final_report_path)
         print(f"Created separate reports for each subset.")
+
+if __name__ == "__main__":
+    main()
