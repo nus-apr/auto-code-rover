@@ -8,14 +8,14 @@ AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fix
 
 On [SWE-bench lite](https://www.swebench.com/lite.html), which consists of 300 real-world GitHub issues, AutoCodeRover resolves ~**22%** of issues, improving over the current state-of-the-art efficacy of AI software engineers.
 
+<p align="center">
+<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/28e26111-5f15-4ee4-acd1-fa6e2e6e0593 width=330/>
+</p>
+
 AutoCodeRover works in two stages:
 
 - 🔎 Context retrieval: The LLM is provided with code search APIs to navigate the codebase and collect relevant context.
 - 💊 Patch generation: The LLM tries to write a patch, based on retrieved context.
-
-<p align="center">
-<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/28e26111-5f15-4ee4-acd1-fa6e2e6e0593 width=330/>
-</p>
 
 ### ✨ Highlights
 
@@ -32,7 +32,7 @@ AutoCodeRover: Autonomous Program Improvement
 
 Authors: Yuntong Zhang, Haifeng Ruan, Zhiyu Fan, Abhik Roychoudhury
 
-Pre-print, released in public domain on 8 April 2024.
+ArXiv pre-print, released in public domain on 8 April 2024.
 
 ## ✔️ Example: Django Issue #32347
 
