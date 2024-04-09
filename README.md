@@ -89,7 +89,7 @@ In the started docker container, run
 ```
 conda activate auto-code-rover
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-PYTHONPATH=. python app/main.py --enable-layered --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task astropy__astropy-7336
+PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
 The output can then be found in `output/`.
