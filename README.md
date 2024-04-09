@@ -45,39 +45,7 @@ As an example, AutoCodeRover successfully fixed issue [#32347](https://code.djan
 https://github.com/nus-apr/auto-code-rover/assets/48704330/719c7a56-40b8-4f3d-a90e-0069e37baad3
 
 
-## ⚙️ Setup
-
-First, install Conda:
-
-```
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
-```
-
-Then set up Conda environment:
-
-```
-conda env create -f environment.yml
-conda activate auto-code-rover
-```
-
-Also set up SWE-bench:
-
-```
-cd ..
-git clone https://github.com/princeton-nlp/SWE-bench.git
-conda env create -f environment.yml
-```
-
-Finally, specify your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) in the `OPENAI_KEY` environment variable:
-
-```
-export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-And we are good to go!
-
-## 🚀 Running
+## 🚀 Setup & Running
 
 ### Run a single task
 
