@@ -29,11 +29,11 @@ AutoCodeRover has two unique features:
 - When a test suite is available, AutoCodeRover can take advantage of test cases to achieve an even higher repair rate, by performing *statistical fault localization*.
 
 ## 🗎 arXiv Paper
-### AutoCodeRover: Autonomous Program Improvement [[arXiv 2404.05427]](https://arxiv.org/abs/2404.05427) 
-For referring to our work, please cite and mention: 
+### AutoCodeRover: Autonomous Program Improvement [[arXiv 2404.05427]](https://arxiv.org/abs/2404.05427)
+For referring to our work, please cite and mention:
 ```
 @misc{zhang2024autocoderover,
-      title={AutoCodeRover: Autonomous Program Improvement}, 
+      title={AutoCodeRover: Autonomous Program Improvement},
       author={Yuntong Zhang and Haifeng Ruan and Zhiyu Fan and Abhik Roychoudhury},
       year={2024},
       eprint={2404.05427},
@@ -51,11 +51,12 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/719c7a56-40b8-4f3d-a9
 
 ## 🚀 Setup & Running
 
+We recommend running AutoCodeRover in a Docker container.
 First of all, build and start the docker image:
 
 ```
-docker build -f Dockerfile.scratch -t acr-one-task .
-docker run -it acr-one-task /bin/bash
+docker build -f Dockerfile -t acr .
+docker run -it acr
 ```
 
 Also, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
@@ -83,6 +84,11 @@ conda activate swe-bench
 python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file tasks.txt
 ```
 
+The `testbed` directory will then contain the cloned source code of the target project.
+A conda environment will also be created for this task instance.
+
+_If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
+
 ### Run a single task
 
 Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
@@ -100,14 +106,16 @@ The output can then be found in `output/`.
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
 ```
-PYTHONPATH=. python app/main.py --enable-layered --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file tasks.txt
+PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).
 
 #### Using a config file
 
-Alternatively, a config file can be used to specify all parameters and tasks to run. See `conf/vanilla-lite.conf` for an example. A config file can be used by:
+Alternatively, a config file can be used to specify all parameters and tasks to run. See `conf/vanilla-lite.conf` for an example.
+Also see [EXPERIMENT.md](EXPERIMENT.md) for the details of the items in a conf file.
+A config file can be used by:
 
 ```
 python scripts/run.py conf/vanilla-lite.conf

@@ -42,6 +42,7 @@ export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 In the `/opt/auto-code-rover/` directory in the container, issue the following command to start
 the experiment run using `gpt-4-0125-preview` on SWE-bench-lite.
+(From our experience, one run with `gpt-4-0125-preview` on the 300 instances costs <150 USD on OpenAI API.)
 
 ```
 python scripts/run.py conf/vanilla-lite.conf
