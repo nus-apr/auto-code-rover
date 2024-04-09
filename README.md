@@ -59,7 +59,7 @@ docker build -f Dockerfile -t acr .
 docker run -it acr
 ```
 
-Also, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+In the docker container, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
 
 ```
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -67,7 +67,7 @@ export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Set up one or more tasks in SWE-bench
 
-In the docker container, we need to first set up the tasks to run (e.g., `django__django-11133`) in SWE-bench. The list of all tasks can be found in [`conf/swe_lite_tasks.txt`](conf/swe_lite_tasks.txt).
+In the docker container, we need to first set up the tasks to run in SWE-bench (e.g., `django__django-11133`). The list of all tasks can be found in [`conf/swe_lite_tasks.txt`](conf/swe_lite_tasks.txt).
 
 The tasks need to be put in a file, one per line:
 
@@ -84,7 +84,14 @@ conda activate swe-bench
 python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file tasks.txt
 ```
 
-The `testbed` directory will then contain the cloned source code of the target project.
+One the setup for this task is completed, the following two lines will be printed:
+
+```
+setup_map is saved to setup_result/setup_map.json
+tasks_map is saved to setup_result/tasks_map.json
+```
+
+The `testbed` directory will now contain the cloned source code of the target project.
 A conda environment will also be created for this task instance.
 
 _If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
