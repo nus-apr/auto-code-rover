@@ -62,7 +62,7 @@ export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Set up one or more tasks in SWE-bench
 
-In the docker container, we need to first set up the tasks to run (e.g., django__django-11133) in SWE-bench.
+In the docker container, we need to first set up the tasks to run (e.g., `django__django-11133`) in SWE-bench.
 
 The tasks need to be put in a file, one per line:
 
@@ -81,6 +81,8 @@ python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_
 
 ### Run a single task
 
+Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
+
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
@@ -96,6 +98,8 @@ First, put the id's of all tasks to run in a file, one per line. Suppose this fi
 ```
 PYTHONPATH=. python app/main.py --enable-layered --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file tasks.txt
 ```
+
+**NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).
 
 #### Using a config file
 
