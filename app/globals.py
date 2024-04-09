@@ -52,6 +52,7 @@ test_exec_timeout: int = 300
 ### Some information about the allowed models
 
 MODEL_NOTES = {
+    "gpt-4-turbo-2024-04-09": "Turbo. Up to dec 2023.",
     "gpt-4-0125-preview": "Turbo. Up to Dec 2023.",
     "gpt-4-1106-preview": "Turbo. Up to Apr 2023.",
     "gpt-3.5-turbo-0125": "Turbo. Up to Sep 2021.",
@@ -65,6 +66,7 @@ MODELS = list(MODEL_NOTES.keys())
 
 # The cost per token for each model input.
 MODEL_COST_PER_INPUT = {
+    "gpt-4-turbo-2024-04-09": 0.00001,
     "gpt-4-0125-preview": 0.00001,
     "gpt-4-1106-preview": 0.00001,
     "gpt-3.5-turbo-0125": 0.0000005,  # cheapest!
@@ -76,6 +78,7 @@ MODEL_COST_PER_INPUT = {
 
 # The cost per token for each model output.
 MODEL_COST_PER_OUTPUT = {
+    "gpt-4-turbo-2024-04-09": 0.00003,
     "gpt-4-0125-preview": 0.00003,
     "gpt-4-1106-preview": 0.00003,
     "gpt-3.5-turbo-0125": 0.0000015,
@@ -87,6 +90,7 @@ MODEL_COST_PER_OUTPUT = {
 
 # models that support the new parallel tool call feature
 PARALLEL_TOOL_CALL_MODELS = [
+    "gpt-4-turbo-2024-04-09",
     "gpt-4-0125-preview",
     "gpt-4-1106-preview",
     "gpt-3.5-turbo-0125",
