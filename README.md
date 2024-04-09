@@ -84,7 +84,7 @@ conda activate swe-bench
 python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file tasks.txt
 ```
 
-One the setup for this task is completed, the following two lines will be printed:
+Once the setup for this task is completed, the following two lines will be printed:
 
 ```
 setup_map is saved to setup_result/setup_map.json

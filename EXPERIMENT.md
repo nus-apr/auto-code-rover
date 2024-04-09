@@ -52,6 +52,29 @@ This command runs auto-code-rover on the 300 instances in SWE-bench-lite, and ru
 evaluation on the generated patches. The final results of the experiment will be at
 `/opt/auto-code-rover/experiment/vanilla-lite/final_report.json`.
 
+
+### Running experiments multiple times
+
+When running multiple experiments (sequentially), we recommend using a different `id` in the conf
+file for each experiment. This is because the outputs for an experiment will be created in a directory
+using `id` as the name.
+
+If you want to use the same `id` for multiple experiments and overwrite the previous experiment results,
+you can use the `-f` option of `scripts/run.py`. This will remove the previous experiment results with
+the same `id`.
+
+
+### Note on running experiments in parallel
+
+We do not recommend creating multiple processes running the script `scripts/run.py`. This is because
+different tasks instances may share the same copy of local code base (e.g. `astropy-6938` and
+`astropy-7746` share the same codebase at `setup_astropy__astropy__1.3`).
+
+Instead, we support parallelism of experiments in `scripts/run.py` itself. Please set the value
+of `num_processes` in the conf file to control how many tasks can be run in parallel. The scripts
+internally handle the parallelism issue mentioned above.
+
+
 ### Changing the conf file
 
 You can modify the `conf/vanilla-lite.conf` file to set parameters such as model temperature etc.
