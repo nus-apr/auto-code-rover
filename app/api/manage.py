@@ -395,7 +395,7 @@ class ProjectApiManager(object):
         self, coveragerc: str | PathLike, omitted: list[str]
     ) -> None:
         value = "".join(f"\n{file}" for file in omitted)
-        value = "\n# added by reverse-prompt" + value
+        value = "\n# added by auto-code-rover" + value
 
         config = configparser.ConfigParser()
 

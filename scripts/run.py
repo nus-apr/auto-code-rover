@@ -156,7 +156,7 @@ def run_agent(
 
     print(f"Running agent workflow with cmd: {cmd}")
     with cd(root_dir):
-        cp = run_string_cmd_in_conda(cmd, "reverse-prompt", env=modified_env)
+        cp = run_string_cmd_in_conda(cmd, "auto-code-rover", env=modified_env)
 
     print(f"Done with running agent workflow.")
     swe_input_file = pjoin(expr_dir, "predictions_for_swebench.json")
@@ -428,11 +428,3 @@ def main():
     if running_combined:
         create_separate_reports(expr_dir, final_report_path)
         print(f"Created separate reports for each subset.")
-
-
-if __name__ == "__main__":
-    main()
-    # create_separate_reports(
-    #     "/home/yuntong/reverse-prompt/experiment/04-02-day-3.5-combined-sm/",
-    #     "/home/yuntong/reverse-prompt/experiment/04-02-day-3.5-combined-sm/final_report.json",
-    # )
