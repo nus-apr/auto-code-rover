@@ -69,7 +69,7 @@ def run_string_cmd_in_conda(
 
     This is useful when the command to be run contains &&, etc.
 
-    NOTE: use `conda activate` instead of `conda run` in this verison, so that we can
+    NOTE: use `conda activate` instead of `conda run` in this version, so that we can
           run commands that contain `&&`, etc.
     NOTE: can find a similar version of this function in app/utils.py
     """
