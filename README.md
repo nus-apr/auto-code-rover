@@ -3,9 +3,7 @@
 ![overall-workflow](https://github.com/nus-apr/auto-code-rover/assets/48704330/0b8da9ad-588c-4f7d-9c99-53f33d723d35)
 
 <p align="center">
-  <a href="setup-&-running"><strong>Quick Start</strong></a>&nbsp; | &nbsp;
-  <a href="arxiv-paper"><strong>ArXiv Paper</strong></a>&nbsp; | &nbsp;
-  <a href="experiment-replication"><strong>Experiment</strong></a>&nbsp;
+  <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
 </p>
 
 ## 👋 Overview
