@@ -33,7 +33,7 @@ AutoCodeRover has two unique features:
 
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427">
-    <img src="https://github.com/nus-apr/auto-code-rover/assets/48704330/9bf6aedb-f821-498e-ada2-bbdbfe04f5be" alt="First page of arXiv paper" width="500">
+    <img src="https://github.com/nus-apr/auto-code-rover/assets/48704330/3d42a873-dd9f-41f3-ae09-eba477db2420" alt="First page of arXiv paper" width="570">
   </a>
 </p>
 
