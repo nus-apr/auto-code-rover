@@ -98,4 +98,4 @@ Here are a few useful fields in the conf file:
 ### Contacts
 
 > [!NOTE]
-> If you encounter any issue in the replication experiment, you can open an GitHub issue or contact us at {yuntong,hruan,zhiyufan}@comp.nus.edu.sg.
+> If you encounter any issue in the replication experiment, you can open a GitHub issue or contact us at {yuntong,hruan,zhiyufan}@comp.nus.edu.sg.
