@@ -1,4 +1,7 @@
+import time
 from typing import List, MutableMapping, Optional, Tuple
+
+import timeout_decorator
 
 from app.search import search_utils
 from app.search.search_utils import SearchResult
@@ -367,6 +370,7 @@ class SearchManager(object):
 
         return tool_output, summary, True
 
+    @timeout_decorator.timeout(180)  # 3*60 = 180
     def search_code(self, code_str: str) -> Tuple[str, str, bool]:
         # attempt to search for this code string in all py files
         all_search_results: List[SearchResult] = []
