@@ -13,7 +13,7 @@ AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fix
 AutoCodeRover resolves ~**16%** of issues of [SWE-bench](https://www.swebench.com) (total 2294 GitHub issues) and ~**22%** issues of [SWE-bench lite](https://www.swebench.com/lite.html) (total 300 GitHub issues), improving over the current state-of-the-art efficacy of AI software engineers.
 
 <p align="center">
-<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/07587d0d-0f96-4711-b847-464c6b0d5621 width=500/>
+<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/940b7a7a-dd14-48ec-ac2e-abd0f8d41fc1 width=500/>
 </p>
 
 AutoCodeRover works in two stages:
