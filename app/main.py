@@ -124,6 +124,7 @@ def run_one_task(task: Task) -> bool:
     except Exception as e:
         log.log_exception(logger, e)
         run_status_message = f"Task {task_id} failed with exception: {e}."
+        logger.handlers.clear()
         return False
 
     # special mode 2: only saving SBFL result
@@ -195,6 +196,7 @@ def run_one_task(task: Task) -> bool:
         with apputils.cd(repo_path):
             apputils.repo_reset_and_clean_checkout(base_commit, logger)
         log.log_and_always_print(logger, run_status_message)
+        logger.handlers.clear()
         return run_ok
 
 
