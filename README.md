@@ -148,7 +148,7 @@ Please refer to [EXPERIMENT.md](EXPERIMENT.md) for information on experiment rep
 
 For any queries, you are welcome to open an issue.
 
-Alternatively, contact us at: {yuntong,hruan,zhiyufan}@comp.nus.edu.sg.
+Alternatively, contact us at: {[yuntong](https://yuntongzhang.github.io/),[hruan](https://www.linkedin.com/in/haifeng-ruan-701a731a4/),[zhiyufan](https://zhiyufan.github.io/)}@comp.nus.edu.sg.
 
 ## Acknowledgements
 
