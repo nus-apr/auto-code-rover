@@ -64,17 +64,18 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/26c9d5d4-04e0-4b98-be
 ## 🚀 Setup & Running
 
 We recommend running AutoCodeRover in a Docker container.
-First of all, build and start the docker image:
+
+Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
 
 ```
-docker build -f Dockerfile -t acr .
-docker run -it acr
+export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
 ```
 
-In the docker container, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+Build and start the docker image:
 
 ```
-export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+docker build -f Dockerfile.scratch -t acr .
+docker run -it -e OPENAI_KEY="${OPENAI_API_KEY:-$OPENAI_KEY}" acr 
 ```
 
 ### Set up one or more tasks in SWE-bench
@@ -86,6 +87,12 @@ The tasks need to be put in a file, one per line:
 ```
 cd /opt/SWE-bench
 echo django__django-11133 > tasks.txt
+```
+
+Or if running on arm64 (e.g. Apple silicon), try this one which doesn't depend on Python 3.6 (which isn't supported in this env):
+
+```
+echo django__django-16041 > tasks.txt
 ```
 
 Then, set up these tasks by running:
