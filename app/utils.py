@@ -253,14 +253,14 @@ def parse_function_invocation(
         func = call.func
         assert isinstance(func, ast.Name)
         function_name = func.id
-        arguments = [ast.unparse(arg) for arg in call.args]
+        raw_arguments = [ast.unparse(arg) for arg in call.args]
         # clean up spaces or quotes, just in case
-        arguments = [arg.strip().strip("'").strip('"') for arg in arguments]
+        arguments = [arg.strip().strip("'").strip('"') for arg in raw_arguments]
 
         # candidate refactoring
         if logger is not None:
             try:
-                new_arguments = [ast.literal_eval(x) for x in arguments]
+                new_arguments = [ast.literal_eval(x) for x in raw_arguments]
                 if new_arguments != arguments:
                     log_and_print(
                         logger,
