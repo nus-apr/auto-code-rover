@@ -586,6 +586,8 @@ def main():
     commit_hash = args.commit_hash
     issue_link = args.issue_link
     setup_dir = args.setup_dir
+    if setup_dir is not None:
+        setup_dir = apputils.convert_dir_to_absolute(setup_dir)
 
     ## Firstly deal with special modes
     if globals.only_save_sbfl_result and extract_patches is not None:

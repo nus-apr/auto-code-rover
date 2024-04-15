@@ -37,21 +37,26 @@ class SearchManager:
         value is a list of tuples.
         This is for fast lookup whenever we receive a query.
         """
-        self.all_py_files = search_utils.get_all_py_files(self.project_path)
+        temp_all_py_file = search_utils.get_all_py_files(self.project_path)
+        # holds the parsable subset of all py files
+        parsed_all_py_file = []
+        for py_file in temp_all_py_file:
+            file_info = search_utils.get_all_info_from_file(py_file)
+            if file_info is None:
+                # parsing of this file failed
+                continue
+            parsed_all_py_file.append(py_file)
+            # extract from file info, and form search index
+            classes, class_to_funcs, top_level_funcs = file_info
 
-        for py_file in self.all_py_files:
-            # print(py_file)
             # (1) build class index
-            classes = search_utils.get_all_classes_in_file(py_file)
-            # now put the class result in one file into the dict
             for c, start, end in classes:
                 if c not in self.class_index:
                     self.class_index[c] = []
                 self.class_index[c].append((py_file, start, end))
 
             # (2) build class-function index
-            for c, _, _ in classes:
-                class_funcs = search_utils.get_all_funcs_in_class_in_file(py_file, c)
+            for c, class_funcs in class_to_funcs.items():
                 if c not in self.class_func_index:
                     self.class_func_index[c] = dict()
                 for f, start, end in class_funcs:
@@ -60,11 +65,12 @@ class SearchManager:
                     self.class_func_index[c][f].append((py_file, start, end))
 
             # (3) build (top-level) function index
-            functions = search_utils.get_top_level_functions(py_file)
-            for f, start, end in functions:
+            for f, start, end in top_level_funcs:
                 if f not in self.function_index:
                     self.function_index[f] = []
                 self.function_index[f].append((py_file, start, end))
+
+        self.all_py_files = parsed_all_py_file
 
     def file_line_to_class_and_func(
         self, file_path: str, line_no: int

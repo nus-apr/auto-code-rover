@@ -129,82 +129,53 @@ def get_all_py_files(dir_path: str) -> list[str]:
     return res
 
 
-def get_all_classes_in_file(file_full_path: str) -> list[tuple[str, int, int]]:
-    """Get all classes defined in one .py file.
-
-    Args:
-        file_path (str): Path to the .py file.
-    Returns:
-        List of classes in this file.
+def get_all_info_from_file(file_full_path: str) -> Optional[Tuple[List, dict, List]]:
     """
+    Main method to parse AST and build search index.
+    Handles complication where python ast module cannot parse a file.
+    """
+    try:
+        with open(file_full_path, "r") as f:
+            file_content = f.read()
+        tree = ast.parse(file_content)
+    except Exception as e:
+        # failed to read/parse one file, we should ignore it
+        return None
 
-    with open(file_full_path) as f:
-        file_content = f.read()
-
+    # (1) get all classes defined in the file
     classes = []
-    # print(file_path)
-    tree = ast.parse(file_content)
+    # (2) for each class in the file, get all functions defined in the class.
+    class_to_funcs = dict()
+    # (3) get top-level functions in the file (exclues functions defined in classes)
+    top_level_funcs = []
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
+            ## class part (1): collect class info
             class_name = node.name
             start_lineno = node.lineno
             end_lineno = node.end_lineno
             # line numbers are 1-based
             classes.append((class_name, start_lineno, end_lineno))
-    return classes
 
-
-def get_top_level_functions(file_full_path: str) -> list[tuple[str, int, int]]:
-    """Get top-level functions defined in one .py file.
-
-    This excludes functions defined in any classes.
-
-    Args:
-        file_path (str): Path to the .py file.
-    Returns:
-        List of top-level functions in this file.
-    """
-    with open(file_full_path) as f:
-        file_content = f.read()
-
-    functions = []
-    tree = ast.parse(file_content)
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef):
-            function_name = node.name
-            start_lineno = node.lineno
-            end_lineno = node.end_lineno
-            # line numbers are 1-based
-            functions.append((function_name, start_lineno, end_lineno))
-    return functions
-
-
-# mainly used for building index
-def get_all_funcs_in_class_in_file(
-    file_full_path: str, class_name: str
-) -> list[tuple[str, int, int]]:
-    """
-    For a class in a file, get all functions defined in the class.
-    Assumption:
-        - the given function exists, and is defined in the given file.
-    Returns:
-        - List of tuples, each tuple is (function_name, start_lineno, end_lineno).
-    """
-    with open(file_full_path) as f:
-        file_content = f.read()
-
-    functions = []
-    tree = ast.parse(file_content)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            ## class part (2): collect function info inside this class
+            class_funcs = []
             for n in ast.walk(node):
                 if isinstance(n, ast.FunctionDef):
                     function_name = n.name
                     start_lineno = n.lineno
                     end_lineno = n.end_lineno
-                    functions.append((function_name, start_lineno, end_lineno))
+                    class_funcs.append((function_name, start_lineno, end_lineno))
+            class_to_funcs[class_name] = class_funcs
 
-    return functions
+        elif isinstance(node, ast.FunctionDef):
+            function_name = node.name
+            start_lineno = node.lineno
+            end_lineno = node.end_lineno
+            # line numbers are 1-based
+            top_level_funcs.append((function_name, start_lineno, end_lineno))
+
+    return classes, class_to_funcs, top_level_funcs
 
 
 def get_func_snippet_in_class(
