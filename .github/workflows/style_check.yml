@@ -1,0 +1,53 @@
+name: style_check
+
+on:
+  push:
+    branches:
+      - main  # Or whichever branch you want to trigger this on
+  pull_request:
+    branches:
+      - main  # Or whichever branch you want to trigger this on
+
+jobs:
+  style_check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'  # Replace '3.x' with the Python version you're using
+          cache: 'pip'
+
+      - name: Install checkers
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: pyupgrade
+        run: |
+          output=$(pyupgrade --py311-plus app/**/*.py)
+          if [ -n "$output" ]; then
+            exit 1
+          fi
+        if: '!cancelled()'
+
+      - name: ruff
+        run: ruff check --fix app
+        if: '!cancelled()'
+
+      - name: isort
+        run: |
+          output=$(isort --profile black app)
+          if [ -n "$output" ]; then
+            exit 1
+          fi
+        if: '!cancelled()'
+
+      - name: black
+        run: black --check app
+        if: '!cancelled()'
+
