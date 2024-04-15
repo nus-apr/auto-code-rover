@@ -194,7 +194,7 @@ def get_logs_eval(repo_name: str, log_file_path: str):
     Parse a log file to get test status for each test case.
     """
     log_parser = MAP_REPO_TO_PARSER[repo_name]
-    with open(log_file_path, "r") as f:
+    with open(log_file_path) as f:
         content = f.read()
         if TESTS_ERROR in content or TESTS_TIMEOUT in content:
             # something went wrong and there is not test status to parse
@@ -203,11 +203,17 @@ def get_logs_eval(repo_name: str, log_file_path: str):
         return log_parser(content), True
 
 
-test_passed = lambda case, sm: case in sm and sm[case] == TestStatus.PASSED.value
+def test_passed(case, sm):
+    return case in sm and sm[case] == TestStatus.PASSED.value
 
-test_failed = lambda case, sm: case not in sm or any(
-    [sm[case] == status for status in [TestStatus.FAILED.value, TestStatus.ERROR.value]]
-)
+
+def test_failed(case, sm):
+    return case not in sm or any(
+        [
+            sm[case] == status
+            for status in [TestStatus.FAILED.value, TestStatus.ERROR.value]
+        ]
+    )
 
 
 # Result Categories

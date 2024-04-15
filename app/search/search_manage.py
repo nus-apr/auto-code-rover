@@ -1,4 +1,4 @@
-from typing import List, MutableMapping, Optional, Tuple
+from collections.abc import MutableMapping
 
 from app.search import search_utils
 from app.search.search_utils import SearchResult
@@ -6,26 +6,26 @@ from app.search.search_utils import SearchResult
 RESULT_SHOW_LIMIT = 3
 
 
-class SearchManager(object):
+class SearchManager:
     def __init__(self, project_path: str):
         self.project_path = project_path
         # list of all files ending with .py, which are likely not test files
         # These are all ABSOLUTE paths.
-        self.all_py_files: List[str] = []
+        self.all_py_files: list[str] = []
 
         # for file name in the indexes, assume they are absolute path
         # class name -> [(file_name, start_line, end_line)]
-        self.class_index: MutableMapping[str, List[Tuple[str, int, int]]] = dict()
+        self.class_index: MutableMapping[str, list[tuple[str, int, int]]] = dict()
 
         # {class_name -> {func_name -> [(file_name, start_line, end_line)]}}
         # inner dict is a list, since we can have (1) overloading func names,
         # and (2) multiple classes with the same name, having the same method
         self.class_func_index: MutableMapping[
-            str, MutableMapping[str, List[Tuple[str, int, int]]]
+            str, MutableMapping[str, list[tuple[str, int, int]]]
         ] = dict()
 
         # function name -> [(file_name, start_line, end_line)]
-        self.function_index: MutableMapping[str, List[Tuple[str, int, int]]] = dict()
+        self.function_index: MutableMapping[str, list[tuple[str, int, int]]] = dict()
         self.__build_index()
 
     def __build_index(self):
@@ -68,7 +68,7 @@ class SearchManager(object):
 
     def file_line_to_class_and_func(
         self, file_path: str, line_no: int
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """
         Given a file path and a line number, return the class and function name.
         If the line is not inside a class or function, return None.
@@ -92,7 +92,7 @@ class SearchManager(object):
 
     def __search_func_in_class(
         self, function_name: str, class_name: str
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Search for the function name in the class.
         Args:
@@ -101,7 +101,7 @@ class SearchManager(object):
         Returns:
             The list of code snippets searched.
         """
-        result: List[SearchResult] = []
+        result: list[SearchResult] = []
         if class_name not in self.class_func_index:
             return result
         if function_name not in self.class_func_index[class_name]:
@@ -112,7 +112,7 @@ class SearchManager(object):
             result.append(res)
         return result
 
-    def __search_func_in_all_classes(self, function_name: str) -> List[SearchResult]:
+    def __search_func_in_all_classes(self, function_name: str) -> list[SearchResult]:
         """
         Search for the function name in all classes.
         Args:
@@ -120,13 +120,13 @@ class SearchManager(object):
         Returns:
             The list of code snippets searched.
         """
-        result: List[SearchResult] = []
+        result: list[SearchResult] = []
         for class_name in self.class_index:
             res = self.__search_func_in_class(function_name, class_name)
             result.extend(res)
         return result
 
-    def __search_top_level_func(self, function_name: str) -> List[SearchResult]:
+    def __search_top_level_func(self, function_name: str) -> list[SearchResult]:
         """
         Search for top-level function name in the entire project.
         Args:
@@ -134,7 +134,7 @@ class SearchManager(object):
         Returns:
             The list of code snippets searched.
         """
-        result: List[SearchResult] = []
+        result: list[SearchResult] = []
         if function_name not in self.function_index:
             return result
 
@@ -144,11 +144,11 @@ class SearchManager(object):
             result.append(res)
         return result
 
-    def __search_func_in_code_base(self, function_name: str) -> List[SearchResult]:
+    def __search_func_in_code_base(self, function_name: str) -> list[SearchResult]:
         """
         Search for this function, from both top-level and all class definitions.
         """
-        result: List[SearchResult] = []  # list of (file_name, func_code)
+        result: list[SearchResult] = []  # list of (file_name, func_code)
         # (1) search in top level
         top_level_res = self.__search_top_level_func(function_name)
         class_res = self.__search_func_in_all_classes(function_name)
@@ -163,14 +163,14 @@ class SearchManager(object):
     # not search API - for writing patch
     # if we are searching for only a class when writing patch, likely we do not have enough info
     # the result can be too long, so we just show the first two
-    def get_class_full_snippet(self, class_name: str) -> Tuple[str, str, bool]:
+    def get_class_full_snippet(self, class_name: str) -> tuple[str, str, bool]:
         summary = f"Class {class_name} did not appear in the codebase."
         tool_result = f"Could not find class {class_name} in the codebase."
 
         if class_name not in self.class_index:
             return tool_result, summary, False
         # class name -> [(file_name, start_line, end_line)]
-        search_res: List[SearchResult] = []
+        search_res: list[SearchResult] = []
         for fname, start, end in self.class_index[class_name]:
             code = search_utils.get_code_snippets(fname, start, end)
             res = SearchResult(fname, class_name, None, code)
@@ -192,7 +192,7 @@ class SearchManager(object):
             tool_result += f"Search result {idx + 1}: {res_str}\n\n"
         return tool_result, summary, True
 
-    def search_class(self, class_name: str) -> Tuple[str, str, bool]:
+    def search_class(self, class_name: str) -> tuple[str, str, bool]:
         # initialize them to error case
         summary = f"Class {class_name} did not appear in the codebase."
         tool_result = f"Could not find class {class_name} in the codebase."
@@ -200,7 +200,7 @@ class SearchManager(object):
         if class_name not in self.class_index:
             return tool_result, summary, False
 
-        search_res: List[SearchResult] = []
+        search_res: list[SearchResult] = []
         for fname, _, _ in self.class_index[class_name]:
             # there are some classes; we return their signatures
             code = search_utils.get_class_signature(fname, class_name)
@@ -228,7 +228,7 @@ class SearchManager(object):
         summary = f"The tool returned information about class `{class_name}`."
         return tool_result, summary, True
 
-    def search_class_in_file(self, class_name, file_name: str) -> Tuple[str, str, bool]:
+    def search_class_in_file(self, class_name, file_name: str) -> tuple[str, str, bool]:
         # (1) check whether we can get the file
         candidate_py_abs_paths = [f for f in self.all_py_files if f.endswith(file_name)]
         if not candidate_py_abs_paths:
@@ -243,7 +243,7 @@ class SearchManager(object):
             return tool_output, summary, False
 
         # (3) class is there, check whether it exists in the file specified.
-        search_res: List[SearchResult] = []
+        search_res: list[SearchResult] = []
         for fname, start_line, end_line in self.class_index[class_name]:
             if fname in candidate_py_abs_paths:
                 class_code = search_utils.get_code_snippets(fname, start_line, end_line)
@@ -265,7 +265,7 @@ class SearchManager(object):
 
     def search_method_in_file(
         self, method_name: str, file_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         # (1) check whether we can get the file
         # supports both when file_name is relative to project root, and when
         # it is just a short name
@@ -277,14 +277,14 @@ class SearchManager(object):
             return tool_output, summary, False
 
         # (2) search for this method in the entire code base (we do filtering later)
-        search_res: List[SearchResult] = self.__search_func_in_code_base(method_name)
+        search_res: list[SearchResult] = self.__search_func_in_code_base(method_name)
         if not search_res:
             tool_output = f"The method {method_name} does not appear in the codebase."
             summary = tool_output
             return tool_output, summary, False
 
         # (3) filter the search result => they need to be in one of the files!
-        filtered_res: List[SearchResult] = []
+        filtered_res: list[SearchResult] = []
         for res in search_res:
             if res.file_path in candidate_py_abs_paths:
                 filtered_res.append(res)
@@ -309,14 +309,14 @@ class SearchManager(object):
 
     def search_method_in_class(
         self, method_name: str, class_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         if class_name not in self.class_index:
             tool_output = f"Could not find class {class_name} in the codebase."
             summary = tool_output
             return tool_output, summary, False
 
         # has this class, check its methods
-        search_res: List[SearchResult] = self.__search_func_in_class(
+        search_res: list[SearchResult] = self.__search_func_in_class(
             method_name, class_name
         )
         if not search_res:
@@ -338,15 +338,15 @@ class SearchManager(object):
             res_str = res.to_tagged_str(self.project_path)
             tool_output += f"Search result {idx + 1}: {res_str}\n\n"
         # for the rest, collect the file names into a set
-        tool_output += f"Other results are in these files:\n"
+        tool_output += "Other results are in these files:\n"
         tool_output += SearchResult.collapse_to_file_level(rest, self.project_path)
         return tool_output, summary, True
 
-    def search_method(self, method_name: str) -> Tuple[str, str, bool]:
+    def search_method(self, method_name: str) -> tuple[str, str, bool]:
         """
         Search for a method in the entire codebase.
         """
-        search_res: List[SearchResult] = self.__search_func_in_code_base(method_name)
+        search_res: list[SearchResult] = self.__search_func_in_code_base(method_name)
         if not search_res:
             tool_output = f"Could not find method {method_name} in the codebase."
             summary = tool_output
@@ -367,11 +367,11 @@ class SearchManager(object):
 
         return tool_output, summary, True
 
-    def search_code(self, code_str: str) -> Tuple[str, str, bool]:
+    def search_code(self, code_str: str) -> tuple[str, str, bool]:
         # attempt to search for this code string in all py files
-        all_search_results: List[SearchResult] = []
+        all_search_results: list[SearchResult] = []
         for file_path in self.all_py_files:
-            searched_line_and_code: List[Tuple[int, str]] = (
+            searched_line_and_code: list[tuple[int, str]] = (
                 search_utils.get_code_region_containing_code(file_path, code_str)
             )
             if not searched_line_and_code:
@@ -407,7 +407,7 @@ class SearchManager(object):
 
     def search_code_in_file(
         self, code_str: str, file_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         code_str = code_str.removesuffix(")")
 
         candidate_py_files = [f for f in self.all_py_files if f.endswith(file_name)]
@@ -417,9 +417,9 @@ class SearchManager(object):
             return tool_output, summary, False
 
         # start searching for code in the filtered files
-        all_search_results: List[SearchResult] = []
+        all_search_results: list[SearchResult] = []
         for file_path in candidate_py_files:
-            searched_line_and_code: List[Tuple[int, str]] = (
+            searched_line_and_code: list[tuple[int, str]] = (
                 search_utils.get_code_region_containing_code(file_path, code_str)
             )
             if not searched_line_and_code:

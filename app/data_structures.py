@@ -1,6 +1,6 @@
 import json
+from collections.abc import Mapping
 from pprint import pformat
-from typing import Dict, List, Mapping, Optional
 
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
@@ -8,7 +8,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
 )
 
 
-class FunctionCallIntent(object):
+class FunctionCallIntent:
     """An intent to call a tool function.
 
     This object created from OpenAI API response.
@@ -44,14 +44,14 @@ class FunctionCallIntent(object):
         }
 
 
-class MessageThread(object):
+class MessageThread:
     """
     Represents a thread of conversation with the model.
     Abstrated into a class so that we can dump this to a file at any point.
     """
 
     def __init__(self, messages=None):
-        self.messages: List[Dict] = messages or []
+        self.messages: list[dict] = messages or []
 
     def add(self, role: str, message: str):
         """
@@ -73,7 +73,7 @@ class MessageThread(object):
         self.messages.append(m)
 
     def add_model(
-        self, message: Optional[str], tools: List[ChatCompletionMessageToolCall]
+        self, message: str | None, tools: list[ChatCompletionMessageToolCall]
     ):
         # let's serialize tools into json first
         json_tools = []
@@ -97,7 +97,7 @@ class MessageThread(object):
                 {"role": "assistant", "content": None, "tool_calls": json_tools}
             )
 
-    def to_msg(self) -> List[Dict]:
+    def to_msg(self) -> list[dict]:
         """
         Convert to the format to be consumed by the model.
         Returns:
@@ -136,6 +136,6 @@ class MessageThread(object):
         Returns:
             MessageThread: The message thread.
         """
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             messages = json.load(f)
         return cls(messages)

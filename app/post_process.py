@@ -7,11 +7,11 @@ import os
 import shutil
 import subprocess
 from collections import defaultdict
+from collections.abc import Mapping
 from enum import Enum
 from glob import glob
 from os.path import join as pjoin
 from shutil import move
-from typing import List, Mapping, Tuple
 
 from app import globals
 from app import utils as apputils
@@ -19,7 +19,7 @@ from app.api.patch_utils import apply_edit, parse_edits
 
 
 def count_and_organize_tasks(
-    task_list: List[str], task_list_name: str, task_exp_names: List[str], expr_dir: str
+    task_list: list[str], task_list_name: str, task_exp_names: list[str], expr_dir: str
 ):
     """
     A helper for extract_diff_patches.
@@ -106,7 +106,7 @@ def record_extract_status(individual_expr_dir: str, extract_status: ExtractStatu
         with open(record_file, "w") as f:
             json.dump({"extract_status": [extract_status]}, f, indent=4)
     else:
-        with open(record_file, "r") as f:
+        with open(record_file) as f:
             record = json.load(f)
         record["extract_status"].append(extract_status)
         with open(record_file, "w") as f:
@@ -123,7 +123,7 @@ def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
         # if no status file is written, means that we did not even
         # reach the state of extracting patches
         return ExtractStatus.NO_PATCH
-    with open(record_file, "r") as f:
+    with open(record_file) as f:
         record = json.load(f)
     # convert string to enum type
     all_status = [ExtractStatus(s) for s in record["extract_status"]]
@@ -133,7 +133,7 @@ def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
 
 def extract_diff_one_instance(
     raw_patch_file: str, extracted_file: str, standalone_mode: bool = False
-) -> Tuple[ExtractStatus, str]:
+) -> tuple[ExtractStatus, str]:
     """
     Extract .diff patches for one instance.
     Args:
@@ -149,7 +149,7 @@ def extract_diff_one_instance(
     # (1) get the meta data for this task
     task_dir = os.path.dirname(raw_patch_file)
     meta_file = pjoin(task_dir, "meta.json")
-    with open(meta_file, "r") as f:
+    with open(meta_file) as f:
         meta = json.load(f)
 
     task_info = meta["task_info"]
@@ -160,7 +160,7 @@ def extract_diff_one_instance(
     if not os.path.isfile(raw_patch_file):
         return ExtractStatus.NO_PATCH, "No raw patch file is found."
 
-    with open(raw_patch_file, "r") as f:
+    with open(raw_patch_file) as f:
         patch_content = f.read()
 
     # (2) try parsing the edits
@@ -299,13 +299,13 @@ def extract_diffs_and_organize_tasks(expr_dir: str):
     # BUT: if we want to record how many and which tasks are in each category,
     #      can use this data structure
     # mapping from ExtractStats to a list of task ids
-    all_extract_stats: Mapping[ExtractStatus, List[str]] = defaultdict(list)
+    all_extract_stats: Mapping[ExtractStatus, list[str]] = defaultdict(list)
 
     # let's work on each individual task directory
     for task_dir in task_exp_dirs:
         # (1) gather some information from the meta file
         meta_file = pjoin(task_dir, "meta.json")
-        with open(meta_file, "r") as f:
+        with open(meta_file) as f:
             meta = json.load(f)
         task_id = meta["task_id"]
 
@@ -398,13 +398,13 @@ def extract_swe_bench_input(dir: str):
     for diff_file in diff_files:
         task_dir = os.path.dirname(diff_file)
         meta_file = pjoin(task_dir, "meta.json")
-        with open(meta_file, "r") as f:
+        with open(meta_file) as f:
             meta = json.load(f)
         task_id = meta["task_id"]
         this_result = {}
         this_result["instance_id"] = task_id
         this_result["model_name_or_path"] = globals.model
-        with open(diff_file, "r") as f:
+        with open(diff_file) as f:
             diff_content = f.read()
         if not diff_content:
             # empty diff file, dont bother sending it to swe-bench

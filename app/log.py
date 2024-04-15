@@ -4,7 +4,6 @@ import time
 
 from termcolor import cprint
 
-
 print_stdout = True
 
 

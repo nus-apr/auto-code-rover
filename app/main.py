@@ -6,10 +6,10 @@ import argparse
 import datetime
 import json
 import subprocess
+from collections.abc import Mapping
 from multiprocessing import Pool
 from os.path import join as pjoin
 from subprocess import CalledProcessError
-from typing import Dict, List, Mapping, Optional, Tuple
 
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
@@ -21,12 +21,12 @@ from app.post_process import (
 )
 
 
-def parse_task_list_file(task_list_file: str) -> List[str]:
+def parse_task_list_file(task_list_file: str) -> list[str]:
     """
     Parse the task list file.
     The file should contain one task/instance id per line, without other characters.
     """
-    with open(task_list_file, "r") as f:
+    with open(task_list_file) as f:
         task_ids = f.readlines()
     return [x.strip() for x in task_ids]
 
@@ -37,7 +37,7 @@ class Task:
     """
 
     def __init__(
-        self, task_counter: str, task_id: str, setup_info: Dict, task_info: Dict
+        self, task_counter: str, task_id: str, setup_info: dict, task_info: dict
     ):
         # a counter str, format "1/150", which means first task out of 150
         self.task_counter = task_counter
@@ -208,7 +208,7 @@ def get_current_commit_hash() -> str:
         raise RuntimeError(f"Failed to get SHA-1 of HEAD: {cp.stderr}") from e
 
 
-def run_task_group(task_group_id: str, task_group_items: List[Task]) -> None:
+def run_task_group(task_group_id: str, task_group_items: list[Task]) -> None:
     """
     Run all tasks in a task group sequentially.
     Main entry to parallel processing.
@@ -356,7 +356,7 @@ def main():
     globals.conv_round_limit = args.conv_round_limit
 
     # special modes
-    extract_patches: Optional[str] = args.extract_patches
+    extract_patches: str | None = args.extract_patches
     globals.only_save_sbfl_result = args.save_sbfl_result
 
     if globals.only_save_sbfl_result and extract_patches is not None:
@@ -396,9 +396,9 @@ def main():
     if len(all_task_ids) == 0:
         raise ValueError("No task ids to run.")
 
-    with open(setup_map_file, "r") as f:
+    with open(setup_map_file) as f:
         setup_map = json.load(f)
-    with open(tasks_map_file, "r") as f:
+    with open(tasks_map_file) as f:
         tasks_map = json.load(f)
 
     apputils.create_dir_if_not_exists(globals.output_dir)
@@ -418,7 +418,7 @@ def main():
     # group tasks based on repo-version; tasks in one group should
     # be executed in one thread
     # key: env_name (a combination of repo+version), value: list of tasks
-    task_groups: Mapping[str, List[Task]] = dict()
+    task_groups: Mapping[str, list[Task]] = dict()
     task: Task
     for task in all_tasks:
         key = task.setup_info["env_name"]
@@ -448,7 +448,7 @@ def main():
         num_processes = min(num_processes, num_task_groups)
         # If the function for Pool.map accepts multiple arguments, each argument should
         # be prepared in the form of a list for multiple processes.
-        task_group_ids_items: List[Tuple[str, List[Task]]] = list(task_groups.items())
+        task_group_ids_items: list[tuple[str, list[Task]]] = list(task_groups.items())
         task_group_ids_items = sorted(
             task_group_ids_items, key=lambda x: len(x[1]), reverse=True
         )
