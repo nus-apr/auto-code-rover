@@ -1,9 +1,7 @@
-from typing import Optional, Tuple
-
 import requests
 
 
-def get_github_issue_info(issue_url: str) -> Optional[Tuple[str, str, str]]:
+def get_github_issue_info(issue_url: str) -> tuple[str, str, str] | None:
     # Extract owner, repo, and issue number from the URL
     # Example issue URL: https://github.com/owner/repo/issues/123
     _, owner, repo, _, issue_number = issue_url.rsplit("/", 4)

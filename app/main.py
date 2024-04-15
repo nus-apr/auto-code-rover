@@ -226,8 +226,8 @@ def run_task_group(task_group_id: str, task_group_items: list[Task]) -> None:
 
 
 def entry_swe_bench_mode(
-    task_id: Optional[str],
-    task_list_file: Optional[str],
+    task_id: str | None,
+    task_list_file: str | None,
     setup_map_file: str,
     tasks_map_file: str,
     num_processes: int,
@@ -247,9 +247,9 @@ def entry_swe_bench_mode(
     if len(all_task_ids) == 0:
         raise ValueError("No task ids to run.")
 
-    with open(setup_map_file, "r") as f:
+    with open(setup_map_file) as f:
         setup_map = json.load(f)
-    with open(tasks_map_file, "r") as f:
+    with open(tasks_map_file) as f:
         tasks_map = json.load(f)
 
     apputils.create_dir_if_not_exists(globals.output_dir)
@@ -278,7 +278,7 @@ def entry_swe_bench_mode(
     # group tasks based on repo-version; tasks in one group should
     # be executed in one thread
     # key: env_name (a combination of repo+version), value: list of tasks
-    task_groups: Mapping[str, List[Task]] = dict()
+    task_groups: Mapping[str, list[Task]] = dict()
     task: Task
     for task in all_tasks:
         key = task.setup_info["env_name"]
@@ -308,7 +308,7 @@ def entry_swe_bench_mode(
         num_processes = min(num_processes, num_task_groups)
         # If the function for Pool.map accepts multiple arguments, each argument should
         # be prepared in the form of a list for multiple processes.
-        task_group_ids_items: List[Tuple[str, List[Task]]] = list(task_groups.items())
+        task_group_ids_items: list[tuple[str, list[Task]]] = list(task_groups.items())
         task_group_ids_items = sorted(
             task_group_ids_items, key=lambda x: len(x[1]), reverse=True
         )
@@ -565,15 +565,15 @@ def main():
     globals.model = args.model
     globals.model_temperature = args.model_temperature
     globals.conv_round_limit = args.conv_round_limit
-    extract_patches: Optional[str] = args.extract_patches
-    re_extract_patches: Optional[str] = args.re_extract_patches
+    extract_patches: str | None = args.extract_patches
+    re_extract_patches: str | None = args.re_extract_patches
     globals.enable_layered = args.enable_layered
 
     ## options for swe-bench mode
     setup_map_file = args.setup_map
     tasks_map_file = args.tasks_map
-    task_list_file: Optional[str] = args.task_list_file
-    task_id: Optional[str] = args.task
+    task_list_file: str | None = args.task_list_file
+    task_id: str | None = args.task
     globals.enable_sbfl = args.enable_sbfl
     globals.enable_validation = args.enable_validation
     globals.enable_angelic = args.enable_angelic

@@ -129,16 +129,16 @@ def get_all_py_files(dir_path: str) -> list[str]:
     return res
 
 
-def get_all_info_from_file(file_full_path: str) -> Optional[Tuple[List, dict, List]]:
+def get_all_info_from_file(file_full_path: str) -> tuple[list, dict, list] | None:
     """
     Main method to parse AST and build search index.
     Handles complication where python ast module cannot parse a file.
     """
     try:
-        with open(file_full_path, "r") as f:
+        with open(file_full_path) as f:
             file_content = f.read()
         tree = ast.parse(file_content)
-    except Exception as e:
+    except Exception:
         # failed to read/parse one file, we should ignore it
         return None
 
