@@ -403,16 +403,25 @@ def main():
 
     apputils.create_dir_if_not_exists(globals.output_dir)
 
+    # Check if all task ids are in the setup and tasks map.
+    missing_task_ids = [x for x in all_task_ids if not (x in setup_map and x in tasks_map)]
+    if missing_task_ids:
+        # Log the tasks that are not in the setup or tasks map
+        for task_id in sorted(missing_task_ids):
+            log.print_with_time(f"Skipping task {task_id} which was not found in setup or tasks map.")
+        # And drop them from the list of all task ids
+        all_task_ids = filter(lambda x: x not in missing_task_ids, all_task_ids)
+
+    all_task_ids = sorted(all_task_ids)
     num_tasks = len(all_task_ids)
     globals_mut.init_total_num_tasks(num_tasks)
 
     # for each task in the list to run, create a Task instance
     all_tasks = []
-    all_task_ids = sorted(all_task_ids)
     for idx, task_id in enumerate(all_task_ids):
         setup_info = setup_map[task_id]
         task_info = tasks_map[task_id]
-        task = Task(f"{idx+1}/{num_tasks}", task_id, setup_info, task_info)
+        task = Task(f"{idx + 1}/{num_tasks}", task_id, setup_info, task_info)
         all_tasks.append(task)
 
     # group tasks based on repo-version; tasks in one group should
