@@ -42,6 +42,25 @@ def run_command(logger, cmd: list[str], **kwargs) -> subprocess.CompletedProcess
     return cp
 
 
+def clone_repo_and_checkout(
+    clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
+):
+    """
+    Clone a repo to dest_dir, and checkout to commit `commit_hash`.
+
+    Returns:
+        - path to the newly cloned directory.
+    """
+    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    checkout_cmd = ["git", "checkout", commit_hash]
+    with cd(dest_dir):
+        run_command(None, clone_cmd)
+    cloned_dir = pjoin(dest_dir, cloned_name)
+    with cd(cloned_dir):
+        run_command(None, checkout_cmd)
+    return cloned_dir
+
+
 def repo_commit_current_changes(logger=None):
     """
     Commit the current active changes so that it's safer to do git reset later on.

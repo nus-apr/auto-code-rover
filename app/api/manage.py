@@ -70,15 +70,15 @@ class ProjectApiManager:
         task_id: str,
         project_path: str,
         commit: str,
-        env_name: str,
-        repo_name: str,
-        pre_install_cmds: list[str],
-        install_cmd: str,
-        test_cmd: str,
-        test_patch: str,
-        testcases_passing: list[str],
-        testcases_failing: list[str],
         output_dir: str,
+        env_name: Optional[str] = None,
+        repo_name: Optional[str] = None,
+        pre_install_cmds: List[str] = [],
+        install_cmd: Optional[str] = None,
+        test_cmd: Optional[str] = None,
+        test_patch: Optional[str] = None,
+        testcases_passing: List[str] = [],
+        testcases_failing: List[str] = [],
         do_install: bool = False,
         import_root: str = "src",
     ):
@@ -118,11 +118,15 @@ class ProjectApiManager:
             self.do_install()
 
         # apply the test modifications to this task
-        self.apply_test_patch()
+        if self.test_patch is not None:
+            self.apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
-        with apputils.cd(self.project_path):
-            apputils.repo_commit_current_changes(self.logger)
+        if do_install or self.test_patch is not None:
+            # this means we have applied some changes to the repo before
+            # starting the actual workflow
+            with apputils.cd(self.project_path):
+                apputils.repo_commit_current_changes(self.logger)
 
         # build search manager
         self.search_manager = SearchManager(self.project_path)
