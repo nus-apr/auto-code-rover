@@ -17,6 +17,7 @@ from app.api.manage import ProjectApiManager
 from app.fresh_issue.common import FreshTask
 from app.post_process import (
     extract_organize_and_form_input,
+    get_final_patch_path,
     organize_and_form_input,
     reextract_organize_and_form_inputs,
 )
@@ -410,6 +411,15 @@ def entry_fresh_issue_mode(
         with apputils.cd(fresh_task.project_dir):
             apputils.repo_reset_and_clean_checkout(commit_hash, logger)
         log.log_and_always_print(logger, run_status_message)
+        final_patch_path = get_final_patch_path(task_output_dir)
+        if final_patch_path is not None:
+            log.log_and_always_print(
+                logger, f"Please find the generated patch at: {final_patch_path}"
+            )
+        else:
+            log.log_and_always_print(
+                logger, "No patch generated. You can try to run ACR again."
+            )
         return run_ok
 
 
@@ -472,7 +482,7 @@ def main():
     parser.add_argument(
         "--enable-layered",
         action="store_true",
-        default=False,
+        default=True,
         help="Enable layered code search.",
     )
 

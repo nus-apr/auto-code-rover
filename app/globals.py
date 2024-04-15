@@ -19,7 +19,7 @@ conv_round_limit: int = 15
 enable_sbfl: bool = False
 
 # whether to perform layered search
-enable_layered: bool = False
+enable_layered: bool = True
 
 # whether to perform our own validation
 enable_validation: bool = False
