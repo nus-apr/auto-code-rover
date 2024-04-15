@@ -74,8 +74,22 @@ export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
 Build and start the docker image:
 
 ```
+docker build -f Dockerfile -t acr .
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr 
+```
+
+Dockerfile.scratch will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.  That supports arm64 (Apple silicon) and ppc in addition to amd64.
+
+```
 docker build -f Dockerfile.scratch -t acr .
-docker run -it -e OPENAI_KEY="${OPENAI_API_KEY:-$OPENAI_KEY}" acr 
+```
+
+There are build args for customizing the build like this:
+
+```
+docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
+       --build-arg SWE_BENCH_REPO=https://github.com/your_id/SWE-bench.git \
+       -f Dockerfile.scratch -t acr .
 ```
 
 ### Set up one or more tasks in SWE-bench
