@@ -3,6 +3,7 @@ import json
 import os
 from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import dataclass
 from os import PathLike
 from os.path import join as pjoin
 from pathlib import Path
@@ -18,6 +19,21 @@ from app.api.python.validation import PythonValidator
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_print, log_exception
 from app.search.search_manage import SearchManager
+
+
+@dataclass
+class PythonTask:
+    task_id: str
+    project_path: str
+    commit: str
+    env_name: str
+    repo_name: str
+    pre_install_cmds: list[str]
+    install_cmd: str
+    test_cmd: str
+    test_patch: str
+    testcases_passing: list[str]
+    testcases_failing: list[str]
 
 
 class ProjectApiManager:
@@ -68,62 +84,39 @@ class ProjectApiManager:
 
     def __init__(
         self,
-        task_id: str,
-        project_path: str,
-        commit: str,
-        env_name: str,
-        repo_name: str,
-        pre_install_cmds: list[str],
-        install_cmd: str,
-        test_cmd: str,
-        test_patch: str,
-        testcases_passing: list[str],
-        testcases_failing: list[str],
+        task: PythonTask,
         output_dir: str,
         do_install: bool = False,
-        import_root: str = "src",
     ):
         # for logging of this task instance
-        self.logger = log.get_logger(task_id)
-        self.task_id = task_id
-        self.project_path = project_path
-        self.commit = commit
-        self.env_name = env_name
+        self.task = task
+        self.logger = log.get_logger(task.task_id)
+        # self.task_id = task.task_id
+        self.project_path = task.project_path
 
-        # additional installation commands after setup was done
-        self.pre_install_cmds: list[str] = pre_install_cmds
-        self.install_cmd: str = install_cmd
-        # command to run tests
-        self.test_cmd: str = test_cmd
-        # the patch to testcases
-        self.test_patch: str = test_patch
-        # names of the passing testcases for this issue
-        self.testcases_passing: list[str] = testcases_passing
-        # names of the failing testcases for this issue
-        self.testcases_failing: list[str] = testcases_failing
         # where to write our output
         self.output_dir = os.path.abspath(output_dir)
 
         # directory starting from where modules are imported (in the test files);
         # relative to project_path
-        self.import_root = import_root
+        # self.import_root = import_root
 
         self.num_tests = 0
 
         self.validator = PythonValidator(
-            repo_name,
+            task.repo_name,
             output_dir,
-            project_path,
-            test_cmd,
-            env_name,
-            testcases_passing,
-            testcases_failing,
+            task.project_path,
+            task.test_cmd,
+            task.env_name,
+            task.testcases_passing,
+            task.testcases_failing,
             self.logger,
         )
 
         # get the correct version of the project and commit-specific pip install
-        with apputils.cd(self.project_path):
-            apputils.repo_reset_and_clean_checkout(self.commit, self.logger)
+        with apputils.cd(self.task.project_path):
+            apputils.repo_reset_and_clean_checkout(self.task.commit, self.logger)
 
         # Install task-specific dependencies
         if do_install:
@@ -133,11 +126,11 @@ class ProjectApiManager:
         self.apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
-        with apputils.cd(self.project_path):
+        with apputils.cd(self.task.project_path):
             apputils.repo_commit_current_changes(self.logger)
 
         # build search manager
-        self.search_manager = SearchManager(self.project_path)
+        self.search_manager = SearchManager(self.task.project_path)
 
         # keeps track which tools is currently being used
         self.curr_tool: str | None = None
@@ -288,19 +281,19 @@ class ProjectApiManager:
         The commands being run here are 'pre_install' and 'install' defined in
         harness/constants.py file in SWE-bench.
         """
-        if not self.pre_install_cmds and not self.install_cmd:
+        if not self.task.pre_install_cmds and not self.task.install_cmd:
             # no command for installation, skip
             return
-        with apputils.cd(self.project_path):
+        with apputils.cd(self.task.project_path):
             # (0) For matplotlib, qhull tarball download
             # just fails, so we need to pre-install the system version and use it
-            if "matplotlib" in self.task_id:
+            if "matplotlib" in self.task.task_id:
                 with open("mplsetup.cfg", "w") as f:
                     f.write("[libs]\nsystem_qhull = true")
             # (1) pre-install
-            for cmd in self.pre_install_cmds:
+            for cmd in self.task.pre_install_cmds:
                 cp = apputils.run_string_cmd_in_conda(
-                    self.logger, cmd, self.env_name, capture_output=True, text=True
+                    self.logger, cmd, self.task.env_name, capture_output=True, text=True
                 )
                 if cp.returncode != 0:
                     log_and_print(self.logger, cp.stderr)
@@ -309,14 +302,14 @@ class ProjectApiManager:
             # (2) install
             cp = apputils.run_string_cmd_in_conda(
                 self.logger,
-                self.install_cmd,
-                self.env_name,
+                self.task.install_cmd,
+                self.task.env_name,
                 capture_output=True,
                 text=True,
             )
             if cp.returncode != 0:
                 log_and_print(self.logger, cp.stderr)
-                raise RuntimeError(f"Command {self.install_cmd} failed.")
+                raise RuntimeError(f"Command {self.task.install_cmd} failed.")
             # (3) xmlrunner for our custom run_test; coverage required for fault localization
             other_install_cmd = (
                 "python -m pip install xmlrunner coverage pytest pytest-cov"
@@ -324,7 +317,7 @@ class ProjectApiManager:
             cp = apputils.run_string_cmd_in_conda(
                 self.logger,
                 other_install_cmd,
-                self.env_name,
+                self.task.env_name,
                 capture_output=True,
                 text=True,
             )
@@ -359,14 +352,14 @@ class ProjectApiManager:
         Apply the patch to testcases, as supplied by the benchmark.
         This step brings in all the new tests and testcase modifications.
         """
-        if not self.test_patch:
+        if not self.task.test_patch:
             # no patches to tests are found
             return
         with apputils.cd(self.project_path):
             # (1) write test_patch to a temp file
             test_patch_path = pjoin(self.project_path, "swe_bench_tests.patch")
             with open(test_patch_path, "w") as f:
-                f.write(self.test_patch)
+                f.write(self.task.test_patch)
             # (2) apply these patches
             # FIXME: check for failure here
             apply_cmd = ["git", "apply", test_patch_path]
@@ -451,21 +444,23 @@ class ProjectApiManager:
         """
         with apputils.cd(self.project_path):
             # (1) run the tests to produce coverage output
-            if self.test_cmd.startswith("pytest"):
+            if self.task.test_cmd.startswith("pytest"):
                 # Use pytest-cov to properly get parametrized test names
-                args = self.test_cmd.removeprefix("pytest")
+                args = self.task.test_cmd.removeprefix("pytest")
                 test_cmd = f"python -m pytest --cov --cov-context=test {args}"
-            elif "bin/test" in self.test_cmd:
-                assert self.task_id.startswith("sympy__")
+            elif "bin/test" in self.task.test_cmd:
+                assert self.task.task_id.startswith("sympy__")
 
                 # Sympy tests are compatible with PyTest. Only issue is that more tests
                 # can berun by PyTest than if Sympy testing is used. However, we match
                 # context names with PASS_TO_PASS and FAIL_TO_PASS later, so it's fine.
 
-                test_files = [x for x in self.test_cmd.split() if x.endswith(".py")]
+                test_files = [
+                    x for x in self.task.test_cmd.split() if x.endswith(".py")
+                ]
                 assert (
                     test_files
-                ), f"Failed to find test files in command: {self.test_cmd}"
+                ), f"Failed to find test files in command: {self.task.test_cmd}"
 
                 cov_config = pjoin(self.project_path, ".coveragerc")
                 self.omit_coverage_in_file(cov_config, test_files)
@@ -474,7 +469,7 @@ class ProjectApiManager:
                     "python -m pytest --cov --cov-context=test --no-header"
                     f" -rA --tb=no -p no:cacheprovider {' '.join(test_files)}"
                 )
-            elif self.test_cmd.startswith("tox "):
+            elif self.task.test_cmd.startswith("tox "):
                 tox_ini = pjoin(self.project_path, "tox.ini")
                 assert os.path.exists(
                     tox_ini
@@ -482,17 +477,17 @@ class ProjectApiManager:
 
                 self.add_pytest_cov_to_tox(tox_ini)
 
-                test_cmd = f"python -m {self.test_cmd}"
+                test_cmd = f"python -m {self.task.test_cmd}"
             else:
                 cov_config = pjoin(self.project_path, ".coveragerc")
                 self.specify_dynamic_context(cov_config)
-                test_cmd = f"python -m coverage run {self.test_cmd}"
+                test_cmd = f"python -m coverage run {self.task.test_cmd}"
 
             try:
                 cp = apputils.run_string_cmd_in_conda(
                     self.logger,
                     test_cmd,
-                    self.env_name,
+                    self.task.env_name,
                     stdout=PIPE,
                     stderr=STDOUT,
                     text=True,
@@ -543,10 +538,10 @@ class ProjectApiManager:
             self.specify_dynamic_context(cov_config)
 
             # (2) actually run the tests to produce coverage output
-            orig_cmd_parts = self.test_cmd.split(" ")
+            orig_cmd_parts = self.task.test_cmd.split(" ")
             assert (
                 orig_cmd_parts[0] == "./tests/runtests.py"
-            ), f"Test command does not start with ./tests/runtests.py: {self.test_cmd}"
+            ), f"Test command does not start with ./tests/runtests.py: {self.task.test_cmd}"
             test_cmd = (
                 "python -m coverage run "
                 + os.path.basename(orig_cmd_parts[0])
@@ -557,7 +552,7 @@ class ProjectApiManager:
                 cp = apputils.run_string_cmd_in_conda(
                     self.logger,
                     test_cmd,
-                    self.env_name,
+                    self.task.env_name,
                     stdout=PIPE,
                     stderr=STDOUT,
                     text=True,
@@ -592,7 +587,7 @@ class ProjectApiManager:
         Returns a list of code snippets that are likely to be related to the issue.
         """
         sbfl_result_file = pjoin(self.output_dir, "sbfl_result.json")  # for logging
-        if "django" in self.task_id:
+        if "django" in self.task.task_id:
             cov_file = self.run_developer_test_suite_django()
         else:
             cov_file = self.run_developer_test_suite()
@@ -605,7 +600,10 @@ class ProjectApiManager:
             return tool_output, summary, False
 
         test_file_names, ranked_lines = sbfl.run(
-            self.testcases_passing, self.testcases_failing, cov_file, self.task_id
+            self.task.testcases_passing,
+            self.task.testcases_failing,
+            cov_file,
+            self.task.task_id,
         )
         ranked_ranges_abs = sbfl.collate_results(ranked_lines, test_file_names)
         ranked_methods_abs = sbfl.map_collated_results_to_methods(ranked_ranges_abs)
@@ -781,7 +779,7 @@ class ProjectApiManager:
             message_thread,
             self.output_dir,
             self.project_path,
-            self.task_id,
+            self.task.task_id,
             self.validator,
         )
         summary = "The tool returned the patch written by another agent."

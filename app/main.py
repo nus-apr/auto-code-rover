@@ -13,7 +13,7 @@ from subprocess import CalledProcessError
 
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
-from app.api.manage import ProjectApiManager
+from app.api.manage import ProjectApiManager, PythonTask
 from app.post_process import (
     extract_organize_and_form_input,
     organize_and_form_input,
@@ -105,19 +105,22 @@ def run_one_task(task: Task) -> bool:
         f"============= Running task {task_id} =============",
     )
 
+    python_task = PythonTask(
+        task_id,
+        repo_path,
+        base_commit,
+        env_name,
+        repo_name,
+        pre_install_cmds,
+        install_cmd,
+        test_cmd,
+        test_patch,
+        testcases_passing,
+        testcases_failing,
+    )
     try:
         api_manager = ProjectApiManager(
-            task_id,
-            repo_path,
-            base_commit,
-            env_name,
-            repo_name,
-            pre_install_cmds,
-            install_cmd,
-            test_cmd,
-            test_patch,
-            testcases_passing,
-            testcases_failing,
+            python_task,
             task_output_dir,
             do_install=globals.do_install,
         )
