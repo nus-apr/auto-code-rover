@@ -20,7 +20,9 @@ from app.data_structures import MethodId
 
 def perfect_angelic_debug(
     task_id: str, diff_file: str, project_path: str
-) -> tuple[set, set, set]:
+) -> tuple[
+    set[tuple[str, MethodId]], set[tuple[str, MethodId]], set[tuple[str, MethodId]]
+]:
     """Do perfect angelic debugging and return a list of incorrect fix locations.
 
     Args:
@@ -37,7 +39,9 @@ def perfect_angelic_debug(
 
 def compare_fix_locations(
     diff_file: str, dev_diff_file: str, project_path: str
-) -> tuple[set, set, set]:
+) -> tuple[
+    set[tuple[str, MethodId]], set[tuple[str, MethodId]], set[tuple[str, MethodId]]
+]:
     """Compare the changed methods in two diff files
 
     Args:

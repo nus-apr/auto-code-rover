@@ -4,6 +4,7 @@ An agent, which is only responsible for the write_patch tool call.
 
 import json
 import shutil
+from collections.abc import Iterable
 from copy import deepcopy
 from os.path import join as pjoin
 
@@ -137,7 +138,7 @@ def run_with_retries(
                     incorrect_locations = validation.perfect_angelic_debug(
                         task.task_id, diff_file, task.project_path
                     )
-                    angelic_msg = angelic_debugging_message(incorrect_locations)
+                    angelic_msg = angelic_debugging_message(incorrect_locations[0])
 
                     result_msg = f"{msg}\n{angelic_msg}"
                     new_thread.add_user(result_msg)
@@ -157,7 +158,7 @@ def run_with_retries(
                 )
 
                 msg = "Extracted a patch."
-                if angelic_msg := angelic_debugging_message(incorrect_locations):
+                if angelic_msg := angelic_debugging_message(incorrect_locations[0]):
                     result_msg = f"{msg}\n{angelic_msg}"
                 else:
                     result_msg = msg
@@ -184,7 +185,9 @@ def run_with_retries(
     return result_msg, all_cost, all_input_tokens, all_output_tokens
 
 
-def angelic_debugging_message(incorrect_locations: list[tuple[str, MethodId]]) -> str:
+def angelic_debugging_message(
+    incorrect_locations: Iterable[tuple[str, MethodId]],
+) -> str:
     msg = []
 
     if incorrect_locations:
