@@ -93,16 +93,16 @@ class PythonTask(Task):
             or globals.only_save_sbfl_result
         )
         if do_install:
-            self.do_install()
+            self._do_install()
 
         # apply the test modifications to this task
-        self.apply_test_patch()
+        self._apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
         with apputils.cd(task.project_path):
             apputils.repo_commit_current_changes()
 
-    def do_install(self):
+    def _do_install(self):
         """Do left-over install commands after setting up.
         The commands being run here are 'pre_install' and 'install' defined in
         harness/constants.py file in SWE-bench.
@@ -150,7 +150,7 @@ class PythonTask(Task):
                 log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {other_install_cmd} failed.")
 
-    def apply_test_patch(self) -> None:
+    def _apply_test_patch(self) -> None:
         """
         Apply the patch to testcases, as supplied by the benchmark.
         This step brings in all the new tests and testcase modifications.
@@ -176,7 +176,7 @@ class PythonTask(Task):
             os.remove(test_patch_path)
 
     @classmethod
-    def specify_dynamic_context(cls, coveragerc: str | PathLike) -> None:
+    def _specify_dynamic_context(cls, coveragerc: str | PathLike) -> None:
         # check whether there is already a .coveragerc file
         if not os.path.exists(coveragerc):
             with open(coveragerc, "w") as f:
@@ -201,7 +201,7 @@ class PythonTask(Task):
                 f.writelines(updated_lines)
 
     @classmethod
-    def omit_coverage_in_file(
+    def _omit_coverage_in_file(
         cls, coveragerc: str | PathLike, omitted: list[str]
     ) -> None:
         value = "".join(f"\n{file}" for file in omitted)
@@ -221,7 +221,7 @@ class PythonTask(Task):
             config.write(f)
 
     @classmethod
-    def add_pytest_cov_to_tox(cls, tox_ini: str | PathLike):
+    def _add_pytest_cov_to_tox(cls, tox_ini: str | PathLike):
         assert os.path.exists(tox_ini)
 
         config = ConfigParser()
@@ -242,11 +242,11 @@ class PythonTask(Task):
 
     def run_developer_test_suite(self) -> tuple[str, str]:
         if "django" in self.task_id:
-            return self.run_developer_test_suite_django()
+            return self._run_developer_test_suite_django()
         else:
-            return self.run_developer_test_suite_others()
+            return self._run_developer_test_suite_others()
 
-    def run_developer_test_suite_django(self) -> tuple[str, str]:
+    def _run_developer_test_suite_django(self) -> tuple[str, str]:
         """
         Since django does not use pytest as the testing framework, we use another procedure.
 
@@ -262,7 +262,7 @@ class PythonTask(Task):
         with apputils.cd(execution_dir):
             # (1) since we want to use coverage.py with dynamic context, create config first
             cov_config = pjoin(execution_dir, ".coveragerc")
-            PythonTask.specify_dynamic_context(cov_config)
+            PythonTask._specify_dynamic_context(cov_config)
 
             # (2) actually run the tests to produce coverage output
             orig_cmd_parts = task.test_cmd.split(" ")
@@ -303,7 +303,7 @@ class PythonTask(Task):
                 return "", log_file
             return cov_file, log_file
 
-    def run_developer_test_suite_others(self) -> tuple[str, str]:
+    def _run_developer_test_suite_others(self) -> tuple[str, str]:
         """
         Run the relevant parts of developer test suite.
         Record coverage information for each test while running them.
@@ -334,7 +334,7 @@ class PythonTask(Task):
 
                 cov_config = pjoin(task.project_path, ".coveragerc")
 
-                PythonTask.omit_coverage_in_file(cov_config, test_files)
+                PythonTask._omit_coverage_in_file(cov_config, test_files)
 
                 test_cmd = (
                     "python -m pytest --cov --cov-context=test --no-header"
@@ -346,12 +346,12 @@ class PythonTask(Task):
                     tox_ini
                 ), f"tox.ini not found in {task.project_path}"
 
-                PythonTask.add_pytest_cov_to_tox(tox_ini)
+                PythonTask._add_pytest_cov_to_tox(tox_ini)
 
                 test_cmd = f"python -m {task.test_cmd}"
             else:
                 cov_config = pjoin(task.project_path, ".coveragerc")
-                PythonTask.specify_dynamic_context(cov_config)
+                PythonTask._specify_dynamic_context(cov_config)
                 test_cmd = f"python -m coverage run {task.test_cmd}"
 
             _, log_file = mkstemp(suffix=".log", prefix="run_developer_tests")
