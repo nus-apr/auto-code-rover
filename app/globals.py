@@ -37,9 +37,6 @@ enable_angelic: bool = False
 # whether to do perfect angelic debugging
 enable_perfect_angelic: bool = False
 
-# perform installation of dependencies for each task to save time
-# This should be figured out automatically depending on the value of other options
-do_install: bool = False
 
 # A special mode to only save SBFL result and exit
 only_save_sbfl_result: bool = False

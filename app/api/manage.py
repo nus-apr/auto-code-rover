@@ -82,12 +82,7 @@ class ProjectApiManager:
         }
         return state_machine[self.curr_tool]
 
-    def __init__(
-        self,
-        task: PythonTask,
-        output_dir: str,
-        do_install: bool = False,
-    ):
+    def __init__(self, task: PythonTask, output_dir: str):
         # for logging of this task instance
         self.task = task
 
@@ -118,6 +113,11 @@ class ProjectApiManager:
             apputils.repo_reset_and_clean_checkout(self.task.commit)
 
         # Install task-specific dependencies
+        do_install = (
+            globals.enable_sbfl
+            or globals.enable_validation
+            or globals.only_save_sbfl_result
+        )
         if do_install:
             self.do_install()
 

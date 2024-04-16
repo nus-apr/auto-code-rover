@@ -131,7 +131,6 @@ def run_one_task(task: Task) -> bool:
         api_manager = ProjectApiManager(
             python_task,
             task_output_dir,
-            do_install=globals.do_install,
         )
     except Exception as e:
         log.log_exception(e)
@@ -386,12 +385,6 @@ def main():
         extract_patches = apputils.convert_dir_to_absolute(extract_patches)
         extract_organize_and_form_input(extract_patches)
         return
-
-    globals.do_install = (
-        globals.enable_sbfl
-        or globals.enable_validation
-        or globals.only_save_sbfl_result
-    )
 
     # check parameters
     if task_id is not None and task_list_file is not None:
