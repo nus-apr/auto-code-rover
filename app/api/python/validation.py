@@ -8,7 +8,6 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from logging import Logger
 from os import PathLike
 from pathlib import Path
 from subprocess import PIPE, STDOUT
@@ -33,7 +32,6 @@ class PythonValidator(Validator):
         env_name: str,
         testcases_passing: list[str],
         testcases_failing: list[str],
-        logger: Logger,
     ):
         self.repo_name = repo_name
         self.output_dir = output_dir
@@ -42,7 +40,6 @@ class PythonValidator(Validator):
         self.env_name = env_name
         self.testcases_passing = testcases_passing
         self.testcases_failing = testcases_failing
-        self.logger = logger
 
     def validate(self, patch_file: str) -> tuple[bool, str, str]:
         """
@@ -54,17 +51,13 @@ class PythonValidator(Validator):
         # (1) apply the patch to source code
         with app_utils.cd(self.project_path):
             apply_cmd = ["git", "apply", patch_file]
-            cp = app_utils.run_command(
-                self.logger, apply_cmd, capture_output=False, text=True
-            )
+            cp = app_utils.run_command(apply_cmd, capture_output=False, text=True)
             if cp.returncode != 0:
                 # patch application failed
                 raise RuntimeError(f"Error applying patch: {cp.stderr}")
 
         # (2) run the modified program against the test suite
-        log_and_print(
-            self.logger, "[Validation] Applied patch. Going to run test suite."
-        )
+        log_and_print("[Validation] Applied patch. Going to run test suite.")
 
         _, log_file = mkstemp(suffix=".log", prefix="pyval-", text=True)
         tests_passed, msg = execution.run_test_suite_for_correctness(
@@ -76,7 +69,6 @@ class PythonValidator(Validator):
             self.testcases_passing,
             self.testcases_failing,
             log_file,
-            self.logger,
         )
 
         # (3) revert the patch to source code
@@ -84,7 +76,6 @@ class PythonValidator(Validator):
             app_utils.repo_clean_changes()
 
         log_and_print(
-            self.logger,
             f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}.",
         )
         return tests_passed, msg, log_file
@@ -100,7 +91,6 @@ def validate(
     testcases_passing,
     testcases_failing,
     run_test_suite_log_file,
-    logger,
 ) -> tuple[bool, str]:
     """
     Returns:
@@ -110,13 +100,13 @@ def validate(
     # (1) apply the patch to source code
     with app_utils.cd(project_path):
         apply_cmd = ["git", "apply", patch_file_path]
-        cp = app_utils.run_command(logger, apply_cmd, capture_output=False, text=True)
+        cp = app_utils.run_command(apply_cmd, capture_output=False, text=True)
         if cp.returncode != 0:
             # patch application failed
             raise RuntimeError(f"Error applying patch: {cp.stderr}")
 
     # (2) run the modified program against the test suite
-    log_and_print(logger, "[Validation] Applied patch. Going to run test suite.")
+    log_and_print("[Validation] Applied patch. Going to run test suite.")
     tests_passed, msg = execution.run_test_suite_for_correctness(
         repo_name,
         output_dir,
@@ -126,16 +116,13 @@ def validate(
         testcases_passing,
         testcases_failing,
         run_test_suite_log_file,
-        logger,
     )
 
     # (3) revert the patch to source code
     with app_utils.cd(project_path):
         app_utils.repo_clean_changes()
 
-    log_and_print(
-        logger, f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}."
-    )
+    log_and_print(f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}.")
     return tests_passed, msg
 
 

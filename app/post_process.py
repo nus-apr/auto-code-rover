@@ -220,7 +220,7 @@ def extract_diff_one_instance(
         # at this point, at least some of the edits could be applied (some others may be unmatched)
         # we first try to get the diff
         diff = apputils.run_command(
-            None, ["git", "diff"], stdout=subprocess.PIPE
+            ["git", "diff"], stdout=subprocess.PIPE
         ).stdout.decode()
 
         # After extracting diff, we have nothing more to do in the actual code base

@@ -3,7 +3,6 @@ A proxy agent. Process raw response into json format.
 """
 
 import inspect
-from logging import Logger
 from typing import Any
 
 from app.data_structures import MessageThread
@@ -43,7 +42,6 @@ NOTE: a bug location should at least has a "class" or "method".
 
 
 def run_with_retries(
-    logger,
     text: str,
     retries=5,
 ) -> tuple[str | None, list[MessageThread], float, int, int]:
@@ -53,12 +51,9 @@ def run_with_retries(
 
     msg_threads = []
     for idx in range(1, retries + 1):
-        log_and_print(
-            logger, f"Trying to select search APIs in json. Try {idx} of {retries}."
-        )
+        log_and_print(f"Trying to select search APIs in json. Try {idx} of {retries}.")
 
         res_text, new_thread, cost, input_tokens, output_tokens = run(
-            logger,
             text,
         )
         msg_threads.append(new_thread)
@@ -70,21 +65,20 @@ def run_with_retries(
         extract_status, data = is_valid_json(res_text)
 
         if extract_status != ExtractStatus.IS_VALID_JSON:
-            log_and_print(logger, "Invalid json. Will retry.")
+            log_and_print("Invalid json. Will retry.")
             continue
 
         valid, diagnosis = is_valid_response(data)
         if not valid:
-            log_and_print(logger, f"{diagnosis}. Will retry.")
+            log_and_print(f"{diagnosis}. Will retry.")
             continue
 
-        log_and_print(logger, "Extracted a valid json. Congratulations!")
+        log_and_print("Extracted a valid json. Congratulations!")
         return res_text, msg_threads, all_cost, all_input_tokens, all_output_tokens
     return None, msg_threads, all_cost, all_input_tokens, all_output_tokens
 
 
 def run(
-    logger,
     text: str,
 ) -> tuple[str, MessageThread, float, int, int]:
     """
@@ -95,7 +89,7 @@ def run(
     msg_thread.add_system(PROXY_PROMPT)
     msg_thread.add_user(text)
     res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-        logger, msg_thread.to_msg(), response_format="json_object"
+        msg_thread.to_msg(), response_format="json_object"
     )
 
     msg_thread.add_model(res_text, [])  # no tools
@@ -103,7 +97,7 @@ def run(
     return res_text, msg_thread, cost, input_tokens, output_tokens
 
 
-def is_valid_response(data: Any, logger: Logger | None = None) -> tuple[bool, str]:
+def is_valid_response(data: Any) -> tuple[bool, str]:
     if not isinstance(data, dict):
         return False, "Json is not a dict"
 
@@ -122,7 +116,7 @@ def is_valid_response(data: Any, logger: Logger | None = None) -> tuple[bool, st
                 return False, "Every API call must be a string"
 
             try:
-                func_name, func_args = parse_function_invocation(api_call, logger)
+                func_name, func_args = parse_function_invocation(api_call)
             except Exception:
                 return False, "Every API call must be of form api_call(arg1, ..., argn)"
 

@@ -90,7 +90,7 @@ class ProjectApiManager:
     ):
         # for logging of this task instance
         self.task = task
-        self.logger = log.get_logger(task.task_id)
+
         # self.task_id = task.task_id
         self.project_path = task.project_path
 
@@ -111,12 +111,11 @@ class ProjectApiManager:
             task.env_name,
             task.testcases_passing,
             task.testcases_failing,
-            self.logger,
         )
 
         # get the correct version of the project and commit-specific pip install
         with apputils.cd(self.task.project_path):
-            apputils.repo_reset_and_clean_checkout(self.task.commit, self.logger)
+            apputils.repo_reset_and_clean_checkout(self.task.commit)
 
         # Install task-specific dependencies
         if do_install:
@@ -127,7 +126,7 @@ class ProjectApiManager:
 
         # commit the current changes, so that resetting later do not erase them
         with apputils.cd(self.task.project_path):
-            apputils.repo_commit_current_changes(self.logger)
+            apputils.repo_commit_current_changes()
 
         # build search manager
         self.search_manager = SearchManager(self.task.project_path)
@@ -259,12 +258,12 @@ class ProjectApiManager:
         except Exception as e:
             # TypeError can happen when the function is called with wrong parameters
             # we just return the error message as the call result
-            log_exception(self.logger, e)
+            log_exception(e)
             error = str(e)
             summary = "The tool returned error message."
             call_res = (error, summary, False)
 
-        log_and_print(self.logger, f"Result of dispatch_intent: {call_res}")
+        log_and_print(f"Result of dispatch_intent: {call_res}")
 
         # record this call and its result separately
         _, _, call_is_ok = call_res
@@ -293,36 +292,34 @@ class ProjectApiManager:
             # (1) pre-install
             for cmd in self.task.pre_install_cmds:
                 cp = apputils.run_string_cmd_in_conda(
-                    self.logger, cmd, self.task.env_name, capture_output=True, text=True
+                    cmd, self.task.env_name, capture_output=True, text=True
                 )
                 if cp.returncode != 0:
-                    log_and_print(self.logger, cp.stderr)
+                    log_and_print(cp.stderr)
                     raise RuntimeError(f"Command {cmd} failed.")
 
             # (2) install
             cp = apputils.run_string_cmd_in_conda(
-                self.logger,
                 self.task.install_cmd,
                 self.task.env_name,
                 capture_output=True,
                 text=True,
             )
             if cp.returncode != 0:
-                log_and_print(self.logger, cp.stderr)
+                log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {self.task.install_cmd} failed.")
             # (3) xmlrunner for our custom run_test; coverage required for fault localization
             other_install_cmd = (
                 "python -m pip install xmlrunner coverage pytest pytest-cov"
             )
             cp = apputils.run_string_cmd_in_conda(
-                self.logger,
                 other_install_cmd,
                 self.task.env_name,
                 capture_output=True,
                 text=True,
             )
             if cp.returncode != 0:
-                log_and_print(self.logger, cp.stderr)
+                log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {other_install_cmd} failed.")
 
     def start_new_tool_call_layer(self):
@@ -363,11 +360,9 @@ class ProjectApiManager:
             # (2) apply these patches
             # FIXME: check for failure here
             apply_cmd = ["git", "apply", test_patch_path]
-            cp = apputils.run_command(
-                self.logger, apply_cmd, capture_output=True, text=True
-            )
+            cp = apputils.run_command(apply_cmd, capture_output=True, text=True)
             if cp.returncode != 0:
-                log_and_print(self.logger, cp.stderr)
+                log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {apply_cmd} failed.")
             # (3) remove the temp file, which is not so important
             os.remove(test_patch_path)
@@ -485,7 +480,6 @@ class ProjectApiManager:
 
             try:
                 cp = apputils.run_string_cmd_in_conda(
-                    self.logger,
                     test_cmd,
                     self.task.env_name,
                     stdout=PIPE,
@@ -496,7 +490,6 @@ class ProjectApiManager:
                 Path(self.output_dir, "run_developer_tests.log").write_text(cp.stdout)
             except TimeoutExpired:
                 log.log_and_print(
-                    self.logger,
                     "Timeout expired while running the test suite.",
                 )
                 return ""
@@ -515,7 +508,6 @@ class ProjectApiManager:
                 # now check again
                 if not os.path.exists(cov_file):
                     log.log_and_print(
-                        self.logger,
                         "Coverage file is not produced after running the test suite.",
                     )
                     return ""
@@ -550,7 +542,6 @@ class ProjectApiManager:
             )
             try:
                 cp = apputils.run_string_cmd_in_conda(
-                    self.logger,
                     test_cmd,
                     self.task.env_name,
                     stdout=PIPE,
@@ -561,7 +552,6 @@ class ProjectApiManager:
                 Path(self.output_dir, "run_developer_tests.log").write_text(cp.stdout)
             except TimeoutExpired:
                 log.log_and_print(
-                    self.logger,
                     "Timeout expired while running the test suite.",
                 )
                 return ""
@@ -570,7 +560,6 @@ class ProjectApiManager:
             cov_file = pjoin(execution_dir, ".coverage")
             if not os.path.exists(cov_file):
                 log.log_and_print(
-                    self.logger,
                     "Coverage file is not produced after running the test suite.",
                 )
                 return ""
@@ -623,8 +612,8 @@ class ProjectApiManager:
         with open(sbfl_method_result_file, "w") as f:
             json.dump(ranked_methods, f, indent=4)
 
-        log.log_and_print(self.logger, f"SBFL result (lines): {ranked_ranges}")
-        log.log_and_print(self.logger, f"SBFL result (methods): {ranked_methods}")
+        log.log_and_print(f"SBFL result (lines): {ranked_ranges}")
+        log.log_and_print(f"SBFL result (methods): {ranked_methods}")
 
         if not ranked_ranges and not ranked_methods:
             # empty sbfl results
@@ -775,7 +764,6 @@ class ProjectApiManager:
             input_tokens,
             output_tokens,
         ) = agent_write_patch.run_with_retries(
-            self.logger,
             message_thread,
             self.output_dir,
             self.project_path,
@@ -796,7 +784,7 @@ class ProjectApiManager:
             input_tokens,
             output_tokens,
         ) = agent_proxy.run_with_retries(
-            self.logger, text
+            text
         )  # FIXME: type of `text`
         if tool_output is None:
             summary = "The tool returned nothing. The main agent probably did not provide enough clues."

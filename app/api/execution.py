@@ -24,7 +24,6 @@ def run_test_suite_for_correctness(
     testcases_passing,
     testcases_failing,
     run_test_suite_log_file,
-    logger,
 ) -> tuple[bool, str]:
     """
     Run the developer test suite, and record pass/fail results.
@@ -50,7 +49,6 @@ def run_test_suite_for_correctness(
     with app_utils.cd(project_path):
         try:
             cp = app_utils.run_string_cmd_in_conda(
-                logger,
                 test_cmd,
                 env_name,
                 timeout=globals.test_exec_timeout,
@@ -77,10 +75,8 @@ def run_test_suite_for_correctness(
 
     # Now test log has been written; process it
     eval_status, parse_ok = get_logs_eval(repo_name, run_test_suite_log_file)
-    log.log_and_print(
-        logger, f"[Run test-suite] Result of parsing test log: {parse_ok}"
-    )
-    log.log_and_print(logger, f"[Run test-suite] Eval status: {eval_status}")
+    log.log_and_print(f"[Run test-suite] Result of parsing test log: {parse_ok}")
+    log.log_and_print(f"[Run test-suite] Eval status: {eval_status}")
 
     if not parse_ok:
         # log file says test execution has error
@@ -90,20 +86,16 @@ def run_test_suite_for_correctness(
 
     eval_ref = {"FAIL_TO_PASS": testcases_failing, "PASS_TO_PASS": testcases_passing}
     eval_result = get_eval_report(eval_status, eval_ref)
-    log.log_and_print(logger, f"[Run test-suite] Eval result: {eval_result}")
+    log.log_and_print(f"[Run test-suite] Eval result: {eval_result}")
 
     resolution_status = get_resolution_status(eval_result)
-    log.log_and_print(
-        logger, f"[Run test-suite] Resolution status: {resolution_status}"
-    )
+    log.log_and_print(f"[Run test-suite] Resolution status: {resolution_status}")
     if resolution_status == ResolvedStatus.FULL:
-        log.log_and_print(logger, "[Run test-suite] Returning True since all resolved.")
+        log.log_and_print("[Run test-suite] Returning True since all resolved.")
         return True, ""
 
     else:
         # FIXME: The current failure message is simple; maybe can add failure reasons to it
-        log.log_and_print(
-            logger, "[Run test-suite] Returning False since some tests failed."
-        )
+        log.log_and_print("[Run test-suite] Returning False since some tests failed.")
         error_message = "Some tests have failed."
         return False, error_message

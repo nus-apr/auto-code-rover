@@ -52,7 +52,6 @@ You can write multiple modifications if needed.
 
 
 def run_with_retries(
-    logger,
     message_thread: MessageThread,
     output_dir: str,
     project_path,
@@ -88,13 +87,13 @@ def run_with_retries(
         if can_stop or i > retries:
             break
 
-        log_and_print(logger, f"Trying to write a patch. Try {i} of {retries}.")
+        log_and_print(f"Trying to write a patch. Try {i} of {retries}.")
 
         raw_patch_file = pjoin(output_dir, f"agent_patch_raw_{i}")
 
         # actually calling gpt
         res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            logger, new_thread.to_msg()
+            new_thread.to_msg()
         )
 
         all_cost += cost
@@ -103,9 +102,7 @@ def run_with_retries(
 
         new_thread.add_model(res_text, [])  # no tools
 
-        log_and_print(
-            logger, f"Raw patch produced in try {i}. Writing patch into file."
-        )
+        log_and_print(f"Raw patch produced in try {i}. Writing patch into file.")
 
         with open(raw_patch_file, "w") as f:
             f.write(res_text)

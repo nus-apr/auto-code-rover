@@ -11,6 +11,8 @@ from multiprocessing import Pool
 from os.path import join as pjoin
 from subprocess import CalledProcessError
 
+from loguru import logger
+
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager, PythonTask
@@ -99,9 +101,16 @@ def run_one_task(task: Task) -> bool:
     with open(pjoin(task_output_dir, "developer_patch.diff"), "w") as f:
         f.write(task_info["patch"])
 
-    logger = log.create_new_logger(task_id, task_output_dir)
+    logger.add(
+        pjoin(task_output_dir, "info.log"),
+        level="DEBUG",
+        format=(
+            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level>"
+            " | <level>{message}</level>"
+        ),
+    )
+
     log.log_and_always_print(
-        logger,
         f"============= Running task {task_id} =============",
     )
 
@@ -125,7 +134,7 @@ def run_one_task(task: Task) -> bool:
             do_install=globals.do_install,
         )
     except Exception as e:
-        log.log_exception(logger, e)
+        log.log_exception(e)
         run_status_message = f"Task {task_id} failed with exception: {e}."
         return False
 
@@ -136,11 +145,11 @@ def run_one_task(task: Task) -> bool:
         )  # this should have saved the results into json
         if run_ok:
             log.log_and_always_print(
-                logger, f"[SBFL only] Task {task_id} completed successfully."
+                f"[SBFL only] Task {task_id} completed successfully."
             )
         else:
             log.log_and_always_print(
-                logger, f"[SBFL only] Task {task_id} failed to produce result."
+                f"[SBFL only] Task {task_id} failed to produce result."
             )
         return True
 
@@ -162,7 +171,7 @@ def run_one_task(task: Task) -> bool:
         else:
             run_status_message = f"Task {task_id} failed without exception."
     except Exception as e:
-        log.log_exception(logger, e)
+        log.log_exception(e)
         run_status_message = f"Task {task_id} failed with exception: {e}."
         run_ok = False
     finally:
@@ -196,8 +205,8 @@ def run_one_task(task: Task) -> bool:
 
         # at the end of each task, reset everything in the task repo to clean state
         with apputils.cd(repo_path):
-            apputils.repo_reset_and_clean_checkout(base_commit, logger)
-        log.log_and_always_print(logger, run_status_message)
+            apputils.repo_reset_and_clean_checkout(base_commit)
+        log.log_and_always_print(run_status_message)
         return run_ok
 
 
@@ -477,4 +486,5 @@ def main():
 
 
 if __name__ == "__main__":
+    logger.remove()
     main()

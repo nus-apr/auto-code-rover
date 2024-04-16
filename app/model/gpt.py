@@ -33,7 +33,7 @@ if not openai_key:
 client = OpenAI(api_key=openai_key)
 
 
-def calc_cost(logger, model_name, input_tokens, output_tokens) -> float:
+def calc_cost(model_name, input_tokens, output_tokens) -> float:
     """
     Calculates the cost of a response from the openai API.
 
@@ -48,7 +48,6 @@ def calc_cost(logger, model_name, input_tokens, output_tokens) -> float:
         + globals.MODEL_COST_PER_OUTPUT[model_name] * output_tokens
     )
     log_and_cprint(
-        logger,
         f"Model API request cost info: "
         f"input_tokens={input_tokens}, output_tokens={output_tokens}, cost={cost:.6f}",
         "yellow",
@@ -103,7 +102,6 @@ def extract_gpt_func_calls(
 
 @retry(wait=wait_random_exponential(min=30, max=600), stop=stop_after_attempt(3))
 def call_gpt(
-    logger,
     messages,
     top_p=1,
     tools=None,
@@ -158,10 +156,10 @@ def call_gpt(
 
         input_tokens = int(response.usage.prompt_tokens)
         output_tokens = int(response.usage.completion_tokens)
-        cost = calc_cost(logger, response.model, input_tokens, output_tokens)
+        cost = calc_cost(response.model, input_tokens, output_tokens)
 
         raw_response = response.choices[0].message
-        log_and_print(logger, f"Raw model response: {raw_response}")
+        log_and_print(f"Raw model response: {raw_response}")
         content = extract_gpt_content(raw_response)
         raw_tool_calls = raw_response.tool_calls
         func_call_intents = extract_gpt_func_calls(raw_response)
@@ -175,5 +173,5 @@ def call_gpt(
         )
     except BadRequestError as e:
         if e.code == "context_length_exceeded":
-            log_and_print(logger, "Context length exceeded")
+            log_and_print("Context length exceeded")
         raise e
