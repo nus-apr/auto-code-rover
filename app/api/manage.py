@@ -14,6 +14,7 @@ import app.utils as apputils
 from app import globals, log
 from app.analysis import sbfl
 from app.api import agent_proxy, agent_write_patch
+from app.api.python.validation import PythonValidator
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_print, log_exception
 from app.search.search_manage import SearchManager
@@ -88,7 +89,7 @@ class ProjectApiManager:
         self.project_path = project_path
         self.commit = commit
         self.env_name = env_name
-        self.repo_name = repo_name
+
         # additional installation commands after setup was done
         self.pre_install_cmds: list[str] = pre_install_cmds
         self.install_cmd: str = install_cmd
@@ -108,6 +109,17 @@ class ProjectApiManager:
         self.import_root = import_root
 
         self.num_tests = 0
+
+        self.validator = PythonValidator(
+            repo_name,
+            output_dir,
+            project_path,
+            test_cmd,
+            env_name,
+            testcases_passing,
+            testcases_failing,
+            self.logger,
+        )
 
         # get the correct version of the project and commit-specific pip install
         with apputils.cd(self.project_path):
@@ -769,12 +781,8 @@ class ProjectApiManager:
             message_thread,
             self.output_dir,
             self.project_path,
-            self.test_cmd,
-            self.repo_name,
-            self.env_name,
             self.task_id,
-            self.testcases_passing,
-            self.testcases_failing,
+            self.validator,
         )
         summary = "The tool returned the patch written by another agent."
         self.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
