@@ -14,7 +14,6 @@ import math
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from pprint import pformat
@@ -22,6 +21,7 @@ from pprint import pformat
 from coverage.sqldata import CoverageData
 
 from app.api.task import PythonTask
+from app.data_structures import MethodId
 
 
 def canonicalize_testname_sympy_bin_test(testname: str) -> tuple[str, str]:
@@ -359,20 +359,6 @@ def collate_results(
     # sort by score (descending), then by file name, then by start line number
     res = sorted(res, key=lambda x: (-x[3], x[0], x[1]))
     return res
-
-
-@dataclass
-class MethodId:
-    class_name: str
-    method_name: str
-
-    def __str__(self):
-        if self.class_name:
-            return f"{self.class_name}.{self.method_name}"
-        return self.method_name
-
-    def __hash__(self):
-        return hash((self.class_name, self.method_name))
 
 
 @cache

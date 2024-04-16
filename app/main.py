@@ -115,17 +115,17 @@ def run_one_task(task: Task) -> bool:
     )
 
     python_task = PythonTask(
-        task_id,
-        repo_path,
-        base_commit,
-        env_name,
-        repo_name,
-        pre_install_cmds,
-        install_cmd,
-        test_cmd,
-        test_patch,
-        testcases_passing,
-        testcases_failing,
+        task_id=task_id,
+        project_path=repo_path,
+        commit=base_commit,
+        env_name=env_name,
+        repo_name=repo_name,
+        pre_install_cmds=pre_install_cmds,
+        install_cmd=install_cmd,
+        test_cmd=test_cmd,
+        test_patch=test_patch,
+        testcases_passing=testcases_passing,
+        testcases_failing=testcases_failing,
     )
     try:
         api_manager = ProjectApiManager(

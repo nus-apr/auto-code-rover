@@ -8,12 +8,10 @@ from copy import deepcopy
 from os.path import join as pjoin
 
 from app import globals
-from app.analysis.sbfl import MethodId
 from app.api import agent_common
 from app.api.python import validation
 from app.api.task import PythonTask
-from app.api.validation import Validator
-from app.data_structures import MessageThread
+from app.data_structures import MessageThread, MethodId
 from app.log import log_and_print
 from app.model.gpt import call_gpt
 from app.post_process import (
@@ -56,7 +54,6 @@ def run_with_retries(
     message_thread: MessageThread,
     output_dir: str,
     task: PythonTask,
-    validator: Validator | None = None,
     retries=3,
 ) -> tuple[str, float, int, int]:
     """
@@ -120,9 +117,8 @@ def run_with_retries(
             # patch generated is applicable and all edits are ok, so we can think about validation
             if globals.enable_validation:
                 # if we have a patch extracted, apply it and validate
-                assert validator is not None, "validator is None"
 
-                patch_is_correct, err_message, log_file = validator.validate(diff_file)
+                patch_is_correct, err_message, log_file = task.validate(diff_file)
                 shutil.move(log_file, pjoin(output_dir, f"run_test_suite_{i}.log"))
 
                 if patch_is_correct:

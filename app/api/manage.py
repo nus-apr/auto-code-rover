@@ -11,7 +11,8 @@ from docstring_parser import parse
 from app import log
 from app.analysis import sbfl
 from app.api import agent_proxy, agent_write_patch
-from app.api.python.validation import PythonValidator
+
+# from app.api.python.validation import PythonValidator
 from app.api.task import PythonTask
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_print, log_exception
@@ -70,16 +71,6 @@ class ProjectApiManager:
 
         # where to write our output
         self.output_dir = os.path.abspath(output_dir)
-
-        self.validator = PythonValidator(
-            task.repo_name,
-            output_dir,
-            task.project_path,
-            task.test_cmd,
-            task.env_name,
-            task.testcases_passing,
-            task.testcases_failing,
-        )
 
         self.task.setup_project()
         # self.setup_project(self.task)
@@ -457,7 +448,7 @@ class ProjectApiManager:
             message_thread,
             self.output_dir,
             self.task,
-            self.validator,
+            # self.validator,
         )
         summary = "The tool returned the patch written by another agent."
         self.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
