@@ -48,7 +48,7 @@ class Task(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def validate(self) -> tuple[bool, str, str]:
+    def validate(self, patch_file: str) -> tuple[bool, str, str]:
         """
         Returns:
             - Whether this patch has made the test suite pass.
@@ -59,9 +59,9 @@ class Task(ABC):
 
 
 @dataclass(kw_only=True)
-class PythonTask:
+class PythonTask(Task):
     task_id: str
-    project_path: str
+    repo_path: str
     commit: str
     env_name: str
     repo_name: str
@@ -71,6 +71,14 @@ class PythonTask:
     test_patch: str
     testcases_passing: list[str]
     testcases_failing: list[str]
+
+    @property
+    def project_path(self) -> str:
+        return self.repo_path
+
+    @project_path.setter
+    def project_path(self, value: str) -> None:
+        self.repo_path = value
 
     def setup_project(self) -> None:
         # get the correct version of the project and commit-specific pip install

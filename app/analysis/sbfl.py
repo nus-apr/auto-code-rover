@@ -20,8 +20,13 @@ from pprint import pformat
 
 from coverage.sqldata import CoverageData
 
-from app.api.task import PythonTask
+from app.api.task import PythonTask, Task
 from app.data_structures import MethodId
+
+
+class NoCoverageData(RuntimeError):
+    def __init__(self, testing_log_file: str):
+        self.testing_log_file = testing_log_file
 
 
 def canonicalize_testname_sympy_bin_test(testname: str) -> tuple[str, str]:
@@ -217,9 +222,7 @@ Main entry to the SBFL analysis.
 """
 
 
-def run(
-    task: PythonTask, cov_file: str
-) -> tuple[list[str], list[tuple[str, int, float]]]:
+def run(task: Task) -> tuple[list[str], list[tuple[str, int, float]], str]:
     """
     Run SBFL analysis on the given coverage data file.
     At the same time, collect the test file names.
@@ -231,8 +234,21 @@ def run(
         - task_id: task id to identify which project we are on.
 
     Returns:
-        - list of test file names, list of ranked lines (file, line_no, score)
+        - list of test file names
+        - list of ranked lines (file, line_no, score)
+        - path of testing log
     """
+    if isinstance(task, PythonTask):
+        return _run_python_task(task)
+
+    raise NotImplementedError(f"SBFL does not support {type(task).__name__}")
+
+
+def _run_python_task(
+    task: PythonTask,  # , cov_file: str
+) -> tuple[list[str], list[tuple[str, int, float]], str]:
+    cov_file, log_file = task.run_developer_test_suite()
+
     pass_tests_names = []
     fail_tests_names = []
     test_file_names = []
@@ -254,7 +270,7 @@ def run(
     test_file_names = helper_remove_dup_and_empty(test_file_names)
 
     if not os.path.isfile(cov_file):
-        raise RuntimeError(f"Coverage data file {cov_file} does not exist.")
+        raise NoCoverageData(log_file)
 
     covdb = CoverageData(basename=cov_file)
     covdb.read()
@@ -288,7 +304,7 @@ def run(
 
     # NOTE: swap algorithm here
     ranked_lines = exec_stats.rank_lines(ExecStats.ochiai, total_fail, total_pass)
-    return test_file_names, ranked_lines
+    return test_file_names, ranked_lines, log_file
 
 
 def collate_results(

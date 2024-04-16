@@ -10,10 +10,11 @@ from docstring_parser import parse
 
 from app import log
 from app.analysis import sbfl
+from app.analysis.sbfl import NoCoverageData
 from app.api import agent_proxy, agent_write_patch
 
 # from app.api.python.validation import PythonValidator
-from app.api.task import PythonTask
+from app.api.task import Task
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_print, log_exception
 from app.search.search_manage import SearchManager
@@ -65,7 +66,7 @@ class ProjectApiManager:
         }
         return state_machine[self.curr_tool]
 
-    def __init__(self, task: PythonTask, output_dir: str):
+    def __init__(self, task: Task, output_dir: str):
         # for logging of this task instance
         self.task = task
 
@@ -254,23 +255,25 @@ class ProjectApiManager:
         Perform fault localization by running the passing and failing test-cases.
         Returns a list of code snippets that are likely to be related to the issue.
         """
-        cov_file, log_file = self.task.run_developer_test_suite()
-
-        shutil.move(log_file, pjoin(self.output_dir, "run_developer_tests.log"))
-
         sbfl_result_file = Path(self.output_dir, "sbfl_result.json")
         sbfl_method_result_file = Path(self.output_dir, "sbfl_result_method.json")
 
-        if not cov_file:
-            # fail to run the test suite with coverage
+        log_file = None
+        try:
+            test_file_names, ranked_lines, log_file = sbfl.run(self.task)
+        except NoCoverageData as e:
             sbfl_result_file.write_text("")
             sbfl_method_result_file.write_text("")
+
+            log_file = e.testing_log_file
 
             tool_output = "Error in running localization tool"
             summary = tool_output
             return tool_output, summary, False
+        finally:
+            if log_file is not None:
+                shutil.move(log_file, pjoin(self.output_dir, "run_developer_tests.log"))
 
-        test_file_names, ranked_lines = sbfl.run(self.task, cov_file)
         ranked_ranges_abs = sbfl.collate_results(ranked_lines, test_file_names)
         ranked_methods_abs = sbfl.map_collated_results_to_methods(ranked_ranges_abs)
 

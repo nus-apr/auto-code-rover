@@ -15,7 +15,8 @@ from loguru import logger
 
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
-from app.api.manage import ProjectApiManager, PythonTask
+from app.api.manage import ProjectApiManager
+from app.api.task import PythonTask
 from app.post_process import (
     extract_organize_and_form_input,
     organize_and_form_input,
@@ -116,7 +117,7 @@ def run_one_task(task: Task) -> bool:
 
     python_task = PythonTask(
         task_id=task_id,
-        project_path=repo_path,
+        repo_path=repo_path,
         commit=base_commit,
         env_name=env_name,
         repo_name=repo_name,
