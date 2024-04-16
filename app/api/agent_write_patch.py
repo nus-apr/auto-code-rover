@@ -11,6 +11,7 @@ from app import globals
 from app.analysis.sbfl import MethodId
 from app.api import agent_common
 from app.api.python import validation
+from app.api.task import PythonTask
 from app.api.validation import Validator
 from app.data_structures import MessageThread
 from app.log import log_and_print
@@ -54,8 +55,7 @@ You can write multiple modifications if needed.
 def run_with_retries(
     message_thread: MessageThread,
     output_dir: str,
-    project_path,
-    task_id: str,
+    task: PythonTask,
     validator: Validator | None = None,
     retries=3,
 ) -> tuple[str, float, int, int]:
@@ -139,7 +139,7 @@ def run_with_retries(
                     )
 
                     incorrect_locations = validation.perfect_angelic_debug(
-                        task_id, diff_file, project_path
+                        task.task_id, diff_file, task.project_path
                     )
                     angelic_msg = angelic_debugging_message(incorrect_locations)
 
@@ -157,7 +157,7 @@ def run_with_retries(
                     continue
             elif globals.enable_perfect_angelic:
                 incorrect_locations = validation.perfect_angelic_debug(
-                    task_id, diff_file, project_path
+                    task.task_id, diff_file, task.project_path
                 )
 
                 msg = "Extracted a patch."

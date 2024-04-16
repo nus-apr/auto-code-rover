@@ -21,6 +21,8 @@ from pprint import pformat
 
 from coverage.sqldata import CoverageData
 
+from app.api.task import PythonTask
+
 
 def canonicalize_testname_sympy_bin_test(testname: str) -> tuple[str, str]:
     """
@@ -216,7 +218,7 @@ Main entry to the SBFL analysis.
 
 
 def run(
-    pass_tests: list[str], fail_tests: list[str], cov_file: str, task_id: str
+    task: PythonTask, cov_file: str
 ) -> tuple[list[str], list[tuple[str, int, float]]]:
     """
     Run SBFL analysis on the given coverage data file.
@@ -234,12 +236,12 @@ def run(
     pass_tests_names = []
     fail_tests_names = []
     test_file_names = []
-    for test in pass_tests:
-        file_name, test_name = canonicalize_testname(task_id, test)
+    for test in task.testcases_passing:
+        file_name, test_name = canonicalize_testname(task.task_id, test)
         pass_tests_names.append(test_name)
         test_file_names.append(file_name)
-    for test in fail_tests:
-        file_name, test_name = canonicalize_testname(task_id, test)
+    for test in task.testcases_failing:
+        file_name, test_name = canonicalize_testname(task.task_id, test)
         fail_tests_names.append(test_name)
         test_file_names.append(file_name)
 
