@@ -14,8 +14,10 @@ from subprocess import CalledProcessError
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
+from app.fresh_issue.common import FreshTask
 from app.post_process import (
     extract_organize_and_form_input,
+    get_final_patch_path,
     organize_and_form_input,
     reextract_organize_and_form_inputs,
 )
@@ -106,10 +108,12 @@ def run_one_task(task: Task) -> bool:
     )
 
     try:
+        # create api manager and run project initialization routine in its init
         api_manager = ProjectApiManager(
             task_id,
             repo_path,
             base_commit,
+            task_output_dir,
             env_name,
             repo_name,
             pre_install_cmds,
@@ -118,12 +122,13 @@ def run_one_task(task: Task) -> bool:
             test_patch,
             testcases_passing,
             testcases_failing,
-            task_output_dir,
             do_install=globals.do_install,
         )
     except Exception as e:
         log.log_exception(logger, e)
-        run_status_message = f"Task {task_id} failed with exception: {e}."
+        run_status_message = (
+            f"Task {task_id} failed with exception when creating API manager: {e}."
+        )
         logger.handlers.clear()
         return False
 
@@ -146,15 +151,8 @@ def run_one_task(task: Task) -> bool:
     run_ok = False
     run_status_message = ""
     try:
-        # create api manager and run project initialization routine in its init
-        if globals.load_cache is not None:
-            # NOTE: although we start from a history state, still creating a new
-            # output folder to store results from this run
-            run_ok = inference.continue_task_from_cache(
-                globals.load_cache, task_output_dir, api_manager
-            )
-        else:
-            run_ok = inference.run_one_task(task_output_dir, api_manager, problem_stmt)
+
+        run_ok = inference.run_one_task(task_output_dir, api_manager, problem_stmt)
         if run_ok:
             run_status_message = f"Task {task_id} completed successfully."
         else:
@@ -228,167 +226,19 @@ def run_task_group(task_group_id: str, task_group_items: list[Task]) -> None:
     )
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--setup-map",
-        type=str,
-        help="Path to json file that contains the setup information of the projects.",
-    )
-    parser.add_argument(
-        "--tasks-map",
-        type=str,
-        help="Path to json file that contains the tasks information.",
-    )
-    ## where to store run results
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Path to the directory that stores the run results.",
-    )
-    ## which tasks to be run
-    parser.add_argument(
-        "--task-list-file",
-        type=str,
-        help="Path to the file that contains all tasks ids to be run.",
-    )
-    parser.add_argument("--task", type=str, help="Task id to be run.")
-    parser.add_argument(
-        "--num-processes",
-        type=str,
-        default=1,
-        help="Number of processes to run the tasks in parallel.",
-    )
-    parser.add_argument(
-        "--load-cache",
-        type=str,
-        help="(Deprecated) Point to a json file which contains past conversation history. "
-        "Restart conversation from this file instead of starting from scratch. "
-        "Only available when running a single task.",
-    )
-    parser.add_argument(
-        "--enable-sbfl", action="store_true", default=False, help="Enable SBFL."
-    )
-    parser.add_argument(
-        "--enable-layered",
-        action="store_true",
-        default=False,
-        help="Enable layered code search.",
-    )
-    parser.add_argument(
-        "--enable-validation",
-        action="store_true",
-        default=False,
-        help="Enable validation in our workflow.",
-    )
-    parser.add_argument(
-        "--enable-angelic",
-        action="store_true",
-        default=False,
-        help="(Experimental) Enable angelic debugging",
-    )
-    parser.add_argument(
-        "--enable-perfect-angelic",
-        action="store_true",
-        default=False,
-        help="(Experimental) Enable perfect angelic debugging; overrides --enable-angelic",
-    )
-    parser.add_argument(
-        "--no-print",
-        action="store_true",
-        default=False,
-        help="Do not print most messages to stdout.",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="gpt-3.5-turbo-0125",
-        choices=globals.MODELS,
-        help="The model to use. Currently only OpenAI models are supported.",
-    )
-    parser.add_argument(
-        "--model-temperature",
-        type=float,
-        default=0.0,
-        help="The model temperature to use, for OpenAI models.",
-    )
-    parser.add_argument(
-        "--conv-round-limit",
-        type=int,
-        default=15,
-        help="Conversation round limit for the main agent.",
-    )
-    parser.add_argument(
-        "--extract-patches",
-        type=str,
-        help="Only extract patches from the raw results dir. Voids all other arguments if this is used.",
-    )
-    parser.add_argument(
-        "--re-extract-patches",
-        type=str,
-        help="same as --extract-patches, except that individual dirs are moved out of their categories first",
-    )
-    parser.add_argument(
-        "--save-sbfl-result",
-        action="store_true",
-        default=False,
-        help="Special mode to only save SBFL results for future runs.",
-    )
-
-    args = parser.parse_args()
-    setup_map_file = args.setup_map
-    tasks_map_file = args.tasks_map
-    globals.output_dir = args.output_dir
-    if globals.output_dir is not None:
-        globals.output_dir = apputils.convert_dir_to_absolute(globals.output_dir)
-    task_list_file = args.task_list_file
-    task_id = args.task
-    num_processes: int = int(args.num_processes)
-    globals.load_cache = args.load_cache
-    globals.model = args.model
-    globals.model_temperature = args.model_temperature
-    # set whether brief or verbose log
-    print_stdout: bool = not args.no_print
-    log.print_stdout = print_stdout
-    globals.enable_sbfl = args.enable_sbfl
-    globals.enable_layered = args.enable_layered
-    globals.enable_validation = args.enable_validation
-    globals.enable_angelic = args.enable_angelic
-    globals.enable_perfect_angelic = args.enable_perfect_angelic
-    globals.conv_round_limit = args.conv_round_limit
-
-    # special modes
-    extract_patches: str | None = args.extract_patches
-    globals.only_save_sbfl_result = args.save_sbfl_result
-
-    if globals.only_save_sbfl_result and extract_patches is not None:
-        raise ValueError(
-            "Cannot save SBFL result and extract patches at the same time."
-        )
-
-    # special mode 1: extract patch, for this we can early exit
-    if args.re_extract_patches is not None:
-        extract_patches = apputils.convert_dir_to_absolute(args.re_extract_patches)
-        reextract_organize_and_form_inputs(args.re_extract_patches)
-        return
-
-    if extract_patches is not None:
-        extract_patches = apputils.convert_dir_to_absolute(extract_patches)
-        extract_organize_and_form_input(extract_patches)
-        return
-
-    globals.do_install = (
-        globals.enable_sbfl
-        or globals.enable_validation
-        or globals.only_save_sbfl_result
-    )
-
+def entry_swe_bench_mode(
+    task_id: str | None,
+    task_list_file: str | None,
+    setup_map_file: str,
+    tasks_map_file: str,
+    num_processes: int,
+):
+    """
+    Main entry for swe-bench mode.
+    """
     # check parameters
     if task_id is not None and task_list_file is not None:
         raise ValueError("Cannot specify both task and task-list.")
-
-    if globals.load_cache is not None and task_id is None:
-        raise ValueError("Cannot load cache when not in single-task mode.")
 
     all_task_ids = []
     if task_list_file is not None:
@@ -482,6 +332,305 @@ def main():
     log.print_with_time("Post-processing completed experiment results.")
     swe_input_file = organize_and_form_input(globals.output_dir)
     log.print_with_time("SWE-Bench input file created: " + swe_input_file)
+
+
+def entry_fresh_issue_mode(
+    task_id: str, clone_link: str, commit_hash: str, issue_link: str, setup_dir: str
+):
+    """
+    Main entry for fresh issue mode.
+    """
+    # create setup and output directories
+    apputils.create_dir_if_not_exists(setup_dir)
+    start_time = datetime.datetime.now()
+    start_time_s = start_time.strftime("%Y-%m-%d_%H-%M-%S")
+    task_output_dir = pjoin(globals.output_dir, task_id + "_" + start_time_s)
+    apputils.create_dir_if_not_exists(task_output_dir)
+
+    fresh_task = FreshTask(
+        task_id, clone_link, commit_hash, issue_link, setup_dir, task_output_dir
+    )
+    logger = log.create_new_logger(task_id, task_output_dir)
+    log.log_and_always_print(
+        logger,
+        f"============= Running fresh issue {task_id} =============",
+    )
+
+    try:
+        api_manager = ProjectApiManager(
+            task_id, fresh_task.project_dir, commit_hash, task_output_dir
+        )
+    except Exception as e:
+        log.log_exception(logger, e)
+        run_status_message = f"Fresh issue {task_id} failed with exception when creating API manager: {e}."
+        return False
+
+    run_ok = False
+    run_status_message = ""
+    try:
+        run_ok = inference.run_one_task(
+            task_output_dir, api_manager, fresh_task.problem_stmt
+        )
+        if run_ok:
+            run_status_message = f"Fresh issue {task_id} completed successfully."
+        else:
+            run_status_message = f"Fresh issue {task_id} failed without exception."
+    except Exception as e:
+        log.log_exception(logger, e)
+        run_status_message = f"Fresh issue {task_id} failed with exception: {e}."
+    finally:
+        # dump recorded tool call sequence into a file
+        end_time = datetime.datetime.now()
+
+        api_manager.dump_tool_call_sequence_to_file()
+        api_manager.dump_tool_call_layers_to_file()
+
+        input_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
+        output_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
+        with open(pjoin(task_output_dir, "cost.json"), "w") as f:
+            json.dump(
+                {
+                    "model": globals.model,
+                    "commit": commit_hash,
+                    "input_cost_per_token": input_cost_per_token,
+                    "output_cost_per_token": output_cost_per_token,
+                    "total_input_tokens": api_manager.input_tokens,
+                    "total_output_tokens": api_manager.output_tokens,
+                    "total_tokens": api_manager.input_tokens
+                    + api_manager.output_tokens,
+                    "total_cost": api_manager.cost,
+                    "start_epoch": start_time.timestamp(),
+                    "end_epoch": end_time.timestamp(),
+                    "elapsed_seconds": (end_time - start_time).total_seconds(),
+                },
+                f,
+                indent=4,
+            )
+
+        # at the end of each task, reset everything in the task repo to clean state
+        with apputils.cd(fresh_task.project_dir):
+            apputils.repo_reset_and_clean_checkout(commit_hash, logger)
+        log.log_and_always_print(logger, run_status_message)
+        final_patch_path = get_final_patch_path(task_output_dir)
+        if final_patch_path is not None:
+            log.log_and_always_print(
+                logger, f"Please find the generated patch at: {final_patch_path}"
+            )
+        else:
+            log.log_and_always_print(
+                logger, "No patch generated. You can try to run ACR again."
+            )
+        return run_ok
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    ## Common options
+    # where to store run results
+    parser.add_argument(
+        "--mode",
+        default="swe_bench",
+        choices=["swe_bench", "fresh_issue"],
+        help="Choose to run tasks in SWE-bench, or a fresh issue from the internet.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Path to the directory that stores the run results.",
+    )
+    parser.add_argument(
+        "--num-processes",
+        type=str,
+        default=1,
+        help="Number of processes to run the tasks in parallel.",
+    )
+    parser.add_argument(
+        "--no-print",
+        action="store_true",
+        default=False,
+        help="Do not print most messages to stdout.",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gpt-3.5-turbo-0125",
+        choices=globals.MODELS,
+        help="The model to use. Currently only OpenAI models are supported.",
+    )
+    parser.add_argument(
+        "--model-temperature",
+        type=float,
+        default=0.0,
+        help="The model temperature to use, for OpenAI models.",
+    )
+    parser.add_argument(
+        "--conv-round-limit",
+        type=int,
+        default=15,
+        help="Conversation round limit for the main agent.",
+    )
+    parser.add_argument(
+        "--extract-patches",
+        type=str,
+        help="Only extract patches from the raw results dir. Voids all other arguments if this is used.",
+    )
+    parser.add_argument(
+        "--re-extract-patches",
+        type=str,
+        help="same as --extract-patches, except that individual dirs are moved out of their categories first",
+    )
+    parser.add_argument(
+        "--enable-layered",
+        action="store_true",
+        default=True,
+        help="Enable layered code search.",
+    )
+
+    swe_group = parser.add_argument_group(
+        "swe_bench", description="Arguments for running on SWE-bench tasks."
+    )
+    ## task info when running instances in SWE-bench
+    swe_group.add_argument(
+        "--setup-map",
+        type=str,
+        help="Path to json file that contains the setup information of the projects.",
+    )
+    swe_group.add_argument(
+        "--tasks-map",
+        type=str,
+        help="Path to json file that contains the tasks information.",
+    )
+    swe_group.add_argument(
+        "--task-list-file",
+        type=str,
+        help="Path to the file that contains all tasks ids to be run.",
+    )
+    swe_group.add_argument("--task", type=str, help="Task id to be run.")
+    ## Only support test-based options for SWE-bench tasks for now
+    swe_group.add_argument(
+        "--enable-sbfl", action="store_true", default=False, help="Enable SBFL."
+    )
+    swe_group.add_argument(
+        "--enable-validation",
+        action="store_true",
+        default=False,
+        help="Enable validation in our workflow.",
+    )
+    swe_group.add_argument(
+        "--enable-angelic",
+        action="store_true",
+        default=False,
+        help="(Experimental) Enable angelic debugging",
+    )
+    swe_group.add_argument(
+        "--enable-perfect-angelic",
+        action="store_true",
+        default=False,
+        help="(Experimental) Enable perfect angelic debugging; overrides --enable-angelic",
+    )
+    swe_group.add_argument(
+        "--save-sbfl-result",
+        action="store_true",
+        default=False,
+        help="Special mode to only save SBFL results for future runs.",
+    )
+
+    fresh_group = parser.add_argument_group(
+        "fresh_issue",
+        description="Arguments for running on fresh issues from the internet.",
+    )
+    ## task info when running on new issues from GitHub
+    fresh_group.add_argument(
+        "--fresh-task-id",
+        type=str,
+        help="Assign an id to the current fresh issue task.",
+    )
+    fresh_group.add_argument(
+        "--clone-link",
+        type=str,
+        help="[Fresh issue] The link to the repository to clone.",
+    )
+    fresh_group.add_argument(
+        "--commit-hash", type=str, help="[Fresh issue] The commit hash to checkout."
+    )
+    fresh_group.add_argument(
+        "--issue-link", type=str, help="[Fresh issue] The link to the issue."
+    )
+    fresh_group.add_argument(
+        "--setup-dir",
+        type=str,
+        help="[Fresh issue] The directory where repositories should be cloned to.",
+    )
+
+    args = parser.parse_args()
+    ## common options
+    mode = args.mode
+    globals.output_dir = args.output_dir
+    if globals.output_dir is not None:
+        globals.output_dir = apputils.convert_dir_to_absolute(globals.output_dir)
+    num_processes: int = int(args.num_processes)
+    # set whether brief or verbose log
+    print_stdout: bool = not args.no_print
+    log.print_stdout = print_stdout
+    globals.model = args.model
+    globals.model_temperature = args.model_temperature
+    globals.conv_round_limit = args.conv_round_limit
+    extract_patches: str | None = args.extract_patches
+    re_extract_patches: str | None = args.re_extract_patches
+    globals.enable_layered = args.enable_layered
+
+    ## options for swe-bench mode
+    setup_map_file = args.setup_map
+    tasks_map_file = args.tasks_map
+    task_list_file: str | None = args.task_list_file
+    task_id: str | None = args.task
+    globals.enable_sbfl = args.enable_sbfl
+    globals.enable_validation = args.enable_validation
+    globals.enable_angelic = args.enable_angelic
+    globals.enable_perfect_angelic = args.enable_perfect_angelic
+    globals.only_save_sbfl_result = args.save_sbfl_result
+
+    ## options for fresh_issue mode
+    fresh_task_id = args.fresh_task_id
+    clone_link = args.clone_link
+    commit_hash = args.commit_hash
+    issue_link = args.issue_link
+    setup_dir = args.setup_dir
+    if setup_dir is not None:
+        setup_dir = apputils.convert_dir_to_absolute(setup_dir)
+
+    ## Firstly deal with special modes
+    if globals.only_save_sbfl_result and extract_patches is not None:
+        raise ValueError(
+            "Cannot save SBFL result and extract patches at the same time."
+        )
+
+    # special mode 1: extract patch, for this we can early exit
+    if re_extract_patches is not None:
+        extract_patches = apputils.convert_dir_to_absolute(re_extract_patches)
+        reextract_organize_and_form_inputs(re_extract_patches)
+        return
+
+    if extract_patches is not None:
+        extract_patches = apputils.convert_dir_to_absolute(extract_patches)
+        extract_organize_and_form_input(extract_patches)
+        return
+
+    # we do not do install for fresh issue now
+    globals.do_install = (mode == "swe_bench") and (
+        globals.enable_sbfl
+        or globals.enable_validation
+        or globals.only_save_sbfl_result
+    )
+
+    if mode == "swe_bench":
+        entry_swe_bench_mode(
+            task_id, task_list_file, setup_map_file, tasks_map_file, num_processes
+        )
+    else:
+        entry_fresh_issue_mode(
+            fresh_task_id, clone_link, commit_hash, issue_link, setup_dir
+        )
 
 
 if __name__ == "__main__":

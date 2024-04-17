@@ -113,9 +113,12 @@ def record_extract_status(individual_expr_dir: str, extract_status: ExtractStatu
             json.dump(record, f, indent=4)
 
 
-def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
+def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
     """
     Read extract status from file. If there are multiple status recorded, read the best one.
+    Returns:
+        - The best extract status
+        - The index of the best status in the list of all statuses. (0-based)
     """
     # we should read from the all the record
     record_file = pjoin(individual_expr_dir, "extract_status.json")
@@ -128,7 +131,23 @@ def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
     # convert string to enum type
     all_status = [ExtractStatus(s) for s in record["extract_status"]]
     best_status = ExtractStatus.max(all_status)
-    return best_status
+    idx = all_status.index(best_status)
+    return best_status, idx
+
+
+def get_final_patch_path(individual_expr_dir: str) -> str | None:
+    """
+    Get the final patch path from the individual experiment directory.
+    If there are multiple extracted patches, need to figure out which one is the best based
+    on the patch extraction history.
+    """
+    _, best_index = read_extract_status(individual_expr_dir)
+    best_patch_name = f"extracted_patch_{best_index + 1}.diff"
+    final_patch_path = pjoin(individual_expr_dir, best_patch_name)
+    if os.path.isfile(final_patch_path):
+        return final_patch_path
+    else:
+        return None
 
 
 def extract_diff_one_instance(
@@ -270,7 +289,7 @@ def organize_experiment_results(expr_dir: str):
         os.makedirs(extract_status.to_dir_name(expr_dir), exist_ok=True)
 
     for task_dir in task_exp_dirs:
-        extract_status = read_extract_status(task_dir)
+        extract_status, _ = read_extract_status(task_dir)
         corresponding_dir = extract_status.to_dir_name(expr_dir)
         shutil.move(task_dir, corresponding_dir)
 

@@ -70,15 +70,15 @@ class ProjectApiManager:
         task_id: str,
         project_path: str,
         commit: str,
-        env_name: str,
-        repo_name: str,
-        pre_install_cmds: list[str],
-        install_cmd: str,
-        test_cmd: str,
-        test_patch: str,
-        testcases_passing: list[str],
-        testcases_failing: list[str],
         output_dir: str,
+        env_name: str | None = None,
+        repo_name: str | None = None,
+        pre_install_cmds: list[str] | None = None,
+        install_cmd: str | None = None,
+        test_cmd: str | None = None,
+        test_patch: str | None = None,
+        testcases_passing: list[str] | None = None,
+        testcases_failing: list[str] | None = None,
         do_install: bool = False,
         import_root: str = "src",
     ):
@@ -90,16 +90,22 @@ class ProjectApiManager:
         self.env_name = env_name
         self.repo_name = repo_name
         # additional installation commands after setup was done
-        self.pre_install_cmds: list[str] = pre_install_cmds
+        self.pre_install_cmds: list[str] = (
+            [] if pre_install_cmds is None else pre_install_cmds
+        )
         self.install_cmd: str = install_cmd
         # command to run tests
         self.test_cmd: str = test_cmd
         # the patch to testcases
         self.test_patch: str = test_patch
         # names of the passing testcases for this issue
-        self.testcases_passing: list[str] = testcases_passing
+        self.testcases_passing: list[str] = (
+            [] if testcases_passing is None else testcases_passing
+        )
         # names of the failing testcases for this issue
-        self.testcases_failing: list[str] = testcases_failing
+        self.testcases_failing: list[str] = (
+            [] if testcases_failing is None else testcases_failing
+        )
         # where to write our output
         self.output_dir = os.path.abspath(output_dir)
 
@@ -118,11 +124,15 @@ class ProjectApiManager:
             self.do_install()
 
         # apply the test modifications to this task
-        self.apply_test_patch()
+        if self.test_patch is not None:
+            self.apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
-        with apputils.cd(self.project_path):
-            apputils.repo_commit_current_changes(self.logger)
+        if do_install or self.test_patch is not None:
+            # this means we have applied some changes to the repo before
+            # starting the actual workflow
+            with apputils.cd(self.project_path):
+                apputils.repo_commit_current_changes(self.logger)
 
         # build search manager
         self.search_manager = SearchManager(self.project_path)
