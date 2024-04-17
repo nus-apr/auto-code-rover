@@ -26,9 +26,9 @@ class SearchManager:
 
         # function name -> [(file_name, start_line, end_line)]
         self.function_index: MutableMapping[str, list[tuple[str, int, int]]] = dict()
-        self.__build_index()
+        self._build_index()
 
-    def __build_index(self):
+    def _build_index(self):
         """
         With all source code of the project, build two indexes:
             1. From class name to (source file, start line, end line)
@@ -96,7 +96,7 @@ class SearchManager:
         # this file-line is not recorded in any of the indexes
         return None, None
 
-    def __search_func_in_class(
+    def _search_func_in_class(
         self, function_name: str, class_name: str
     ) -> list[SearchResult]:
         """
@@ -118,7 +118,7 @@ class SearchManager:
             result.append(res)
         return result
 
-    def __search_func_in_all_classes(self, function_name: str) -> list[SearchResult]:
+    def _search_func_in_all_classes(self, function_name: str) -> list[SearchResult]:
         """
         Search for the function name in all classes.
         Args:
@@ -128,11 +128,11 @@ class SearchManager:
         """
         result: list[SearchResult] = []
         for class_name in self.class_index:
-            res = self.__search_func_in_class(function_name, class_name)
+            res = self._search_func_in_class(function_name, class_name)
             result.extend(res)
         return result
 
-    def __search_top_level_func(self, function_name: str) -> list[SearchResult]:
+    def _search_top_level_func(self, function_name: str) -> list[SearchResult]:
         """
         Search for top-level function name in the entire project.
         Args:
@@ -150,14 +150,14 @@ class SearchManager:
             result.append(res)
         return result
 
-    def __search_func_in_code_base(self, function_name: str) -> list[SearchResult]:
+    def _search_func_in_code_base(self, function_name: str) -> list[SearchResult]:
         """
         Search for this function, from both top-level and all class definitions.
         """
         result: list[SearchResult] = []  # list of (file_name, func_code)
         # (1) search in top level
-        top_level_res = self.__search_top_level_func(function_name)
-        class_res = self.__search_func_in_all_classes(function_name)
+        top_level_res = self._search_top_level_func(function_name)
+        class_res = self._search_func_in_all_classes(function_name)
         result.extend(top_level_res)
         result.extend(class_res)
         return result
@@ -283,7 +283,7 @@ class SearchManager:
             return tool_output, summary, False
 
         # (2) search for this method in the entire code base (we do filtering later)
-        search_res: list[SearchResult] = self.__search_func_in_code_base(method_name)
+        search_res: list[SearchResult] = self._search_func_in_code_base(method_name)
         if not search_res:
             tool_output = f"The method {method_name} does not appear in the codebase."
             summary = tool_output
@@ -322,7 +322,7 @@ class SearchManager:
             return tool_output, summary, False
 
         # has this class, check its methods
-        search_res: list[SearchResult] = self.__search_func_in_class(
+        search_res: list[SearchResult] = self._search_func_in_class(
             method_name, class_name
         )
         if not search_res:
@@ -352,7 +352,7 @@ class SearchManager:
         """
         Search for a method in the entire codebase.
         """
-        search_res: list[SearchResult] = self.__search_func_in_code_base(method_name)
+        search_res: list[SearchResult] = self._search_func_in_code_base(method_name)
         if not search_res:
             tool_output = f"Could not find method {method_name} in the codebase."
             summary = tool_output
