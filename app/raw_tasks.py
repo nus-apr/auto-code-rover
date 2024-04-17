@@ -1,12 +1,28 @@
 import json
+from abc import ABC, abstractmethod
 from os.path import join as pjoin
 
 import requests
 
-from app.task import GithubTask, SweTask
+from app.task import GithubTask, SweTask, Task
 
 
-class RawSweTask:
+class RawTask(ABC):
+    @property
+    @abstractmethod
+    def task_id(self) -> str:
+        raise NotImplementedError("abstract base class")
+
+    @abstractmethod
+    def to_task(self) -> Task:
+        raise NotImplementedError("abstract base class")
+
+    @abstractmethod
+    def dump_meta_data(self, output_dir: str) -> None:
+        raise NotImplementedError("abstract base class")
+
+
+class RawSweTask(RawTask):
     """
     Encapsulate everything required to run one task.
     """
@@ -14,13 +30,17 @@ class RawSweTask:
     def __init__(self, task_id: str, setup_info: dict, task_info: dict):
         # a counter str, format "1/150", which means first task out of 150
         # id from the benchmark
-        self.task_id = task_id
+        self._task_id = task_id
         # setup_info (Dict): keys: ['repo_path', 'env_name', 'pre_install', 'install','test_cmd']
         self.setup_info = setup_info
         # task_info (Dict): keys: ['base_commit', 'hints_text', 'created_at',
         # 'test_patch', 'repo', 'problem_statement', 'version', 'instance_id',
         # 'FAIL_TO_PASS', 'PASS_TO_PASS', 'environment_setup_commit']
         self.task_info = task_info
+
+    @property
+    def task_id(self) -> str:
+        return self._task_id
 
     def to_task(self) -> SweTask:
         task_id = self.task_id
@@ -43,21 +63,21 @@ class RawSweTask:
             testcases_failing=task_info["FAIL_TO_PASS"],
         )
 
-    def dump_meta_data(self, task_output_dir: str):
+    def dump_meta_data(self, output_dir: str):
         meta = {
             "task_id": self.task_id,
             "setup_info": self.setup_info,
             "task_info": self.task_info,
         }
-        with open(pjoin(task_output_dir, "meta.json"), "w") as f:
+        with open(pjoin(output_dir, "meta.json"), "w") as f:
             json.dump(meta, f, indent=4)
-        with open(pjoin(task_output_dir, "problem_statement.txt"), "w") as f:
+        with open(pjoin(output_dir, "problem_statement.txt"), "w") as f:
             f.write(self.task_info["problem_statement"])
-        with open(pjoin(task_output_dir, "developer_patch.diff"), "w") as f:
+        with open(pjoin(output_dir, "developer_patch.diff"), "w") as f:
             f.write(self.task_info["patch"])
 
 
-class RawGithubTask:
+class RawGithubTask(RawTask):
     """
     Encapsulate everything required to run ACR on a fresh issue from the internet.
     """
@@ -70,7 +90,7 @@ class RawGithubTask:
         issue_link: str,
         setup_dir: str,
     ):
-        self.task_id = task_id
+        self._task_id = task_id
         self.clone_link = clone_link
         self.commit_hash = commit_hash
         self.issue_link = issue_link
@@ -78,7 +98,11 @@ class RawGithubTask:
         self.clone_path = pjoin(self.setup_dir, self.task_id)
         self.problem_statement, self.created_at = self.fetch_issue()
 
-    def dump_meta_data(self, task_output_dir: str):
+    @property
+    def task_id(self) -> str:
+        return self._task_id
+
+    def dump_meta_data(self, output_dir: str):
         meta = {
             "task_info": {
                 "base_commit": self.commit_hash,
@@ -91,7 +115,7 @@ class RawGithubTask:
             },
         }
 
-        meta_file = pjoin(task_output_dir, "meta.json")
+        meta_file = pjoin(output_dir, "meta.json")
 
         with open(meta_file, "w") as f:
             json.dump(meta, f, indent=4)

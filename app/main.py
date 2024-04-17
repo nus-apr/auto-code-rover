@@ -5,6 +5,7 @@ The main driver.
 import argparse
 import json
 import subprocess
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from itertools import chain
@@ -23,7 +24,7 @@ from app.post_process import (
     organize_and_form_input,
     reextract_organize_and_form_inputs,
 )
-from app.raw_tasks import RawGithubTask, RawSweTask
+from app.raw_tasks import RawGithubTask, RawSweTask, RawTask
 from app.task import Task
 
 
@@ -295,7 +296,7 @@ def group_swe_tasks_by_env(tasks: list[RawSweTask]) -> dict[str, list[RawSweTask
 
 
 def run_task_groups(
-    task_groups: dict[str, list[RawSweTask]] | dict[str, list[RawGithubTask]],
+    task_groups: Mapping[str, Sequence[RawTask]],
     num_processes: int,
 ):
     """
@@ -331,13 +332,13 @@ def run_task_groups(
     log.print_with_time(f"SWE-Bench input file created: {swe_input_file}")
 
 
-def run_tasks_serial(tasks: list[RawSweTask | RawGithubTask]) -> None:
+def run_tasks_serial(tasks: list[RawTask]) -> None:
     for task in tasks:
         run_task_in_subprocess(task)
 
 
 def run_task_groups_parallel(
-    task_groups: dict[str, list[RawSweTask]] | dict[str, list[RawGithubTask]],
+    task_groups: Mapping[str, Sequence[RawTask]],
     num_processes: int,
 ):
     num_task_groups = len(task_groups)
@@ -361,9 +362,7 @@ def run_task_groups_parallel(
         log.print_with_time("Finishing all tasks in the pool.")
 
 
-def run_task_group(
-    task_group_id: str, task_group_items: list[RawSweTask] | list[RawGithubTask]
-) -> None:
+def run_task_group(task_group_id: str, task_group_items: list[RawTask]) -> None:
     """
     Run all tasks in a task group sequentially.
     Main entry to parallel processing.
@@ -381,12 +380,12 @@ def run_task_group(
     )
 
 
-def run_task_in_subprocess(task: RawSweTask | RawGithubTask) -> None:
+def run_task_in_subprocess(task: RawTask) -> None:
     with ProcessPoolExecutor(1) as executor:
         executor.submit(run_raw_task, task)
 
 
-def run_raw_task(task: RawSweTask | RawGithubTask) -> bool:
+def run_raw_task(task: RawTask) -> bool:
     """
     High-level entry for running one task.
 
