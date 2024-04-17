@@ -50,6 +50,26 @@ def repo_commit_current_changes():
     run_command(commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def clone_repo_and_checkout(
+    clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
+):
+    """
+    Clone a repo to dest_dir, and checkout to commit `commit_hash`.
+
+    Returns:
+        - path to the newly cloned directory.
+    """
+    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    checkout_cmd = ["git", "checkout", commit_hash]
+    create_dir_if_not_exists(dest_dir)
+    with cd(dest_dir):
+        run_command(clone_cmd)
+    cloned_dir = pjoin(dest_dir, cloned_name)
+    with cd(cloned_dir):
+        run_command(checkout_cmd)
+    return cloned_dir
+
+
 def repo_clean_changes() -> None:
     """
     Reset repo to HEAD. Basically clean active changes and untracked files on top of HEAD.

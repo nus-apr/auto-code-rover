@@ -27,8 +27,8 @@ from coverage.sqldata import CoverageData
 
 import app.utils as apputils
 from app import globals, log
-from app.api.task import PythonTask, Task
 from app.data_structures import MethodId
+from app.task import SweTask, Task
 
 
 class NoCoverageData(RuntimeError):
@@ -245,7 +245,7 @@ def run(task: Task) -> tuple[list[str], list[tuple[str, int, float]], str]:
         - list of ranked lines (file, line_no, score)
         - path of testing log
     """
-    if isinstance(task, PythonTask):
+    if isinstance(task, SweTask):
         return PythonSbfl.run(task)
 
     raise NotImplementedError(f"SBFL does not support {type(task).__name__}")
@@ -253,9 +253,7 @@ def run(task: Task) -> tuple[list[str], list[tuple[str, int, float]], str]:
 
 class PythonSbfl:
     @classmethod
-    def run(
-        cls, task: PythonTask
-    ) -> tuple[list[str], list[tuple[str, int, float]], str]:
+    def run(cls, task: SweTask) -> tuple[list[str], list[tuple[str, int, float]], str]:
         cov_file, log_file = cls._run_python_developer_test_suite(task)
 
         pass_tests_names = []
@@ -316,7 +314,7 @@ class PythonSbfl:
         return test_file_names, ranked_lines, log_file
 
     @classmethod
-    def _run_python_developer_test_suite(cls, task: PythonTask) -> tuple[str, str]:
+    def _run_python_developer_test_suite(cls, task: SweTask) -> tuple[str, str]:
         """
         Run the relevant parts of developer test suite.
         Record coverage information for each test while running them.
@@ -332,7 +330,7 @@ class PythonSbfl:
             return cls._run_developer_test_suite_others(task)
 
     @classmethod
-    def _run_developer_test_suite_django(cls, task: PythonTask) -> tuple[str, str]:
+    def _run_developer_test_suite_django(cls, task: SweTask) -> tuple[str, str]:
         """
         Since django does not use pytest as the testing framework, we use another procedure.
 
@@ -389,7 +387,7 @@ class PythonSbfl:
             return cov_file, log_file
 
     @classmethod
-    def _run_developer_test_suite_others(cls, task: PythonTask) -> tuple[str, str]:
+    def _run_developer_test_suite_others(cls, task: SweTask) -> tuple[str, str]:
         """
         Run the relevant parts of developer test suite.
         Record coverage information for each test while running them.

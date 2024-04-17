@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from os.path import join as pjoin
+from pathlib import Path
 from tempfile import mkstemp
 
 import app.utils as apputils
@@ -26,8 +28,17 @@ class Task(ABC):
         raise NotImplementedError("abstract method")
 
     @abstractmethod
+    def get_issue_statement(self) -> str:
+        raise NotImplementedError("abstract method")
+
+    @abstractmethod
     def setup_project(self) -> None:
         """Set up the project before starting to resolve the task."""
+        raise NotImplementedError("abstract method")
+
+    @abstractmethod
+    def reset_project(self) -> None:
+        """Reset project to initial state."""
         raise NotImplementedError("abstract method")
 
     @abstractmethod
@@ -42,8 +53,9 @@ class Task(ABC):
 
 
 @dataclass(kw_only=True)
-class PythonTask(Task):
+class SweTask(Task):
     task_id: str
+    problem_statement: str
     repo_path: str
     commit: str
     env_name: str
@@ -62,6 +74,9 @@ class PythonTask(Task):
     @project_path.setter
     def project_path(self, value: str) -> None:
         self.repo_path = value
+
+    def get_issue_statement(self) -> str:
+        return self.problem_statement
 
     def setup_project(self) -> None:
         # get the correct version of the project and commit-specific pip install
@@ -84,6 +99,10 @@ class PythonTask(Task):
         # commit the current changes, so that resetting later do not erase them
         with apputils.cd(task.project_path):
             apputils.repo_commit_current_changes()
+
+    def reset_project(self) -> None:
+        with apputils.cd(self.repo_path):
+            apputils.repo_reset_and_clean_checkout(self.commit)
 
     def _do_install(self):
         """Do left-over install commands after setting up.
@@ -263,3 +282,42 @@ class PythonTask(Task):
             )
             error_message = "Some tests have failed."
             return False, error_message
+
+
+@dataclass(kw_only=True)
+class GithubTask(Task):
+    clone_link: str
+    commit_hash: str
+    clone_path: str
+    problem_statement: str
+
+    @property
+    def project_path(self) -> str:
+        return self.clone_path
+
+    def setup_project(self) -> None:
+        project_path = Path(self.project_path)
+        if os.path.exists(project_path):
+            log_and_print(
+                f"Path {project_path} already exists. Removing it to get a fresh clone."
+            )
+            shutil.rmtree(project_path)
+
+        apputils.clone_repo_and_checkout(
+            self.clone_link,
+            self.commit_hash,
+            str(project_path.parent),
+            project_path.name,
+        )
+
+        log_and_print(f"Cloned source code to {project_path}.")
+
+    def reset_project(self) -> None:
+        with apputils.cd(self.project_path):
+            apputils.repo_reset_and_clean_checkout(self.commit_hash)
+
+    def get_issue_statement(self) -> str:
+        return self.problem_statement
+
+    def validate(self, patch_file: str) -> tuple[bool, str, str]:
+        raise NotImplementedError("Cannot do validation for live issues for now")

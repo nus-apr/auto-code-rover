@@ -12,12 +12,12 @@ from app import log
 from app.analysis import sbfl
 from app.analysis.sbfl import NoCoverageData
 from app.api import agent_proxy, agent_write_patch
-
-# from app.api.python.validation import PythonValidator
-from app.api.task import Task
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_print, log_exception
 from app.search.search_manage import SearchManager
+
+# from app.api.python.validation import PythonValidator
+from app.task import Task
 
 
 class ProjectApiManager:

@@ -11,7 +11,6 @@ from os.path import join as pjoin
 from app import globals
 from app.api import agent_common
 from app.api.python import validation
-from app.api.task import PythonTask, Task
 from app.data_structures import MessageThread, MethodId
 from app.log import log_and_print
 from app.model.gpt import call_gpt
@@ -20,6 +19,7 @@ from app.post_process import (
     extract_diff_one_instance,
     record_extract_status,
 )
+from app.task import SweTask, Task
 
 SYSTEM_PROMPT = """You are a software developer maintaining a large project.
 You are working on an issue submitted to your project.
@@ -131,7 +131,7 @@ def run_with_retries(
                 # the following two branches cannot be swapped, because
                 # --enable-perfect-angelic is meant to override --enable-angelic
                 elif globals.enable_perfect_angelic:
-                    if not isinstance(task, PythonTask):
+                    if not isinstance(task, SweTask):
                         raise NotImplementedError(
                             f"Angelic debugging not implemented for {type(task).__name__}"
                         )
@@ -158,7 +158,7 @@ def run_with_retries(
                     new_thread.add_user(result_msg)
                     continue
             elif globals.enable_perfect_angelic:
-                if not isinstance(task, PythonTask):
+                if not isinstance(task, SweTask):
                     raise NotImplementedError(
                         f"Angelic debugging not implemented for {type(task).__name__}"
                     )
