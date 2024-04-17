@@ -64,17 +64,32 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/26c9d5d4-04e0-4b98-be
 ## 🚀 Setup & Running
 
 We recommend running AutoCodeRover in a Docker container.
-First of all, build and start the docker image:
+
+Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+
+```
+export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
+```
+
+Build and start the docker image:
 
 ```
 docker build -f Dockerfile -t acr .
-docker run -it acr
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr 
 ```
 
-In the docker container, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+Dockerfile.scratch will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.  That supports arm64 (Apple silicon) and ppc in addition to amd64.
 
 ```
-export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+docker build -f Dockerfile.scratch -t acr .
+```
+
+There are build args for customizing the build like this:
+
+```
+docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
+       --build-arg SWE_BENCH_REPO=https://github.com/your_id/SWE-bench.git \
+       -f Dockerfile.scratch -t acr .
 ```
 
 ### (Fresh issue mode) Set up and run on new GitHub issues
@@ -118,6 +133,12 @@ cd /opt/SWE-bench
 echo django__django-11133 > tasks.txt
 ```
 
+Or if running on arm64 (e.g. Apple silicon), try this one which doesn't depend on Python 3.6 (which isn't supported in this env):
+
+```
+echo django__django-16041 > tasks.txt
+```
+
 Then, set up these tasks by running:
 
 ```
@@ -155,7 +176,9 @@ The output of the run can then be found in `output/`. For example, the patch gen
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
 ```
-PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file tasks.txt
+cd /opt/auto-code-rover
+conda activate auto-code-rover
+PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).
