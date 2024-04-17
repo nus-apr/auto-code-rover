@@ -32,6 +32,10 @@ if not openai_key:
 
 client = OpenAI(api_key=openai_key)
 
+total_cost = 0
+total_input_tokens = 0
+total_output_tokens = 0
+
 
 def calc_cost(model_name, input_tokens, output_tokens) -> float:
     """
@@ -157,6 +161,11 @@ def call_gpt(
         input_tokens = int(response.usage.prompt_tokens)
         output_tokens = int(response.usage.completion_tokens)
         cost = calc_cost(response.model, input_tokens, output_tokens)
+
+        global total_cost, total_input_tokens, total_output_tokens
+        total_cost += cost
+        total_input_tokens += input_tokens
+        total_output_tokens += output_tokens
 
         raw_response = response.choices[0].message
         log_and_print(f"Raw model response: {raw_response}")

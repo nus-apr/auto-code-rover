@@ -96,10 +96,7 @@ def start_conversation_round_stratified(
         )
         log_and_print(f"{colored('Current message thread:', 'green')}\n{msg_thread}")
 
-        res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            msg_thread.to_msg()
-        )
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, *_ = call_gpt(msg_thread.to_msg())
 
         # print("raw API selection output", res_text)
 
@@ -168,10 +165,7 @@ def start_conversation_round_stratified(
         msg_thread.add_user(collated_tool_response)
         msg_thread.add_user("Let's analyze collected context first")
 
-        res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            msg_thread.to_msg()
-        )
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, *_ = call_gpt(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
 
         if round_no < globals.conv_round_limit:
@@ -301,15 +295,9 @@ def start_conversation_round_state_machine(
         log_and_cprint(f"Allowed next tool states: {allowed_tools}", "yellow")
 
         # create a new iteration of conversation
-        (
-            res_text,
-            raw_tool_calls,
-            func_call_intents,
-            cost,
-            input_tokens,
-            output_tokens,
-        ) = call_gpt(msg_thread.to_msg(), tools=tools)
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, raw_tool_calls, func_call_intents, cost, *_ = call_gpt(
+            msg_thread.to_msg(), tools=tools
+        )
         log_and_print(
             f"{colored('This roud model response (text):', 'blue')} {res_text}"
         )

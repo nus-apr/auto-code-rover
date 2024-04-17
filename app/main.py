@@ -5,9 +5,9 @@ The main driver.
 import argparse
 import json
 import subprocess
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from itertools import chain
-from multiprocessing import Pool
 from os.path import join as pjoin
 from subprocess import CalledProcessError
 
@@ -16,6 +16,7 @@ from loguru import logger
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
+from app.model import gpt
 from app.post_process import (
     extract_organize_and_form_input,
     get_final_patch_path,
@@ -332,7 +333,7 @@ def run_task_groups(
 
 def run_tasks_serial(tasks: list[RawSweTask | RawGithubTask]) -> None:
     for task in tasks:
-        run_raw_task(task)
+        run_task_in_subprocess(task)
 
 
 def run_task_groups_parallel(
@@ -350,16 +351,18 @@ def run_task_groups_parallel(
     )
     log.print_with_time(f"Sorted task groups: {[x[0] for x in task_group_ids_items]}")
     try:
-        pool = Pool(processes=num_processes)
-        pool.starmap(run_task_group, task_group_ids_items)
-        pool.close()
-        pool.join()
+        # Use ProcessPoolExecutor instead of multiprocessing.Pool,
+        # to support nested sub-processing
+
+        group_ids, group_tasks = zip(*task_group_ids_items)
+        with ProcessPoolExecutor(num_processes) as executor:
+            executor.map(run_task_group, group_ids, group_tasks)
     finally:
         log.print_with_time("Finishing all tasks in the pool.")
 
 
 def run_task_group(
-    task_group_id: str, task_group_items: list[RawSweTask | RawGithubTask]
+    task_group_id: str, task_group_items: list[RawSweTask] | list[RawGithubTask]
 ) -> None:
     """
     Run all tasks in a task group sequentially.
@@ -370,12 +373,17 @@ def run_task_group(
     )
     for task in task_group_items:
         # within a group, the runs are always sequential
-        run_raw_task(task)
+        run_task_in_subprocess(task)
         log.print_with_time(globals_mut.incre_task_return_msg())
 
     log.print_with_time(
         f"{globals_mut.incre_task_group_return_msg()} Finished task group {task_group_id}."
     )
+
+
+def run_task_in_subprocess(task: RawSweTask | RawGithubTask) -> None:
+    with ProcessPoolExecutor(1) as executor:
+        executor.submit(run_raw_task, task)
 
 
 def run_raw_task(task: RawSweTask | RawGithubTask) -> bool:
@@ -456,7 +464,7 @@ def do_inference(python_task: Task, task_output_dir: str) -> bool:
 
             end_time = datetime.now()
 
-            dump_cost(api_manager, start_time, end_time, task_output_dir)
+            dump_cost(start_time, end_time, task_output_dir)
     finally:
         python_task.reset_project()
 
@@ -464,7 +472,6 @@ def do_inference(python_task: Task, task_output_dir: str) -> bool:
 
 
 def dump_cost(
-    api_manager: ProjectApiManager,
     start_time: datetime,
     end_time: datetime,
     task_output_dir: str,
@@ -478,10 +485,10 @@ def dump_cost(
                 "commit": get_current_commit_hash(),
                 "input_cost_per_token": input_cost_per_token,
                 "output_cost_per_token": output_cost_per_token,
-                "total_input_tokens": api_manager.input_tokens,
-                "total_output_tokens": api_manager.output_tokens,
-                "total_tokens": api_manager.input_tokens + api_manager.output_tokens,
-                "total_cost": api_manager.cost,
+                "total_input_tokens": gpt.total_input_tokens,
+                "total_output_tokens": gpt.total_output_tokens,
+                "total_tokens": gpt.total_input_tokens + gpt.total_output_tokens,
+                "total_cost": gpt.total_cost,
                 "start_epoch": start_time.timestamp(),
                 "end_epoch": end_time.timestamp(),
                 "elapsed_seconds": (end_time - start_time).total_seconds(),

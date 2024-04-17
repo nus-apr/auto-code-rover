@@ -238,13 +238,6 @@ class ProjectApiManager:
         with open(tool_call_file, "w") as f:
             json.dump(self.tool_call_layers, f, indent=4)
 
-    def accumulate_cost_and_tokens(
-        self, cost: float, input_tokens: int, output_tokens: int
-    ):
-        self.cost += cost
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
-
     ###################################################################
     ########################## API functions ##########################
     ###################################################################
@@ -442,36 +435,23 @@ class ProjectApiManager:
 
         The tool returns a patch based on the current available information.
         """
-        (
-            tool_output,
-            cost,
-            input_tokens,
-            output_tokens,
-        ) = agent_write_patch.run_with_retries(
+        tool_output, *_ = agent_write_patch.run_with_retries(
             message_thread,
             self.output_dir,
             self.task,
             # self.validator,
         )
         summary = "The tool returned the patch written by another agent."
-        self.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
         # The return status of write_patch does not really matter, so we just use True here
         return tool_output, summary, True
 
     def proxy_apis(self, text: str) -> tuple[str | None, str, list[MessageThread]]:
         """Proxy APIs to another agent."""
-        (
-            tool_output,
-            new_thread,
-            cost,
-            input_tokens,
-            output_tokens,
-        ) = agent_proxy.run_with_retries(
+        tool_output, new_thread, *_ = agent_proxy.run_with_retries(
             text
         )  # FIXME: type of `text`
         if tool_output is None:
             summary = "The tool returned nothing. The main agent probably did not provide enough clues."
         else:
             summary = "The tool returned the selected search APIs in json format generaetd by another agent."
-        self.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
         return tool_output, summary, new_thread
