@@ -95,7 +95,7 @@ def main():
     parser.add_argument(
         "--enable-layered",
         action="store_true",
-        default=False,
+        default=True,
         help="Enable layered code search.",
     )
 
