@@ -18,6 +18,7 @@ from app import utils as apputils
 from app.api.manage import ProjectApiManager
 from app.post_process import (
     extract_organize_and_form_input,
+    get_final_patch_path,
     organize_and_form_input,
     reextract_organize_and_form_inputs,
 )
@@ -413,6 +414,14 @@ def run_raw_task(task: RawSweTask | RawGithubTask) -> bool:
         run_status_message = f"Task {task_id} failed with exception: {e}."
 
     log.log_and_always_print(run_status_message)
+
+    final_patch_path = get_final_patch_path(task_output_dir)
+    if final_patch_path is not None:
+        log.log_and_always_print(
+            f"Please find the generated patch at: {final_patch_path}"
+        )
+    else:
+        log.log_and_always_print("No patch generated. You can try running ACR again.")
 
     return run_ok
 

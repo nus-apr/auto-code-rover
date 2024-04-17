@@ -113,7 +113,7 @@ def record_extract_status(individual_expr_dir: str, extract_status: ExtractStatu
             json.dump(record, f, indent=4)
 
 
-def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
+def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
     """
     Read extract status from file. If there are multiple status recorded, read the best one.
     """
@@ -122,13 +122,31 @@ def read_extract_status(individual_expr_dir: str) -> ExtractStatus:
     if not os.path.isfile(record_file):
         # if no status file is written, means that we did not even
         # reach the state of extracting patches
-        return ExtractStatus.NO_PATCH
+        return ExtractStatus.NO_PATCH, -1
     with open(record_file) as f:
         record = json.load(f)
     # convert string to enum type
     all_status = [ExtractStatus(s) for s in record["extract_status"]]
+
     best_status = ExtractStatus.max(all_status)
-    return best_status
+    best_idx = all_status.index(best_status)
+    return best_status, best_idx
+
+
+def get_final_patch_path(individual_expr_dir: str) -> str | None:
+    """
+    Get the final patch path from the individual experiment directory.
+    If there are multiple extracted patches, need to figure out which one is the best based
+    on the patch extraction history.
+    """
+    _, best_index = read_extract_status(individual_expr_dir)
+    best_patch_name = f"extracted_patch_{best_index+1}.diff"
+    final_patch_path = pjoin(individual_expr_dir, best_patch_name)
+
+    if not os.path.isfile(final_patch_path):
+        return None
+
+    return final_patch_path
 
 
 def extract_diff_one_instance(
@@ -270,7 +288,7 @@ def organize_experiment_results(expr_dir: str):
         os.makedirs(extract_status.to_dir_name(expr_dir), exist_ok=True)
 
     for task_dir in task_exp_dirs:
-        extract_status = read_extract_status(task_dir)
+        extract_status, _ = read_extract_status(task_dir)
         corresponding_dir = extract_status.to_dir_name(expr_dir)
         shutil.move(task_dir, corresponding_dir)
 
