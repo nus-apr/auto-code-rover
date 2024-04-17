@@ -1,7 +1,16 @@
+from collections import defaultdict, namedtuple
 from collections.abc import MutableMapping
 
 from app.search import search_utils
 from app.search.search_utils import SearchResult
+
+LineRange = namedtuple("LineRange", ["start", "end"])
+
+ClassIndexType = MutableMapping[str, list[tuple[str, LineRange]]]
+ClassFuncIndexType = MutableMapping[
+    str, MutableMapping[str, list[tuple[str, LineRange]]]
+]
+FuncIndexType = MutableMapping[str, list[tuple[str, LineRange]]]
 
 RESULT_SHOW_LIMIT = 3
 
@@ -11,21 +20,19 @@ class SearchManager:
         self.project_path = project_path
         # list of all files ending with .py, which are likely not test files
         # These are all ABSOLUTE paths.
-        self.all_py_files: list[str] = []
+        self.parsed_files: list[str] = []
 
         # for file name in the indexes, assume they are absolute path
-        # class name -> [(file_name, start_line, end_line)]
-        self.class_index: MutableMapping[str, list[tuple[str, int, int]]] = dict()
+        # class name -> [(file_name, line_range)]
+        self.class_index: ClassIndexType = {}
 
-        # {class_name -> {func_name -> [(file_name, start_line, end_line)]}}
+        # {class_name -> {func_name -> [(file_name, line_range)]}}
         # inner dict is a list, since we can have (1) overloading func names,
         # and (2) multiple classes with the same name, having the same method
-        self.class_func_index: MutableMapping[
-            str, MutableMapping[str, list[tuple[str, int, int]]]
-        ] = dict()
+        self.class_func_index: ClassFuncIndexType = {}
 
-        # function name -> [(file_name, start_line, end_line)]
-        self.function_index: MutableMapping[str, list[tuple[str, int, int]]] = dict()
+        # function name -> [(file_name, line_range)]
+        self.function_index: FuncIndexType = {}
         self._build_index()
 
     def _build_index(self):
@@ -37,40 +44,53 @@ class SearchManager:
         value is a list of tuples.
         This is for fast lookup whenever we receive a query.
         """
-        temp_all_py_file = search_utils.get_all_py_files(self.project_path)
+        self._update_indices(*self._build_python_index())
+
+    def _update_indices(
+        self,
+        class_index: ClassIndexType,
+        class_func_index: ClassFuncIndexType,
+        function_index: FuncIndexType,
+        parsed_files: list[str],
+    ) -> None:
+        self.class_index.update(class_index)
+        self.class_func_index.update(class_func_index)
+        self.function_index.update(function_index)
+        self.parsed_files.extend(parsed_files)
+
+    def _build_python_index(
+        self,
+    ) -> tuple[ClassIndexType, ClassFuncIndexType, FuncIndexType, list[str]]:
+        class_index: ClassIndexType = defaultdict(list)
+        class_func_index: ClassFuncIndexType = defaultdict(lambda: defaultdict(list))
+        function_index: FuncIndexType = defaultdict(list)
+
+        py_files = search_utils.find_python_files(self.project_path)
         # holds the parsable subset of all py files
-        parsed_all_py_file = []
-        for py_file in temp_all_py_file:
-            file_info = search_utils.get_all_info_from_file(py_file)
+        parsed_py_files = []
+        for py_file in py_files:
+            file_info = search_utils.parse_python_file(py_file)
             if file_info is None:
                 # parsing of this file failed
                 continue
-            parsed_all_py_file.append(py_file)
+            parsed_py_files.append(py_file)
             # extract from file info, and form search index
             classes, class_to_funcs, top_level_funcs = file_info
 
             # (1) build class index
             for c, start, end in classes:
-                if c not in self.class_index:
-                    self.class_index[c] = []
-                self.class_index[c].append((py_file, start, end))
+                class_index[c].append((py_file, LineRange(start, end)))
 
             # (2) build class-function index
             for c, class_funcs in class_to_funcs.items():
-                if c not in self.class_func_index:
-                    self.class_func_index[c] = dict()
                 for f, start, end in class_funcs:
-                    if f not in self.class_func_index[c]:
-                        self.class_func_index[c][f] = []
-                    self.class_func_index[c][f].append((py_file, start, end))
+                    class_func_index[c][f].append((py_file, LineRange(start, end)))
 
             # (3) build (top-level) function index
             for f, start, end in top_level_funcs:
-                if f not in self.function_index:
-                    self.function_index[f] = []
-                self.function_index[f].append((py_file, start, end))
+                function_index[f].append((py_file, LineRange(start, end)))
 
-        self.all_py_files = parsed_all_py_file
+        return class_index, class_func_index, function_index, parsed_py_files
 
     def file_line_to_class_and_func(
         self, file_path: str, line_no: int
@@ -83,13 +103,13 @@ class SearchManager:
         for class_name in self.class_func_index:
             func_dict = self.class_func_index[class_name]
             for func_name, func_info in func_dict.items():
-                for file_name, start, end in func_info:
+                for file_name, (start, end) in func_info:
                     if file_name == file_path and start <= line_no <= end:
                         return class_name, func_name
 
         # not in any class; check whether this line is inside a top-level function
         for func_name in self.function_index:
-            for file_name, start, end in self.function_index[func_name]:
+            for file_name, (start, end) in self.function_index[func_name]:
                 if file_name == file_path and start <= line_no <= end:
                     return None, func_name
 
@@ -112,7 +132,7 @@ class SearchManager:
             return result
         if function_name not in self.class_func_index[class_name]:
             return result
-        for fname, start, end in self.class_func_index[class_name][function_name]:
+        for fname, (start, end) in self.class_func_index[class_name][function_name]:
             func_code = search_utils.get_code_snippets(fname, start, end)
             res = SearchResult(fname, class_name, function_name, func_code)
             result.append(res)
@@ -144,7 +164,7 @@ class SearchManager:
         if function_name not in self.function_index:
             return result
 
-        for fname, start, end in self.function_index[function_name]:
+        for fname, (start, end) in self.function_index[function_name]:
             func_code = search_utils.get_code_snippets(fname, start, end)
             res = SearchResult(fname, None, function_name, func_code)
             result.append(res)
@@ -177,7 +197,7 @@ class SearchManager:
             return tool_result, summary, False
         # class name -> [(file_name, start_line, end_line)]
         search_res: list[SearchResult] = []
-        for fname, start, end in self.class_index[class_name]:
+        for fname, (start, end) in self.class_index[class_name]:
             code = search_utils.get_code_snippets(fname, start, end)
             res = SearchResult(fname, class_name, None, code)
             search_res.append(res)
@@ -207,7 +227,7 @@ class SearchManager:
             return tool_result, summary, False
 
         search_res: list[SearchResult] = []
-        for fname, _, _ in self.class_index[class_name]:
+        for fname, _ in self.class_index[class_name]:
             # there are some classes; we return their signatures
             code = search_utils.get_class_signature(fname, class_name)
             res = SearchResult(fname, class_name, None, code)
@@ -236,7 +256,7 @@ class SearchManager:
 
     def search_class_in_file(self, class_name, file_name: str) -> tuple[str, str, bool]:
         # (1) check whether we can get the file
-        candidate_py_abs_paths = [f for f in self.all_py_files if f.endswith(file_name)]
+        candidate_py_abs_paths = [f for f in self.parsed_files if f.endswith(file_name)]
         if not candidate_py_abs_paths:
             tool_output = f"Could not find file {file_name} in the codebase."
             summary = tool_output
@@ -250,7 +270,7 @@ class SearchManager:
 
         # (3) class is there, check whether it exists in the file specified.
         search_res: list[SearchResult] = []
-        for fname, start_line, end_line in self.class_index[class_name]:
+        for fname, (start_line, end_line) in self.class_index[class_name]:
             if fname in candidate_py_abs_paths:
                 class_code = search_utils.get_code_snippets(fname, start_line, end_line)
                 res = SearchResult(fname, class_name, None, class_code)
@@ -275,7 +295,7 @@ class SearchManager:
         # (1) check whether we can get the file
         # supports both when file_name is relative to project root, and when
         # it is just a short name
-        candidate_py_abs_paths = [f for f in self.all_py_files if f.endswith(file_name)]
+        candidate_py_abs_paths = [f for f in self.parsed_files if f.endswith(file_name)]
         # print(candidate_py_files)
         if not candidate_py_abs_paths:
             tool_output = f"Could not find file {file_name} in the codebase."
@@ -290,10 +310,9 @@ class SearchManager:
             return tool_output, summary, False
 
         # (3) filter the search result => they need to be in one of the files!
-        filtered_res: list[SearchResult] = []
-        for res in search_res:
-            if res.file_path in candidate_py_abs_paths:
-                filtered_res.append(res)
+        filtered_res: list[SearchResult] = [
+            res for res in search_res if res.file_path in candidate_py_abs_paths
+        ]
 
         # (4) done with search, now prepare result
         if not filtered_res:
@@ -306,8 +325,8 @@ class SearchManager:
         tool_output = f"Found {len(filtered_res)} methods with name `{method_name}` in file {file_name}.\n"
         summary = tool_output
 
-        # when searching for a method in one file, it's rare that there are many candidates
-        # so we do not trim the result
+        # when searching for a method in one file, it's rare that there are
+        # many candidates, so we do not trim the result
         for idx, res in enumerate(filtered_res):
             res_str = res.to_tagged_str(self.project_path)
             tool_output += f"Search result {idx + 1}: {res_str}\n\n"
@@ -376,7 +395,7 @@ class SearchManager:
     def search_code(self, code_str: str) -> tuple[str, str, bool]:
         # attempt to search for this code string in all py files
         all_search_results: list[SearchResult] = []
-        for file_path in self.all_py_files:
+        for file_path in self.parsed_files:
             searched_line_and_code: list[tuple[int, str]] = (
                 search_utils.get_code_region_containing_code(file_path, code_str)
             )
@@ -416,7 +435,7 @@ class SearchManager:
     ) -> tuple[str, str, bool]:
         code_str = code_str.removesuffix(")")
 
-        candidate_py_files = [f for f in self.all_py_files if f.endswith(file_name)]
+        candidate_py_files = [f for f in self.parsed_files if f.endswith(file_name)]
         if not candidate_py_files:
             tool_output = f"Could not find file {file_name} in the codebase."
             summary = tool_output
