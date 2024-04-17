@@ -191,11 +191,12 @@ class Writable(TextIO):
     def __init__(self) -> None:
         self.content: list[str] = []
 
-    def write(self, s: str) -> None:
+    def write(self, s: str) -> int:
         self.content.append(s)
+        return len(s)
 
-    def read(self) -> list[str]:
-        return self.content
+    def read(self, n: int = 0) -> str:
+        return "\n".join(self.content)
 
 
 def lint_python_content(content: str) -> bool:
