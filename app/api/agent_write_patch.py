@@ -33,14 +33,14 @@ Return the patch in the format below. Within <file></file>, replace "..." with a
 You can write multiple modifications if needed.
 
 # modification 1
-```python
+```
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
 ```
 
 # modification 2
-```python
+```
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
