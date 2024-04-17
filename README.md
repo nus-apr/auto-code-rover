@@ -77,7 +77,37 @@ In the docker container, set the `OPENAI_KEY` env var to your [OpenAI key](https
 export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-### Set up one or more tasks in SWE-bench
+### (Fresh issue mode) Set up and run on new GitHub issues
+
+> [!NOTE]
+> This section is for running AutoCodeRover on new GitHub issues. For running it on SWE-bench tasks, refer to [SWE-bench mode](#swe-bench-mode-set-up-and-run-on-swe-bench-tasks).
+
+If you want to use AutoCodeRover for new GitHub issues in a project, prepare the following:
+
+- Link to clone the project (used for `git clone ...`).
+- Commit hash of the project version for AutoCodeRover to work on (used for `git checkout ...`).
+- Link to the GitHub issue page.
+
+Then, in the docker container (or your local copy of AutoCodeRover), run the following commands to set up the target project
+and generate patch:
+
+```
+cd /opt/auto-code-rover
+conda activate auto-code-rover
+PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
+```
+
+The `<task id>` can be any string used to identify this issue.
+
+If patch generation is successful, the path to the generated patch will be printed in the end.
+
+
+### (SWE-bench mode) Set up and run on SWE-bench tasks
+
+> [!NOTE]
+> This section is for running AutoCodeRover on SWE-bench tasks. For running it on new GitHub issues, refer to [Fresh issue mode](#fresh-issue-mode-set-up-and-run-on-new-github-issues).
+
+#### Set up
 
 In the docker container, we need to first set up the tasks to run in SWE-bench (e.g., `django__django-11133`). The list of all tasks can be found in [`conf/swe_lite_tasks.txt`](conf/swe_lite_tasks.txt).
 
@@ -108,7 +138,7 @@ A conda environment will also be created for this task instance.
 
 _If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
 
-### Run a single task
+#### Run a single task
 
 Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
 
@@ -120,7 +150,7 @@ PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --se
 
 The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
 
-### Run multiple tasks
+#### Run multiple tasks
 
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
