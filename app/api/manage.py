@@ -73,12 +73,12 @@ class ProjectApiManager:
         output_dir: str,
         env_name: str | None = None,
         repo_name: str | None = None,
-        pre_install_cmds: list[str] = [],
+        pre_install_cmds: list[str] | None = None,
         install_cmd: str | None = None,
         test_cmd: str | None = None,
         test_patch: str | None = None,
-        testcases_passing: list[str] = [],
-        testcases_failing: list[str] = [],
+        testcases_passing: list[str] | None = None,
+        testcases_failing: list[str] | None = None,
         do_install: bool = False,
         import_root: str = "src",
     ):
@@ -90,16 +90,22 @@ class ProjectApiManager:
         self.env_name = env_name
         self.repo_name = repo_name
         # additional installation commands after setup was done
-        self.pre_install_cmds: list[str] = pre_install_cmds
+        self.pre_install_cmds: list[str] = (
+            [] if pre_install_cmds is None else pre_install_cmds
+        )
         self.install_cmd: str = install_cmd
         # command to run tests
         self.test_cmd: str = test_cmd
         # the patch to testcases
         self.test_patch: str = test_patch
         # names of the passing testcases for this issue
-        self.testcases_passing: list[str] = testcases_passing
+        self.testcases_passing: list[str] = (
+            [] if testcases_passing is None else testcases_passing
+        )
         # names of the failing testcases for this issue
-        self.testcases_failing: list[str] = testcases_failing
+        self.testcases_failing: list[str] = (
+            [] if testcases_failing is None else testcases_failing
+        )
         # where to write our output
         self.output_dir = os.path.abspath(output_dir)
 

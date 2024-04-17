@@ -62,7 +62,7 @@ class FreshTask:
                 )
             else:
                 title, body, created_at = retrieved_issue
-                problem_stmt = title + "\n" + body
+                problem_stmt = f"{title}\n{body}"
                 # save this issue into a file for reference
                 problem_stmt_file = pjoin(self.task_output_dir, "problem_statement.txt")
                 with open(problem_stmt_file, "w") as f:
