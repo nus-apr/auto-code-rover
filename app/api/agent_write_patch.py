@@ -5,7 +5,6 @@ An agent, which is only responsible for the write_patch tool call.
 import json
 from copy import deepcopy
 from os.path import join as pjoin
-from typing import Tuple
 
 from app import globals
 from app.analysis.sbfl import MethodId
@@ -61,7 +60,7 @@ def run_with_retries(
     testcases_passing,
     testcases_failing,
     retries=3,
-) -> Tuple[str, float, int, int]:
+) -> tuple[str, float, int, int]:
     """
     Since the agent may not always write an applicable patch, we allow for retries.
     This is a wrapper around the actual run.

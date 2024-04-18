@@ -3,14 +3,9 @@ Perform validation of a patch, on a given task instance, against the available t
 """
 
 import os
-import shutil
-from os import PathLike
-from os.path import join as pjoin
-from pprint import pprint
-from typing import Tuple
 import subprocess
 
-from app import log
+from app import globals, log
 from app import utils as app_utils
 from app.api.eval_helper import (
     ResolvedStatus,
@@ -18,8 +13,6 @@ from app.api.eval_helper import (
     get_logs_eval,
     get_resolution_status,
 )
-from app import globals
-
 
 
 def run_test_suite_for_correctness(
@@ -32,7 +25,7 @@ def run_test_suite_for_correctness(
     testcases_failing,
     run_test_suite_log_file,
     logger,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Run the developer test suite, and record pass/fail results.
     The goal is to check correctness of a patched program, while returning
@@ -91,7 +84,7 @@ def run_test_suite_for_correctness(
 
     if not parse_ok:
         # log file says test execution has error
-        with open(run_test_suite_log_file, "r") as f:
+        with open(run_test_suite_log_file) as f:
             error_message = f.read()
         return False, error_message
 
@@ -104,15 +97,13 @@ def run_test_suite_for_correctness(
         logger, f"[Run test-suite] Resolution status: {resolution_status}"
     )
     if resolution_status == ResolvedStatus.FULL:
-        log.log_and_print(
-            logger, f"[Run test-suite] Returning True since all resolved."
-        )
+        log.log_and_print(logger, "[Run test-suite] Returning True since all resolved.")
         return True, ""
 
     else:
         # FIXME: The current failure message is simple; maybe can add failure reasons to it
         log.log_and_print(
-            logger, f"[Run test-suite] Returning False since some tests failed."
+            logger, "[Run test-suite] Returning False since some tests failed."
         )
         error_message = "Some tests have failed."
         return False, error_message

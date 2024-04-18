@@ -6,7 +6,7 @@ from pprint import pprint
 
 def get_resolved_tasks(expr_dir):
     final_report = pjoin(expr_dir, "final_report.json")
-    with open(final_report, "r") as f:
+    with open(final_report) as f:
         final_report = json.load(f)
     resolved_tasks = final_report["resolved"]
     return resolved_tasks
@@ -14,7 +14,7 @@ def get_resolved_tasks(expr_dir):
 
 def print_one_run(name, resolved_ratio, num_resolved, expr_dir):
     stats_file = pjoin(expr_dir, "stats.json")
-    with open(stats_file, "r") as f:
+    with open(stats_file) as f:
         stats = json.load(f)
     average_time = stats["inference_avg_elapsed_secs_serial"]
     average_token = stats["avg_tokens"]
@@ -81,7 +81,7 @@ def main():
         f"Total: {union_ratio*100:.2f}% ({len(all_resolved)}) Total Time: {total_time:.0f}s, Total Tokens: {total_token:.0f}, Total Cost: {total_cost:.3f}"
     )
 
-    print(f"All resolved tasks in union:")
+    print("All resolved tasks in union:")
     all_resolved = sorted(all_resolved)
     pprint(all_resolved)
 

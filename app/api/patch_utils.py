@@ -9,12 +9,10 @@ import re
 from dataclasses import dataclass
 from pprint import pformat
 from tempfile import NamedTemporaryFile
-from typing import List, Optional, TextIO
+from typing import TextIO
 
 from pylint.lint import Run
 from pylint.reporters.text import TextReporter
-
-
 
 
 @dataclass
@@ -30,7 +28,7 @@ class Edit:
         return str(self)
 
 
-def parse_edits(chat_string: str) -> List[Edit]:
+def parse_edits(chat_string: str) -> list[Edit]:
     """
     Parse edits from a chat string.
 
@@ -44,7 +42,7 @@ def parse_edits(chat_string: str) -> List[Edit]:
         List[Edit]: A list of Edit objects representing the parsed code edits.
     """
 
-    def parse_in_fence(lines: List[str]):
+    def parse_in_fence(lines: list[str]):
         """
         New version of parsing multiple edits within one fence.
         """
@@ -59,7 +57,7 @@ def parse_edits(chat_string: str) -> List[Edit]:
         patched_start = "<patched>"
         patched_end = "</patched>"
 
-        all_edits: List[Edit] = []
+        all_edits: list[Edit] = []
         content = "\n".join(lines)
 
         # use regex to find content between <file> and </file>
@@ -71,7 +69,9 @@ def parse_edits(chat_string: str) -> List[Edit]:
         original_matches = original_pattern.findall(content)
         patched_matches = patched_pattern.findall(content)
 
-        for file, original, patched in zip(file_matches, original_matches, patched_matches):
+        for file, original, patched in zip(
+            file_matches, original_matches, patched_matches
+        ):
             # for file, we strip all spaces
             file = file.strip()
             # for original and patched, keep the spaces, since removing spaces at beginning or end
@@ -104,7 +104,7 @@ def parse_edits(chat_string: str) -> List[Edit]:
     return edits
 
 
-def apply_edit(edit: Edit, file_path: str) -> Optional[str]:
+def apply_edit(edit: Edit, file_path: str) -> str | None:
     """
     Apply one Edit to a file. This function reads the file, tries to match
     the before string (after stripping spaces in the original program and the
@@ -113,7 +113,7 @@ def apply_edit(edit: Edit, file_path: str) -> Optional[str]:
         - Path to the file containing updated content if successful;
           None otherwise.
     """
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         orig_prog_lines = f.readlines()
 
     before = edit.before
@@ -129,7 +129,10 @@ def apply_edit(edit: Edit, file_path: str) -> Optional[str]:
     match_end = -1
     for i in range(len(cleaned_orig_lines) - len(cleaned_before_lines) + 1):
         # check all possible starting positions in the orig program
-        if cleaned_orig_lines[i : i + len(cleaned_before_lines)] == cleaned_before_lines:
+        if (
+            cleaned_orig_lines[i : i + len(cleaned_before_lines)]
+            == cleaned_before_lines
+        ):
             match_start = i
             match_end = i + len(cleaned_before_lines)
             break
@@ -148,11 +151,15 @@ def apply_edit(edit: Edit, file_path: str) -> Optional[str]:
 
     if before_lines[0] in matched_orig_region[0]:
         abs_indent_of_first_line = matched_orig_region[0].index(before_lines[0])
-        fixed_after_lines = [" " * abs_indent_of_first_line + l for l in after_lines]
+        fixed_after_lines = [
+            " " * abs_indent_of_first_line + line for line in after_lines
+        ]
     else:
         # will raise if cannot find
-        abs_indent_of_first_line = before_lines[0].index(matched_orig_region[0].rstrip("\n"))
-        fixed_after_lines = [l[abs_indent_of_first_line:] for l in after_lines]
+        abs_indent_of_first_line = before_lines[0].index(
+            matched_orig_region[0].rstrip("\n")
+        )
+        fixed_after_lines = [line[abs_indent_of_first_line:] for line in after_lines]
 
     # form the new program
     prefix = "".join(orig_prog_lines[:match_start])

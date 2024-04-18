@@ -1,12 +1,12 @@
 import configparser
 import json
 import os
+from collections.abc import Mapping
 from copy import deepcopy
 from os import PathLike
 from os.path import join as pjoin
 from pathlib import Path
 from subprocess import PIPE, STDOUT, TimeoutExpired
-from typing import List, Mapping, Optional, Tuple
 
 from docstring_parser import parse
 
@@ -19,7 +19,7 @@ from app.log import log_and_print, log_exception
 from app.search.search_manage import SearchManager
 
 
-class ProjectApiManager(object):
+class ProjectApiManager:
     ################# State machine specific ################
     # NOTE: this section is for state machine; APIs in stratified mode are specified
     # in agent_api_selector.py
@@ -34,7 +34,7 @@ class ProjectApiManager(object):
         "write_patch",
     ]
 
-    def next_tools(self) -> List[str]:
+    def next_tools(self) -> list[str]:
         """
         Return the list of tools that should be used in the next round.
         """
@@ -70,15 +70,15 @@ class ProjectApiManager(object):
         task_id: str,
         project_path: str,
         commit: str,
-        env_name: str,
-        repo_name: str,
-        pre_install_cmds: List[str],
-        install_cmd: str,
-        test_cmd: str,
-        test_patch: str,
-        testcases_passing: List[str],
-        testcases_failing: List[str],
         output_dir: str,
+        env_name: str | None = None,
+        repo_name: str | None = None,
+        pre_install_cmds: list[str] | None = None,
+        install_cmd: str | None = None,
+        test_cmd: str | None = None,
+        test_patch: str | None = None,
+        testcases_passing: list[str] | None = None,
+        testcases_failing: list[str] | None = None,
         do_install: bool = False,
         import_root: str = "src",
     ):
@@ -90,16 +90,22 @@ class ProjectApiManager(object):
         self.env_name = env_name
         self.repo_name = repo_name
         # additional installation commands after setup was done
-        self.pre_install_cmds: List[str] = pre_install_cmds
+        self.pre_install_cmds: list[str] = (
+            [] if pre_install_cmds is None else pre_install_cmds
+        )
         self.install_cmd: str = install_cmd
         # command to run tests
         self.test_cmd: str = test_cmd
         # the patch to testcases
         self.test_patch: str = test_patch
         # names of the passing testcases for this issue
-        self.testcases_passing: List[str] = testcases_passing
+        self.testcases_passing: list[str] = (
+            [] if testcases_passing is None else testcases_passing
+        )
         # names of the failing testcases for this issue
-        self.testcases_failing: List[str] = testcases_failing
+        self.testcases_failing: list[str] = (
+            [] if testcases_failing is None else testcases_failing
+        )
         # where to write our output
         self.output_dir = os.path.abspath(output_dir)
 
@@ -118,20 +124,24 @@ class ProjectApiManager(object):
             self.do_install()
 
         # apply the test modifications to this task
-        self.apply_test_patch()
+        if self.test_patch is not None:
+            self.apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
-        with apputils.cd(self.project_path):
-            apputils.repo_commit_current_changes(self.logger)
+        if do_install or self.test_patch is not None:
+            # this means we have applied some changes to the repo before
+            # starting the actual workflow
+            with apputils.cd(self.project_path):
+                apputils.repo_commit_current_changes(self.logger)
 
         # build search manager
         self.search_manager = SearchManager(self.project_path)
 
         # keeps track which tools is currently being used
-        self.curr_tool: Optional[str] = None
+        self.curr_tool: str | None = None
 
         # record the sequence of tools used, and their return status
-        self.tool_call_sequence: List[Mapping] = []
+        self.tool_call_sequence: list[Mapping] = []
 
         # record layered API calls
         self.tool_call_layers: list[list[Mapping]] = []
@@ -160,7 +170,7 @@ class ProjectApiManager(object):
         return summary
 
     @classmethod
-    def get_full_funcs_for_openai(cls, tool_list: List[str]):
+    def get_full_funcs_for_openai(cls, tool_list: list[str]):
         """
         Return a list of function objects which can be sent to OpenAI for
         the function calling feature.
@@ -225,7 +235,7 @@ class ProjectApiManager(object):
 
     def dispatch_intent(
         self, intent: FunctionCallIntent, message_thread: MessageThread
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         """Dispatch a function call intent to actually perform its action.
 
         Args:
@@ -374,7 +384,7 @@ class ProjectApiManager(object):
                 f.write("[run]\ndynamic_context = test_function")
         else:
             # add the dynamic context setting to it
-            with open(coveragerc, "r") as f:
+            with open(coveragerc) as f:
                 lines = f.readlines()
             updated_lines = []
             added_context_line = False
@@ -490,7 +500,7 @@ class ProjectApiManager(object):
             except TimeoutExpired:
                 log.log_and_print(
                     self.logger,
-                    f"Timeout expired while running the test suite.",
+                    "Timeout expired while running the test suite.",
                 )
                 return ""
 
@@ -509,7 +519,7 @@ class ProjectApiManager(object):
                 if not os.path.exists(cov_file):
                     log.log_and_print(
                         self.logger,
-                        f"Coverage file is not produced after running the test suite.",
+                        "Coverage file is not produced after running the test suite.",
                     )
                     return ""
             return cov_file
@@ -555,7 +565,7 @@ class ProjectApiManager(object):
             except TimeoutExpired:
                 log.log_and_print(
                     self.logger,
-                    f"Timeout expired while running the test suite.",
+                    "Timeout expired while running the test suite.",
                 )
                 return ""
 
@@ -564,7 +574,7 @@ class ProjectApiManager(object):
             if not os.path.exists(cov_file):
                 log.log_and_print(
                     self.logger,
-                    f"Coverage file is not produced after running the test suite.",
+                    "Coverage file is not produced after running the test suite.",
                 )
                 return ""
             return cov_file
@@ -573,7 +583,7 @@ class ProjectApiManager(object):
     ########################## API functions ##########################
     ###################################################################
 
-    def fault_localization(self) -> Tuple[str, str, bool]:
+    def fault_localization(self) -> tuple[str, str, bool]:
         """Localize the faulty code snippets by executing test cases.
 
         Perform fault localization by running the passing and failing test-cases.
@@ -641,7 +651,7 @@ class ProjectApiManager(object):
     def get_class_full_snippet(self, class_name: str):
         return self.search_manager.get_class_full_snippet(class_name)
 
-    def search_class(self, class_name: str) -> Tuple[str, str, bool]:
+    def search_class(self, class_name: str) -> tuple[str, str, bool]:
         """Search for a class in the codebase.
 
         Only the signature of the class is returned. The class signature
@@ -659,7 +669,7 @@ class ProjectApiManager(object):
 
     def search_class_in_file(
         self, class_name: str, file_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         """Search for a class in a given file.
 
         Returns the actual code of the entire class definition.
@@ -676,7 +686,7 @@ class ProjectApiManager(object):
 
     def search_method_in_file(
         self, method_name: str, file_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         """Search for a method in a given file.
 
         Returns the actual code of the method.
@@ -693,7 +703,7 @@ class ProjectApiManager(object):
 
     def search_method_in_class(
         self, method_name: str, class_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         """Search for a method in a given class.
 
         Returns the actual code of the method.
@@ -708,7 +718,7 @@ class ProjectApiManager(object):
         """
         return self.search_manager.search_method_in_class(method_name, class_name)
 
-    def search_method(self, method_name: str) -> Tuple[str, str, bool]:
+    def search_method(self, method_name: str) -> tuple[str, str, bool]:
         """Search for a method in the entire codebase.
 
         Returns the actual code of the method.
@@ -722,7 +732,7 @@ class ProjectApiManager(object):
         """
         return self.search_manager.search_method(method_name)
 
-    def search_code(self, code_str: str) -> Tuple[str, str, bool]:
+    def search_code(self, code_str: str) -> tuple[str, str, bool]:
         """Search for a code snippet in the entire codebase.
 
         Returns the method that contains the code snippet, if it is found inside a file.
@@ -738,7 +748,7 @@ class ProjectApiManager(object):
 
     def search_code_in_file(
         self, code_str: str, file_name: str
-    ) -> Tuple[str, str, bool]:
+    ) -> tuple[str, str, bool]:
         """Search for a code snippet in a given file file.
 
         Returns the entire method that contains the code snippet.
@@ -752,37 +762,46 @@ class ProjectApiManager(object):
         """
         return self.search_manager.search_code_in_file(code_str, file_name)
 
-    def write_patch(self, message_thread: MessageThread) -> Tuple[str, str, bool]:
+    def write_patch(self, message_thread: MessageThread) -> tuple[str, str, bool]:
         """Based on the current context, ask another agent to write a patch.
 
         When you think the current information is sufficient to write a patch, invoke this tool.
 
         The tool returns a patch based on the current available information.
         """
-        tool_output, cost, input_tokens, output_tokens = (
-            agent_write_patch.run_with_retries(
-                self.logger,
-                message_thread,
-                self.output_dir,
-                self.project_path,
-                self.test_cmd,
-                self.repo_name,
-                self.env_name,
-                self.task_id,
-                self.testcases_passing,
-                self.testcases_failing,
-            )
+        (
+            tool_output,
+            cost,
+            input_tokens,
+            output_tokens,
+        ) = agent_write_patch.run_with_retries(
+            self.logger,
+            message_thread,
+            self.output_dir,
+            self.project_path,
+            self.test_cmd,
+            self.repo_name,
+            self.env_name,
+            self.task_id,
+            self.testcases_passing,
+            self.testcases_failing,
         )
         summary = "The tool returned the patch written by another agent."
         self.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
         # The return status of write_patch does not really matter, so we just use True here
         return tool_output, summary, True
 
-    def proxy_apis(self, text: str) -> Tuple[str | None, str, list[MessageThread]]:
+    def proxy_apis(self, text: str) -> tuple[str | None, str, list[MessageThread]]:
         """Proxy APIs to another agent."""
-        tool_output, new_thread, cost, input_tokens, output_tokens = (
-            agent_proxy.run_with_retries(self.logger, text)  # FIXME: type of `text`
-        )
+        (
+            tool_output,
+            new_thread,
+            cost,
+            input_tokens,
+            output_tokens,
+        ) = agent_proxy.run_with_retries(
+            self.logger, text
+        )  # FIXME: type of `text`
         if tool_output is None:
             summary = "The tool returned nothing. The main agent probably did not provide enough clues."
         else:

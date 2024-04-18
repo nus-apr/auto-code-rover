@@ -4,16 +4,13 @@ Perform validation of a patch, on a given task instance.
 
 import ast
 import itertools
-import os
 import shlex
 import shutil
 import subprocess
 import tempfile
 from os import PathLike
-from os.path import join as pjoin
 from pathlib import Path
 from subprocess import PIPE, STDOUT
-from typing import Tuple
 
 from unidiff import PatchSet
 
@@ -34,7 +31,7 @@ def validate(
     testcases_failing,
     run_test_suite_log_file,
     logger,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Returns:
         - Whether this patch has made the test suite pass.
@@ -66,14 +63,14 @@ def validate(
     with app_utils.cd(project_path):
         app_utils.repo_clean_changes()
 
-    log_and_print(logger, f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}.")
+    log_and_print(
+        logger, f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}."
+    )
     return tests_passed, msg
 
 
 def perfect_angelic_debug(
-    task_id: str,
-    diff_file: str,
-    project_path: str
+    task_id: str, diff_file: str, project_path: str
 ) -> tuple[set, set, set]:
     """Do perfect angelic debugging and return a list of incorrect fix locations.
 
@@ -84,13 +81,13 @@ def perfect_angelic_debug(
     Returns:
         A list of (filename, MethodId) that should not have been changed by diff_file
     """
-    return compare_fix_locations(diff_file, get_developer_patch_file(task_id), project_path)
+    return compare_fix_locations(
+        diff_file, get_developer_patch_file(task_id), project_path
+    )
 
 
 def compare_fix_locations(
-    diff_file: str,
-    dev_diff_file: str,
-    project_path: str
+    diff_file: str, dev_diff_file: str, project_path: str
 ) -> tuple[set, set, set]:
     """Compare the changed methods in two diff files
 
@@ -124,7 +121,9 @@ def compare_fix_locations(
 
 def get_developer_patch_file(task_id: str) -> str:
     processed_data_lite = Path(__file__).parent.parent.with_name("processed_data_lite")
-    dev_patch_file = Path(processed_data_lite, "test", task_id, "developer_patch.diff").resolve()
+    dev_patch_file = Path(
+        processed_data_lite, "test", task_id, "developer_patch.diff"
+    ).resolve()
     if not dev_patch_file.is_file():
         raise RuntimeError(f"Failed to find developer patch at {dev_patch_file!s}")
     return str(dev_patch_file)
@@ -138,8 +137,10 @@ def get_method_id(file: str, line: int) -> MethodId | None:
     return None
 
 
-def get_changed_methods(diff_file: str, project_path: str = "") -> dict[str, set[MethodId]]:
-    with open(diff_file, "r") as f:
+def get_changed_methods(
+    diff_file: str, project_path: str = ""
+) -> dict[str, set[MethodId]]:
+    with open(diff_file) as f:
         patch_content = f.read()
 
     changed_files = []
@@ -162,7 +163,9 @@ def get_changed_methods(diff_file: str, project_path: str = "") -> dict[str, set
         copy_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(Path(project_path, file), copy_path)
     patch_cmd = f"patch -p1 -f -i {diff_file}"
-    cp = subprocess.run(shlex.split(patch_cmd), cwd=temp_dir, stdout=PIPE, stderr=STDOUT, text=True)
+    cp = subprocess.run(
+        shlex.split(patch_cmd), cwd=temp_dir, stdout=PIPE, stderr=STDOUT, text=True
+    )
     if cp.returncode != 0:
         raise RuntimeError(
             f"Patch command in directory {temp_dir} exit with {cp.returncode}: {patch_cmd}"

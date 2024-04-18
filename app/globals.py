@@ -2,17 +2,8 @@
 Values of global configuration variables.
 """
 
-from typing import Optional
-
 # Overall output directory for results
 output_dir: str = ""
-
-# whether to start conversation from fresh, or load from a conversation history.
-# If None, start from fresh.
-# If not None, continue from the conversation history stored in <file>.
-# <file> is the value of this variable, and should points to a json file
-# containing the past conversation history.
-load_cache: Optional[str] = None
 
 # the model to use
 model: str = "gpt-3.5-turbo-0125"
@@ -28,7 +19,7 @@ conv_round_limit: int = 15
 enable_sbfl: bool = False
 
 # whether to perform layered search
-enable_layered: bool = False
+enable_layered: bool = True
 
 # whether to perform our own validation
 enable_validation: bool = False

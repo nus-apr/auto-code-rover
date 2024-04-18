@@ -7,14 +7,14 @@ import configparser
 import contextlib
 import json
 import os
-from datetime import datetime
-from glob import glob
-from pathlib import Path
-from statistics import mean
 import shutil
 import subprocess
+from datetime import datetime
+from glob import glob
 from os.path import dirname as pdirname
 from os.path import join as pjoin
+from pathlib import Path
+from statistics import mean
 
 ## globals
 # whether to force delete existing data directories
@@ -156,9 +156,9 @@ def run_agent(
 
     print(f"Running agent workflow with cmd: {cmd}")
     with cd(root_dir):
-        cp = run_string_cmd_in_conda(cmd, "auto-code-rover", env=modified_env)
+        _ = run_string_cmd_in_conda(cmd, "auto-code-rover", env=modified_env)
 
-    print(f"Done with running agent workflow.")
+    print("Done with running agent workflow.")
     swe_input_file = pjoin(expr_dir, "predictions_for_swebench.json")
     return swe_input_file
 
@@ -182,13 +182,13 @@ def run_swe_bench_eval(
     cmd += f"--predictions_path {swe_input_file} "
     cmd += f"--log_dir {expr_eval_log_dir} "
     cmd += f"--testbed {temp_eval_test_bed_dir} "
-    cmd += f"--verbose "
+    cmd += "--verbose "
 
     print(f"Running SWE-bench evaluation with cmd: {cmd}")
     with cd(swe_bench_dir):
-        cp = run_string_cmd_in_conda(cmd, "swe-bench")
+        _ = run_string_cmd_in_conda(cmd, "swe-bench")
 
-    print(f"Done with running SWE-bench evaluation.")
+    print("Done with running SWE-bench evaluation.")
     return expr_eval_log_dir
 
 
@@ -200,7 +200,7 @@ def create_separate_reports(expr_dir: str, combined_report_path: str):
     swe25_task_file = pjoin(root_dir, "processed_data_swe_25", "tasks.txt")
 
     def read_tasks_from_file(file):
-        with open(file, "r") as f:
+        with open(file) as f:
             tasks = f.read().splitlines()
         tasks = [t.strip().strip("\n") for t in tasks]
         tasks = [t for t in tasks if t]
@@ -210,7 +210,7 @@ def create_separate_reports(expr_dir: str, combined_report_path: str):
     lite_tasks = read_tasks_from_file(lite_task_file)
     swe25_tasks = read_tasks_from_file(swe25_task_file)
 
-    with open(combined_report_path, "r") as f:
+    with open(combined_report_path) as f:
         combined_report = json.load(f)
 
     combined_fixed = combined_report["resolved"]
@@ -266,10 +266,11 @@ def generate_report(
 
     print(f"Generating final report with cmd: {cmd}")
     with cd(swe_bench_dir):
-        cp = run_string_cmd_in_conda(cmd, "swe-bench")
+        _ = run_string_cmd_in_conda(cmd, "swe-bench")
 
-    print(f"Done with generating final report.")
+    print("Done with generating final report.")
     return final_report_path
+
 
 def generate_stats(expr_dir: str, eval_start_epoch: float, eval_end_epoch: float):
     cost_files = glob(pjoin(expr_dir, "**", "*__*", "cost.json"))
@@ -299,7 +300,9 @@ def generate_stats(expr_dir: str, eval_start_epoch: float, eval_end_epoch: float
     stats["inference_start_epoch"] = inference_start_epoch
     stats["inference_end_epoch"] = inference_end_epoch
     stats["inference_elapsed_mins"] = round(inference_elapsed / 60, 2)
-    stats["inference_avg_elapsed_secs_parallel"] = round(inference_elapsed / len(cost_data), 1)
+    stats["inference_avg_elapsed_secs_parallel"] = round(
+        inference_elapsed / len(cost_data), 1
+    )
     stats["inference_avg_elapsed_secs_serial"] = round(
         mean(x["elapsed_seconds"] for x in cost_data), 1
     )
@@ -354,7 +357,7 @@ def main():
     # TODO: use a single conf file for all experiments and use different sections
     # for individual experiments
     default_section = "DEFAULT"
-    with open(conf_file, "r") as f:
+    with open(conf_file) as f:
         config.read_string(f"[{default_section}]\n" + f.read())
 
     config_dict = config["DEFAULT"]
@@ -427,7 +430,8 @@ def main():
 
     if running_combined:
         create_separate_reports(expr_dir, final_report_path)
-        print(f"Created separate reports for each subset.")
+        print("Created separate reports for each subset.")
+
 
 if __name__ == "__main__":
     main()

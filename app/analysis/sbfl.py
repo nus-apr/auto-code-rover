@@ -13,16 +13,16 @@ import ast
 import math
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from pprint import pformat
-from typing import Dict, List, Mapping, Tuple
 
 from coverage.sqldata import CoverageData
 
 
-def canonicalize_testname_sympy_bin_test(testname: str) -> Tuple[str, str]:
+def canonicalize_testname_sympy_bin_test(testname: str) -> tuple[str, str]:
     """
     The sympy version, who excutes tests with bin/test
 
@@ -31,7 +31,7 @@ def canonicalize_testname_sympy_bin_test(testname: str) -> Tuple[str, str]:
     return "", testname
 
 
-def canonicalize_testname_django_runner(testname: str) -> Tuple[str, str]:
+def canonicalize_testname_django_runner(testname: str) -> tuple[str, str]:
     """
     Same as canonicalize_testname_pytest, but for django test runner.
     Need to deal with them separately because the test name formats are diff.
@@ -57,7 +57,7 @@ def canonicalize_testname_django_runner(testname: str) -> Tuple[str, str]:
     return file_name, full_name
 
 
-def canonicalize_testname_pytest(testname: str) -> Tuple[str, str]:
+def canonicalize_testname_pytest(testname: str) -> tuple[str, str]:
     """
     Unify the test names in tasks_map.json and pytest-cov.
 
@@ -75,7 +75,7 @@ def canonicalize_testname_pytest(testname: str) -> Tuple[str, str]:
     return file_name, testname
 
 
-def canonicalize_testname(task_id: str, testname: str) -> Tuple[str, str]:
+def canonicalize_testname(task_id: str, testname: str) -> tuple[str, str]:
     if "django" in task_id:
         return canonicalize_testname_django_runner(testname)
     elif "sympy" in task_id:
@@ -84,11 +84,11 @@ def canonicalize_testname(task_id: str, testname: str) -> Tuple[str, str]:
         return canonicalize_testname_pytest(testname)
 
 
-class FileExecStats(object):
+class FileExecStats:
     def __init__(self, filename: str):
         self.filename = filename
         # line number -> (pass_count, fail_count)
-        self.line_stats: Dict[int, Tuple[int, int]] = dict()
+        self.line_stats: dict[int, tuple[int, int]] = dict()
 
     def incre_pass_count(self, line_no: int):
         if line_no in self.line_stats:
@@ -113,10 +113,10 @@ class FileExecStats(object):
         return self.__str__()
 
 
-class ExecStats(object):
+class ExecStats:
     def __init__(self):
         # file name -> FileExecStats
-        self.file_stats: Dict[str, FileExecStats] = dict()
+        self.file_stats: dict[str, FileExecStats] = dict()
 
     def add_file(self, file_exec_stats: FileExecStats):
         self.file_stats[file_exec_stats.filename] = file_exec_stats
@@ -183,7 +183,7 @@ class ExecStats(object):
         return lines_with_scores
 
 
-def helper_remove_dup_and_empty(lst: List[str]) -> List[str]:
+def helper_remove_dup_and_empty(lst: list[str]) -> list[str]:
     """
     Remove duplicates and empty strings from the list.
     """
@@ -203,7 +203,7 @@ def helper_two_tests_match(test_one: str, test_two: str) -> bool:
     return test_one.endswith(test_two) or test_two.endswith(test_one)
 
 
-def helper_test_match_any(test: str, candidates: List[str]) -> bool:
+def helper_test_match_any(test: str, candidates: list[str]) -> bool:
     """
     Check if the test matches any of the candidates.
     """
@@ -216,8 +216,8 @@ Main entry to the SBFL analysis.
 
 
 def run(
-    pass_tests: List[str], fail_tests: List[str], cov_file: str, task_id: str
-) -> tuple[list[str], list[Tuple[str, int, float]]]:
+    pass_tests: list[str], fail_tests: list[str], cov_file: str, task_id: str
+) -> tuple[list[str], list[tuple[str, int, float]]]:
     """
     Run SBFL analysis on the given coverage data file.
     At the same time, collect the test file names.
@@ -290,8 +290,8 @@ def run(
 
 
 def collate_results(
-    ranked_lines: List[Tuple[str, int, float]], test_file_names: List[str]
-) -> List[Tuple[str, int, int, float]]:
+    ranked_lines: list[tuple[str, int, float]], test_file_names: list[str]
+) -> list[tuple[str, int, int, float]]:
     """
     From the ranked lines, perform filtering (for lines that are likely to be in the test files),
     as well as merging (since multiple ranked lines can be adjacent to each other).
@@ -300,7 +300,7 @@ def collate_results(
         - list of (file, start_line_no, end_line_no, score), sorted
     """
     # (1) remove lines with non positive score
-    positive_lines = [l for l in ranked_lines if l[2] > 0]
+    positive_lines = [line for line in ranked_lines if line[2] > 0]
     # (2) remove lines that are in test files
     survived_lines = []
     for file, line_no, score in positive_lines:
@@ -310,7 +310,7 @@ def collate_results(
             survived_lines.append((file, line_no, score))
 
     # (3) convert survived lines into dict, key is filename, value is list of (line_no, score)
-    file_line_score: Mapping[str, List[Tuple[int, float]]] = dict()
+    file_line_score: Mapping[str, list[tuple[int, float]]] = dict()
     for file, line_no, score in survived_lines:
         if file not in file_line_score:
             file_line_score[file] = []
@@ -322,7 +322,7 @@ def collate_results(
 
     # (4) merge adjacent lines, the new dict value list is a list of (start_line_no, end_line_no, score)
     # note that end_line_no is inclusive
-    merged_file_line_score: Mapping[str, List[Tuple[int, int, float]]] = dict()
+    merged_file_line_score: Mapping[str, list[tuple[int, int, float]]] = dict()
     for file, line_score in file_line_score.items():
         merged_line_score = []
         # indexes into the line_score

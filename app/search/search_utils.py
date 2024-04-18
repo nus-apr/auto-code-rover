@@ -3,7 +3,6 @@ import glob
 import re
 from dataclasses import dataclass
 from os.path import join as pjoin
-from typing import List, Optional, Tuple
 
 from app import utils as apputils
 
@@ -13,8 +12,8 @@ class SearchResult:
     """Dataclass to hold search results."""
 
     file_path: str  # this is absolute path
-    class_name: Optional[str]
-    func_name: Optional[str]
+    class_name: str | None
+    func_name: str | None
     code: str
 
     def to_tagged_upto_file(self, project_root: str):
@@ -86,7 +85,7 @@ class SearchResult:
         return res_str
 
 
-def get_all_py_files(dir_path: str) -> List[str]:
+def get_all_py_files(dir_path: str) -> list[str]:
     """Get all .py files recursively from a directory.
 
     Skips files that are obviously not from the source code, such third-party library code.
@@ -130,93 +129,64 @@ def get_all_py_files(dir_path: str) -> List[str]:
     return res
 
 
-def get_all_classes_in_file(file_full_path: str) -> List[Tuple[str, int, int]]:
-    """Get all classes defined in one .py file.
-
-    Args:
-        file_path (str): Path to the .py file.
-    Returns:
-        List of classes in this file.
+def get_all_info_from_file(file_full_path: str) -> tuple[list, dict, list] | None:
     """
+    Main method to parse AST and build search index.
+    Handles complication where python ast module cannot parse a file.
+    """
+    try:
+        with open(file_full_path) as f:
+            file_content = f.read()
+        tree = ast.parse(file_content)
+    except Exception:
+        # failed to read/parse one file, we should ignore it
+        return None
 
-    with open(file_full_path, "r") as f:
-        file_content = f.read()
-
+    # (1) get all classes defined in the file
     classes = []
-    # print(file_path)
-    tree = ast.parse(file_content)
+    # (2) for each class in the file, get all functions defined in the class.
+    class_to_funcs = dict()
+    # (3) get top-level functions in the file (exclues functions defined in classes)
+    top_level_funcs = []
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
+            ## class part (1): collect class info
             class_name = node.name
             start_lineno = node.lineno
             end_lineno = node.end_lineno
             # line numbers are 1-based
             classes.append((class_name, start_lineno, end_lineno))
-    return classes
 
-
-def get_top_level_functions(file_full_path: str) -> List[Tuple[str, int, int]]:
-    """Get top-level functions defined in one .py file.
-
-    This excludes functions defined in any classes.
-
-    Args:
-        file_path (str): Path to the .py file.
-    Returns:
-        List of top-level functions in this file.
-    """
-    with open(file_full_path, "r") as f:
-        file_content = f.read()
-
-    functions = []
-    tree = ast.parse(file_content)
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef):
-            function_name = node.name
-            start_lineno = node.lineno
-            end_lineno = node.end_lineno
-            # line numbers are 1-based
-            functions.append((function_name, start_lineno, end_lineno))
-    return functions
-
-
-# mainly used for building index
-def get_all_funcs_in_class_in_file(
-    file_full_path: str, class_name: str
-) -> List[Tuple[str, int, int]]:
-    """
-    For a class in a file, get all functions defined in the class.
-    Assumption:
-        - the given function exists, and is defined in the given file.
-    Returns:
-        - List of tuples, each tuple is (function_name, start_lineno, end_lineno).
-    """
-    with open(file_full_path, "r") as f:
-        file_content = f.read()
-
-    functions = []
-    tree = ast.parse(file_content)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            ## class part (2): collect function info inside this class
+            class_funcs = []
             for n in ast.walk(node):
                 if isinstance(n, ast.FunctionDef):
                     function_name = n.name
                     start_lineno = n.lineno
                     end_lineno = n.end_lineno
-                    functions.append((function_name, start_lineno, end_lineno))
+                    class_funcs.append((function_name, start_lineno, end_lineno))
+            class_to_funcs[class_name] = class_funcs
 
-    return functions
+        elif isinstance(node, ast.FunctionDef):
+            function_name = node.name
+            start_lineno = node.lineno
+            end_lineno = node.end_lineno
+            # line numbers are 1-based
+            top_level_funcs.append((function_name, start_lineno, end_lineno))
+
+    return classes, class_to_funcs, top_level_funcs
 
 
 def get_func_snippet_in_class(
     file_full_path: str, class_name: str, func_name: str, include_lineno=False
-) -> Optional[str]:
+) -> str | None:
     """Get actual function source code in class.
 
     All source code of the function is returned.
     Assumption: the class and function exist.
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.read()
 
     tree = ast.parse(file_content)
@@ -241,7 +211,7 @@ def get_func_snippet_in_class(
 
 def get_code_region_containing_code(
     file_full_path: str, code_str: str
-) -> List[Tuple[int, str]]:
+) -> list[tuple[int, str]]:
     """In a file, get the region of code that contains a specific string.
 
     Args:
@@ -252,7 +222,7 @@ def get_code_region_containing_code(
         line_no is the starting line of the matched code; code snippet is the
         source code of the searched region.
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.read()
 
     context_size = 3
@@ -262,7 +232,7 @@ def get_code_region_containing_code(
     # can also contain new lines, this is a bit trickier.
     pattern = re.compile(re.escape(code_str))
     # each occurrence is a tuple of (line_no, code_snippet) (1-based line number)
-    occurrences: List[Tuple[int, str]] = []
+    occurrences: list[tuple[int, str]] = []
     for match in pattern.finditer(file_content):
         matched_start_pos = match.start()
         # first, find the line number of the matched start position (1-based)
@@ -298,7 +268,7 @@ def get_code_region_containing_code(
     return occurrences
 
 
-def get_func_snippet_with_code_in_file(file_full_path: str, code_str: str) -> List[str]:
+def get_func_snippet_with_code_in_file(file_full_path: str, code_str: str) -> list[str]:
     """In a file, get the function code, for which the function contains a specific string.
 
     Args:
@@ -308,7 +278,7 @@ def get_func_snippet_with_code_in_file(file_full_path: str, code_str: str) -> Li
     Returns:
         A list of code snippets, each of them is the source code of the searched function.
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.read()
 
     tree = ast.parse(file_content)
@@ -347,7 +317,7 @@ def get_code_snippets_with_lineno(file_full_path: str, start: int, end: int) -> 
         start (int): Start line number. (1-based)
         end (int): End line number. (1-based)
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.readlines()
 
     snippet = ""
@@ -364,7 +334,7 @@ def get_code_snippets(file_full_path: str, start: int, end: int) -> str:
         start (int): Start line number. (1-based)
         end (int): End line number. (1-based)
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.readlines()
     snippet = ""
     for i in range(start - 1, end):
@@ -372,7 +342,7 @@ def get_code_snippets(file_full_path: str, start: int, end: int) -> str:
     return snippet
 
 
-def extract_func_sig_from_ast(func_ast: ast.FunctionDef) -> List[int]:
+def extract_func_sig_from_ast(func_ast: ast.FunctionDef) -> list[int]:
     """Extract the function signature from the AST node.
 
     Includes the decorators, method name, and parameters.
@@ -401,7 +371,7 @@ def extract_func_sig_from_ast(func_ast: ast.FunctionDef) -> List[int]:
     return list(range(func_start_line, end_line + 1))
 
 
-def extract_class_sig_from_ast(class_ast: ast.ClassDef) -> List[int]:
+def extract_class_sig_from_ast(class_ast: ast.ClassDef) -> list[int]:
     """Extract the class signature from the AST.
 
     Args:
@@ -446,7 +416,7 @@ def get_class_signature(file_full_path: str, class_name: str) -> str:
         file_path (str): Path to the file.
         class_name (str): Name of the class.
     """
-    with open(file_full_path, "r") as f:
+    with open(file_full_path) as f:
         file_content = f.read()
 
     tree = ast.parse(file_content)
@@ -459,7 +429,7 @@ def get_class_signature(file_full_path: str, class_name: str) -> str:
     if not relevant_lines:
         return ""
     else:
-        with open(file_full_path, "r") as f:
+        with open(file_full_path) as f:
             file_content = f.readlines()
         result = ""
         for line in relevant_lines:

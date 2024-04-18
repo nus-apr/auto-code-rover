@@ -5,9 +5,7 @@ Interfacing with GPT models.
 import json
 import os
 import sys
-from typing import List, Tuple
-from typing import cast
-from typing import Literal
+from typing import Literal, cast
 
 from dotenv import load_dotenv
 from openai import BadRequestError, OpenAI
@@ -71,7 +69,7 @@ def extract_gpt_content(chat_completion_message: ChatCompletionMessage) -> str:
 
 def extract_gpt_func_calls(
     chat_completion_message: ChatCompletionMessage,
-) -> List[FunctionCallIntent]:
+) -> list[FunctionCallIntent]:
     """
     Given a chat completion message, extract the function calls from it.
     Args:
@@ -111,8 +109,8 @@ def call_gpt(
     tools=None,
     response_format: Literal["text", "json_object"] = "text",
     **model_args,
-) -> Tuple[
-    str, list[ChatCompletionMessageToolCall], List[FunctionCallIntent], float, int, int
+) -> tuple[
+    str, list[ChatCompletionMessageToolCall], list[FunctionCallIntent], float, int, int
 ]:
     """
     Calls the openai API to generate completions for the given inputs.

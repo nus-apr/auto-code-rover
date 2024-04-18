@@ -1,22 +1,18 @@
 import inspect
-from pathlib import Path
 import json
 import re
 from os.path import join as pjoin
+from pathlib import Path
 
 from termcolor import colored
 
 from app import globals
 from app.api.manage import ProjectApiManager
-from app.data_structures import (
-    FunctionCallIntent,
-    MessageThread,
-)
+from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_cprint, log_and_print
 from app.model.gpt import call_gpt
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
-
 
 # FIXME: the system prompt should be different for stratified/state machine.
 SYSTEM_PROMPT = """You are a software developer maintaining a large project.

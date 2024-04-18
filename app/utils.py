@@ -7,7 +7,6 @@ from logging import Logger
 from os.path import dirname as pdirname
 from os.path import join as pjoin
 from pathlib import Path
-from typing import List, Optional
 
 from app.log import log_and_print
 
@@ -27,7 +26,7 @@ def cd(newdir):
         os.chdir(prevdir)
 
 
-def run_command(logger, cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
+def run_command(logger, cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     """
     Run a command in the shell.
     Args:
@@ -43,6 +42,25 @@ def run_command(logger, cmd: List[str], **kwargs) -> subprocess.CompletedProcess
     return cp
 
 
+def clone_repo_and_checkout(
+    clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
+):
+    """
+    Clone a repo to dest_dir, and checkout to commit `commit_hash`.
+
+    Returns:
+        - path to the newly cloned directory.
+    """
+    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    checkout_cmd = ["git", "checkout", commit_hash]
+    with cd(dest_dir):
+        run_command(None, clone_cmd)
+    cloned_dir = pjoin(dest_dir, cloned_name)
+    with cd(cloned_dir):
+        run_command(None, checkout_cmd)
+    return cloned_dir
+
+
 def repo_commit_current_changes(logger=None):
     """
     Commit the current active changes so that it's safer to do git reset later on.
@@ -50,8 +68,12 @@ def repo_commit_current_changes(logger=None):
     """
     add_all_cmd = ["git", "add", "."]
     commit_cmd = ["git", "commit", "-m", "Temporary commit for storing changes"]
-    run_command(logger, add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run_command(logger, commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(
+        logger, add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    run_command(
+        logger, commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
 
 def repo_clean_changes(logger=None) -> None:
@@ -92,7 +114,9 @@ def repo_reset_and_clean_checkout(commit_hash: str, logger=None) -> None:
     run_command(logger, reset_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     run_command(logger, clean_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # need to checkout before submodule init. Otherwise submodule may init to another version
-    run_command(logger, checkout_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(
+        logger, checkout_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
     # this is a fail-safe combo to reset any changes to the submodule: first unbind all submodules
     # and then make a fresh checkout of them.
@@ -105,10 +129,14 @@ def repo_reset_and_clean_checkout(commit_hash: str, logger=None) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    run_command(logger, submodule_init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(
+        logger, submodule_init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
 
-def run_script_in_conda(args: list[str], env_name: str, **kwargs) -> subprocess.CompletedProcess:
+def run_script_in_conda(
+    args: list[str], env_name: str, **kwargs
+) -> subprocess.CompletedProcess:
     """
     Run a python command in a given conda environment.
     """
@@ -132,9 +160,7 @@ def run_string_cmd_in_conda(
         raise RuntimeError("Env variable CONDA_EXE is not set")
     conda_root_dir = pdirname(pdirname(conda_bin_path))
     conda_script_path = pjoin(conda_root_dir, "etc", "profile.d", "conda.sh")
-    conda_cmd = (
-        f"source {conda_script_path} ; conda activate {env_name} ; {command} ; conda deactivate"
-    )
+    conda_cmd = f"source {conda_script_path} ; conda activate {env_name} ; {command} ; conda deactivate"
     log_and_print(logger, f"Running command: {conda_cmd}")
     return subprocess.run(conda_cmd, shell=True, **kwargs)
 
@@ -186,7 +212,7 @@ def to_absolute_path(file_path: str, project_root: str) -> str:
     return pjoin(project_root, file_path)
 
 
-def find_file(directory, filename) -> Optional[str]:
+def find_file(directory, filename) -> str | None:
     """
     Find a file in a directory. filename can be short name, relative path to the
     directory, or an incomplete relative path to the directory.
@@ -195,13 +221,13 @@ def find_file(directory, filename) -> Optional[str]:
     """
 
     # Helper method one
-    def find_file_exact_relative(directory, filename) -> Optional[str]:
+    def find_file_exact_relative(directory, filename) -> str | None:
         if os.path.isfile(os.path.join(directory, filename)):
             return filename
         return None
 
     # Helper method two
-    def find_file_shortname(directory, filename) -> Optional[str]:
+    def find_file_shortname(directory, filename) -> str | None:
         for root, dirs, files in os.walk(directory):
             for file in files:
                 if file == filename:
@@ -234,7 +260,9 @@ def find_file(directory, filename) -> Optional[str]:
         return None
 
 
-def parse_function_invocation(invocation_str: str, logger: Logger | None=None) -> tuple[str, list[str]]:
+def parse_function_invocation(
+    invocation_str: str, logger: Logger | None = None
+) -> tuple[str, list[str]]:
     try:
         tree = ast.parse(invocation_str)
         expr = tree.body[0]
@@ -244,14 +272,14 @@ def parse_function_invocation(invocation_str: str, logger: Logger | None=None) -
         func = call.func
         assert isinstance(func, ast.Name)
         function_name = func.id
-        arguments = [ast.unparse(arg) for arg in call.args]
+        raw_arguments = [ast.unparse(arg) for arg in call.args]
         # clean up spaces or quotes, just in case
-        arguments = [arg.strip().strip("'").strip('"') for arg in arguments]
+        arguments = [arg.strip().strip("'").strip('"') for arg in raw_arguments]
 
         # candidate refactoring
         if logger is not None:
             try:
-                new_arguments = [ast.literal_eval(x) for x in arguments]
+                new_arguments = [ast.literal_eval(x) for x in raw_arguments]
                 if new_arguments != arguments:
                     log_and_print(
                         logger,

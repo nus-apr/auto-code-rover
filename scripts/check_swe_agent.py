@@ -1,7 +1,6 @@
 import json
 import os
 from os.path import join as pjoin
-from pprint import pprint
 
 from check_vanilla import get_resolved_tasks
 
@@ -17,7 +16,7 @@ def get_tasks_with_traj(result_dir):
 
 
 def get_one_instance_cost(traj_file):
-    with open(traj_file, "r") as f:
+    with open(traj_file) as f:
         traj = json.load(f)
     cost = float(traj["info"]["model_stats"]["instance_cost"])
     in_token = int(traj["info"]["model_stats"]["tokens_sent"])
@@ -68,7 +67,7 @@ def main():
     print(f"All considered tasks: {len(tasks_fig_6)}")
 
     print(
-        f"\n================================= SWE-agent results over 274 instances that could be run by it: ================================="
+        "\n================================= SWE-agent results over 274 instances that could be run by it: ================================="
     )
 
     # STEP (2) get resolved tasks for each run.
@@ -108,7 +107,7 @@ def main():
     print(f"Union of resolved tasks: {union_ratio*100:.2f}% ({len(resolved_union)})")
 
     print(
-        f"\n================================= ACR results over these 274 instances: ================================="
+        "\n================================= ACR results over these 274 instances: ================================="
     )
 
     # STEP (5) Get resolved from ACR, and filter based on 274 tasks
@@ -161,7 +160,7 @@ def main():
     )
 
     print(
-        f"\n================================= Venn for SWE-Agent-all and ACR-all ================================="
+        "\n================================= Venn for SWE-Agent-all and ACR-all ================================="
     )
     swe_agent_extra = set(resolved_union) - set(acr_resolved_union)
     acr_extra = set(acr_resolved_union) - set(resolved_union)
@@ -171,7 +170,7 @@ def main():
     print(f"Intersection: {len(insersec)}")
 
     print(
-        f"\n================================= Compute cost and tokesn for SWE-agent ================================="
+        "\n================================= Compute cost and tokesn for SWE-agent ================================="
     )
     run_one_cost, run_one_tokens = compute_avg_cost(run_one_dir, tasks_fig_6)
     run_two_cost, run_two_tokens = compute_avg_cost(run_two_dir, tasks_fig_6)
