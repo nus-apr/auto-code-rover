@@ -5,11 +5,9 @@ The main driver.
 import argparse
 import datetime
 import json
-import subprocess
 from collections.abc import Mapping
 from multiprocessing import Pool
 from os.path import join as pjoin
-from subprocess import CalledProcessError
 
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
@@ -86,7 +84,7 @@ def run_one_task(task: Task) -> bool:
     task_output_dir = pjoin(globals.output_dir, task_id + "_" + start_time_s)
     apputils.create_dir_if_not_exists(task_output_dir)
 
-    commit_hash = get_current_commit_hash()
+    commit_hash = apputils.get_current_commit_hash()
 
     # save some meta data and other files for convenience
     meta = {
@@ -198,16 +196,6 @@ def run_one_task(task: Task) -> bool:
         return run_ok
 
 
-def get_current_commit_hash() -> str:
-    command = ["git", "rev-parse", "HEAD"]
-    cp = subprocess.run(command, text=True, capture_output=True)
-    try:
-        cp.check_returncode()
-        return cp.stdout.strip()
-    except CalledProcessError as e:
-        raise RuntimeError(f"Failed to get SHA-1 of HEAD: {cp.stderr}") from e
-
-
 def run_task_group(task_group_id: str, task_group_items: list[Task]) -> None:
     """
     Run all tasks in a task group sequentially.
@@ -256,11 +244,15 @@ def entry_swe_bench_mode(
     apputils.create_dir_if_not_exists(globals.output_dir)
 
     # Check if all task ids are in the setup and tasks map.
-    missing_task_ids = [x for x in all_task_ids if not (x in setup_map and x in tasks_map)]
+    missing_task_ids = [
+        x for x in all_task_ids if not (x in setup_map and x in tasks_map)
+    ]
     if missing_task_ids:
         # Log the tasks that are not in the setup or tasks map
         for task_id in sorted(missing_task_ids):
-            log.print_with_time(f"Skipping task {task_id} which was not found in setup or tasks map.")
+            log.print_with_time(
+                f"Skipping task {task_id} which was not found in setup or tasks map."
+            )
         # And drop them from the list of all task ids
         all_task_ids = filter(lambda x: x not in missing_task_ids, all_task_ids)
 
@@ -335,21 +327,40 @@ def entry_swe_bench_mode(
 
 
 def entry_fresh_issue_mode(
-    task_id: str, clone_link: str, commit_hash: str, issue_link: str, setup_dir: str
+    task_id: str,
+    clone_link: str,
+    commit_hash: str,
+    issue_link: str | None,
+    setup_dir: str,
+    local_repo: str,
+    issue_file: str | None,
 ):
     """
     Main entry for fresh issue mode.
     """
-    # create setup and output directories
-    apputils.create_dir_if_not_exists(setup_dir)
+    # let's decide whether we want the issue online, or from a local file
+    if not ((issue_link is None) ^ (issue_file is None)):
+        raise ValueError("Exactly one of issue-link or issue-file should be provided.")
+
+    # these are used by both web and local modes
     start_time = datetime.datetime.now()
     start_time_s = start_time.strftime("%Y-%m-%d_%H-%M-%S")
     task_output_dir = pjoin(globals.output_dir, task_id + "_" + start_time_s)
     apputils.create_dir_if_not_exists(task_output_dir)
 
-    fresh_task = FreshTask(
-        task_id, clone_link, commit_hash, issue_link, setup_dir, task_output_dir
-    )
+    if issue_link is not None:
+        # online issue
+        # create setup directory
+        apputils.create_dir_if_not_exists(setup_dir)
+        fresh_task = FreshTask.construct_from_online(
+            task_id, task_output_dir, clone_link, commit_hash, issue_link, setup_dir
+        )
+    else:
+        # local issue
+        fresh_task = FreshTask.construct_from_local(
+            task_id, task_output_dir, local_repo, issue_file
+        )
+
     logger = log.create_new_logger(task_id, task_output_dir)
     log.log_and_always_print(
         logger,
@@ -358,7 +369,10 @@ def entry_fresh_issue_mode(
 
     try:
         api_manager = ProjectApiManager(
-            task_id, fresh_task.project_dir, commit_hash, task_output_dir
+            task_id,
+            fresh_task.project_dir,
+            fresh_task.commit_hash,
+            fresh_task.task_output_dir,
         )
     except Exception as e:
         log.log_exception(logger, e)
@@ -387,11 +401,12 @@ def entry_fresh_issue_mode(
 
         input_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
         output_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
+        acr_commit = apputils.get_current_commit_hash()
         with open(pjoin(task_output_dir, "cost.json"), "w") as f:
             json.dump(
                 {
                     "model": globals.model,
-                    "commit": commit_hash,
+                    "commit": acr_commit,
                     "input_cost_per_token": input_cost_per_token,
                     "output_cost_per_token": output_cost_per_token,
                     "total_input_tokens": api_manager.input_tokens,
@@ -409,7 +424,7 @@ def entry_fresh_issue_mode(
 
         # at the end of each task, reset everything in the task repo to clean state
         with apputils.cd(fresh_task.project_dir):
-            apputils.repo_reset_and_clean_checkout(commit_hash, logger)
+            apputils.repo_reset_and_clean_checkout(fresh_task.commit_hash, logger)
         log.log_and_always_print(logger, run_status_message)
         final_patch_path = get_final_patch_path(task_output_dir)
         if final_patch_path is not None:
@@ -546,12 +561,13 @@ def main():
         help="Assign an id to the current fresh issue task.",
     )
     fresh_group.add_argument(
+        "--commit-hash", type=str, help="[Fresh issue] The commit hash to checkout."
+    )
+    # (1) for cloning repo and using a remote issue link
+    fresh_group.add_argument(
         "--clone-link",
         type=str,
         help="[Fresh issue] The link to the repository to clone.",
-    )
-    fresh_group.add_argument(
-        "--commit-hash", type=str, help="[Fresh issue] The commit hash to checkout."
     )
     fresh_group.add_argument(
         "--issue-link", type=str, help="[Fresh issue] The link to the issue."
@@ -560,6 +576,15 @@ def main():
         "--setup-dir",
         type=str,
         help="[Fresh issue] The directory where repositories should be cloned to.",
+    )
+    # (2) for using a local repo and local issue file
+    fresh_group.add_argument(
+        "--local-repo",
+        type=str,
+        help="[Fresh issue] Path to a local copy of the targer repo.",
+    )
+    fresh_group.add_argument(
+        "--issue-file", type=str, help="[Fresh issue] Path to a local issue file."
     )
 
     args = parser.parse_args()
@@ -598,6 +623,12 @@ def main():
     setup_dir = args.setup_dir
     if setup_dir is not None:
         setup_dir = apputils.convert_dir_to_absolute(setup_dir)
+    local_repo = args.local_repo
+    if local_repo is not None:
+        local_repo = apputils.convert_dir_to_absolute(local_repo)
+    issue_file = args.issue_file
+    if issue_file is not None:
+        issue_file = apputils.convert_dir_to_absolute(issue_file)
 
     ## Firstly deal with special modes
     if globals.only_save_sbfl_result and extract_patches is not None:
@@ -629,7 +660,13 @@ def main():
         )
     else:
         entry_fresh_issue_mode(
-            fresh_task_id, clone_link, commit_hash, issue_link, setup_dir
+            fresh_task_id,
+            clone_link,
+            commit_hash,
+            issue_link,
+            setup_dir,
+            local_repo,
+            issue_file,
         )
 
 
