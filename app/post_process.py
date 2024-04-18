@@ -458,8 +458,9 @@ def reextract_organize_and_form_inputs(expr_dir: str):
     Move individual experiment dirs out of the categories (applicable_patch, etc.),
     before extracting patches and organizng again.
     """
-    un_classify_expr_dir(expr_dir)
-    extract_diffs_and_organize_tasks(expr_dir)
+    abs_expr_dir = os.path.abspath(expr_dir)
+    un_classify_expr_dir(abs_expr_dir)
+    extract_diffs_and_organize_tasks(abs_expr_dir)
 
 
 def un_classify_expr_dir(expr_dir: str):
@@ -481,9 +482,9 @@ def extract_organize_and_form_input(expr_dir):
     Args:
         - expr_dir: the overall experiment directory.
     """
-    extract_diffs_and_organize_tasks(expr_dir)
-    swe_input_file = extract_swe_bench_input(expr_dir)
-    return swe_input_file
+    abs_expr_dir = os.path.abspath(expr_dir)
+    extract_diffs_and_organize_tasks(abs_expr_dir)
+    extract_swe_bench_input(abs_expr_dir)
 
 
 def organize_and_form_input(expr_dir):

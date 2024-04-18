@@ -2,13 +2,14 @@
 The main driver.
 """
 
-import argparse
 import json
 import subprocess
+from argparse import ArgumentParser
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from itertools import chain
+from os.path import abspath
 from os.path import join as pjoin
 from subprocess import CalledProcessError
 
@@ -39,25 +40,131 @@ def get_current_commit_hash() -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    ## Common options
-    # where to store run results
-    parser.add_argument(
-        "--mode",
-        default="swe_bench",
-        choices=["swe_bench", "fresh_issue"],
-        help="Choose to run tasks in SWE-bench, or a fresh issue from the internet.",
+    parser = ArgumentParser()
+
+    subparser_dest_attr_name = "command"
+    subparsers = parser.add_subparsers(dest=subparser_dest_attr_name)
+
+    swe_parser = subparsers.add_parser(
+        "swe-bench", help="Run one or multiple swe-bench tasks"
     )
+    set_swe_parser_args(swe_parser)
+
+    github_parser = subparsers.add_parser(
+        "github-issue",
+        help="Run an online github issue",
+    )
+    set_github_parser_args(github_parser)
+
+    extract_patches_parser = subparsers.add_parser(
+        "extract-patches", help="Only extract patches from the raw results dir"
+    )
+    extract_patches_parser.add_argument("experiment-dir", type=str)
+
+    re_extract_patches_parser = subparsers.add_parser(
+        "re-extract-patches",
+        help=(
+            "same as extract-patches, except that individual dirs"
+            " are moved out of their categories first"
+        ),
+    )
+    re_extract_patches_parser.add_argument("experiment-dir", type=str)
+
+    args = parser.parse_args()
+
+    ## common options
+    globals.output_dir = args.output_dir
+    if globals.output_dir is not None:
+        globals.output_dir = abspath(globals.output_dir)
+    num_processes: int = int(args.num_processes)
+    # set whether brief or verbose log
+    print_stdout: bool = not args.no_print
+    log.print_stdout = print_stdout
+    globals.model = args.model
+    globals.model_temperature = args.model_temperature
+    globals.conv_round_limit = args.conv_round_limit
+    globals.enable_layered = args.enable_layered
+    globals.enable_sbfl = args.enable_sbfl
+    globals.enable_validation = args.enable_validation
+    globals.enable_angelic = args.enable_angelic
+    globals.enable_perfect_angelic = args.enable_perfect_angelic
+    globals.only_save_sbfl_result = args.save_sbfl_result
+
+    subcommand = getattr(args, subparser_dest_attr_name)
+    if subcommand == "swe-bench":
+        tasks = make_swe_tasks(
+            args.task, args.task_list_file, args.setup_map, args.tasks_map
+        )
+
+        groups = group_swe_tasks_by_env(tasks)
+        run_task_groups(groups, num_processes)
+    elif subcommand == "github-issue":
+        setup_dir = args.setup_dir
+        if setup_dir is not None:
+            setup_dir = abspath(setup_dir)
+
+        task = RawGithubTask(
+            args.fresh_task_id,
+            args.clone_link,
+            args.commit_hash,
+            args.issue_link,
+            args.setup_dir,
+        )
+        groups = {"github": [task]}
+        run_task_groups(groups, num_processes)
+    elif subcommand == "extract-patches":
+        extract_organize_and_form_input(args.experiment_dir)
+    elif subcommand == "re-extract-patches":
+        reextract_organize_and_form_inputs(args.experiment_dir)
+
+
+def set_swe_parser_args(parser: ArgumentParser) -> None:
+    add_task_related_args(parser)
+
+    parser.add_argument(
+        "--setup-map",
+        type=str,
+        help="Path to json file that contains the setup information of the projects.",
+    )
+    parser.add_argument(
+        "--tasks-map",
+        type=str,
+        help="Path to json file that contains the tasks information.",
+    )
+    parser.add_argument(
+        "--task-list-file",
+        type=str,
+        help="Path to the file that contains all tasks ids to be run.",
+    )
+    parser.add_argument("--task", type=str, help="Task id to be run.")
+
+
+def set_github_parser_args(parser: ArgumentParser) -> None:
+    add_task_related_args(parser)
+    parser.add_argument(
+        "--task-id",
+        type=str,
+        help="Assign an id to the current fresh issue task.",
+    )
+    parser.add_argument(
+        "--clone-link",
+        type=str,
+        help="The link to the repository to clone.",
+    )
+    parser.add_argument("--commit-hash", type=str, help="The commit hash to checkout.")
+    parser.add_argument("--issue-link", type=str, help="The link to the issue.")
+    parser.add_argument(
+        "--setup-dir",
+        type=str,
+        help="The directory where repositories should be cloned to.",
+    )
+
+
+def add_task_related_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
         help="Path to the directory that stores the run results.",
-    )
-    parser.add_argument(
-        "--num-processes",
-        type=str,
-        default=1,
-        help="Number of processes to run the tasks in parallel.",
     )
     parser.add_argument(
         "--no-print",
@@ -85,161 +192,44 @@ def main():
         help="Conversation round limit for the main agent.",
     )
     parser.add_argument(
-        "--extract-patches",
-        type=str,
-        help="Only extract patches from the raw results dir. Voids all other arguments if this is used.",
-    )
-    parser.add_argument(
-        "--re-extract-patches",
-        type=str,
-        help="same as --extract-patches, except that individual dirs are moved out of their categories first",
-    )
-    parser.add_argument(
         "--enable-layered",
         action="store_true",
         default=True,
         help="Enable layered code search.",
     )
-
-    swe_group = parser.add_argument_group(
-        "swe_bench", description="Arguments for running on SWE-bench tasks."
-    )
-    ## task info when running instances in SWE-bench
-    swe_group.add_argument(
-        "--setup-map",
-        type=str,
-        help="Path to json file that contains the setup information of the projects.",
-    )
-    swe_group.add_argument(
-        "--tasks-map",
-        type=str,
-        help="Path to json file that contains the tasks information.",
-    )
-    swe_group.add_argument(
-        "--task-list-file",
-        type=str,
-        help="Path to the file that contains all tasks ids to be run.",
-    )
-    swe_group.add_argument("--task", type=str, help="Task id to be run.")
-    ## Only support test-based options for SWE-bench tasks for now
-    swe_group.add_argument(
+    parser.add_argument(
         "--enable-sbfl", action="store_true", default=False, help="Enable SBFL."
     )
-    swe_group.add_argument(
+    parser.add_argument(
         "--enable-validation",
         action="store_true",
         default=False,
         help="Enable validation in our workflow.",
     )
-    swe_group.add_argument(
+    parser.add_argument(
         "--enable-angelic",
         action="store_true",
         default=False,
         help="(Experimental) Enable angelic debugging",
     )
-    swe_group.add_argument(
+    parser.add_argument(
         "--enable-perfect-angelic",
         action="store_true",
         default=False,
         help="(Experimental) Enable perfect angelic debugging; overrides --enable-angelic",
     )
-    swe_group.add_argument(
+    parser.add_argument(
         "--save-sbfl-result",
         action="store_true",
         default=False,
         help="Special mode to only save SBFL results for future runs.",
     )
-
-    fresh_group = parser.add_argument_group(
-        "fresh_issue",
-        description="Arguments for running on fresh issues from the internet.",
-    )
-    ## task info when running on new issues from GitHub
-    fresh_group.add_argument(
-        "--fresh-task-id",
+    parser.add_argument(
+        "--num-processes",
         type=str,
-        help="Assign an id to the current fresh issue task.",
+        default=1,
+        help="Number of processes to run the tasks in parallel.",
     )
-    fresh_group.add_argument(
-        "--clone-link",
-        type=str,
-        help="[Fresh issue] The link to the repository to clone.",
-    )
-    fresh_group.add_argument(
-        "--commit-hash", type=str, help="[Fresh issue] The commit hash to checkout."
-    )
-    fresh_group.add_argument(
-        "--issue-link", type=str, help="[Fresh issue] The link to the issue."
-    )
-    fresh_group.add_argument(
-        "--setup-dir",
-        type=str,
-        help="[Fresh issue] The directory where repositories should be cloned to.",
-    )
-
-    args = parser.parse_args()
-    ## common options
-    mode = args.mode
-    globals.output_dir = args.output_dir
-    if globals.output_dir is not None:
-        globals.output_dir = apputils.convert_dir_to_absolute(globals.output_dir)
-    num_processes: int = int(args.num_processes)
-    # set whether brief or verbose log
-    print_stdout: bool = not args.no_print
-    log.print_stdout = print_stdout
-    globals.model = args.model
-    globals.model_temperature = args.model_temperature
-    globals.conv_round_limit = args.conv_round_limit
-    extract_patches: str | None = args.extract_patches
-    re_extract_patches: str | None = args.re_extract_patches
-    globals.enable_layered = args.enable_layered
-
-    ## options for swe-bench mode
-    setup_map_file = args.setup_map
-    tasks_map_file = args.tasks_map
-    task_list_file: str | None = args.task_list_file
-    task_id: str | None = args.task
-    globals.enable_sbfl = args.enable_sbfl
-    globals.enable_validation = args.enable_validation
-    globals.enable_angelic = args.enable_angelic
-    globals.enable_perfect_angelic = args.enable_perfect_angelic
-    globals.only_save_sbfl_result = args.save_sbfl_result
-
-    ## options for fresh_issue mode
-    fresh_task_id = args.fresh_task_id
-    clone_link = args.clone_link
-    commit_hash = args.commit_hash
-    issue_link = args.issue_link
-    setup_dir = args.setup_dir
-    if setup_dir is not None:
-        setup_dir = apputils.convert_dir_to_absolute(setup_dir)
-
-    ## Firstly deal with special modes
-    if globals.only_save_sbfl_result and extract_patches is not None:
-        raise ValueError(
-            "Cannot save SBFL result and extract patches at the same time."
-        )
-
-    # special mode 1: extract patch, for this we can early exit
-    if re_extract_patches is not None:
-        extract_patches = apputils.convert_dir_to_absolute(re_extract_patches)
-        reextract_organize_and_form_inputs(re_extract_patches)
-        return
-
-    if extract_patches is not None:
-        extract_patches = apputils.convert_dir_to_absolute(extract_patches)
-        extract_organize_and_form_input(extract_patches)
-        return
-
-    if mode == "swe_bench":
-        tasks = make_swe_tasks(task_id, task_list_file, setup_map_file, tasks_map_file)
-        groups = group_swe_tasks_by_env(tasks)
-    else:
-        task = RawGithubTask(
-            fresh_task_id, clone_link, commit_hash, issue_link, setup_dir
-        )
-        groups = {"github": [task]}
-    run_task_groups(groups, num_processes)
 
 
 def make_swe_tasks(
@@ -498,5 +488,18 @@ def dump_cost(
 
 
 if __name__ == "__main__":
+    # from app.raw_tasks import RawJavaTask
+    #
+    # task = RawJavaTask(
+    #     "time-4b",
+    #     "/home/crhf/projects/reverse-prompt/acr-private/java-projects/time-4b/",
+    #     "HEAD",
+    #     "/tmp/a.txt",
+    # )
+    # globals.enable_layered = True
+    # globals.enable_sbfl = True
+    # globals.only_save_sbfl_result = True
+    # run_raw_task(task)
+
     logger.remove()
     main()

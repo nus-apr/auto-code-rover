@@ -164,17 +164,6 @@ def create_dir_if_not_exists(dir_path: str):
         os.makedirs(dir_path)
 
 
-def convert_dir_to_absolute(dir_path: str) -> str:
-    """
-    Convert a (potentially) relative path to an absolute path.
-    Args:
-        dir_path (str): Path to the directory. Can be relative or absolute.
-    Returns:
-        str: Absolute path to the directory.
-    """
-    return os.path.abspath(dir_path)
-
-
 def to_relative_path(file_path: str, project_root: str) -> str:
     """Convert an absolute path to a path relative to the project root.
 
