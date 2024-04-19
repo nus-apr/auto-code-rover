@@ -75,7 +75,7 @@ Build and start the docker image:
 
 ```
 docker build -f Dockerfile -t acr .
-docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr 
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
 ```
 
 Dockerfile.scratch will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.  That supports arm64 (Apple silicon) and ppc in addition to amd64.
@@ -115,6 +115,13 @@ PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --setup-d
 The `<task id>` can be any string used to identify this issue.
 
 If patch generation is successful, the path to the generated patch will be printed in the end.
+
+Instead of cloning a remote project and run ACR on an online issue, you can also prepare the local repository and issue beforehand,
+if that suits the use case. For running ACR on a local issue and local codebase, do
+
+```
+PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
+```
 
 
 ### (SWE-bench mode) Set up and run on SWE-bench tasks
