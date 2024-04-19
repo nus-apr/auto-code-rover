@@ -116,6 +116,9 @@ def record_extract_status(individual_expr_dir: str, extract_status: ExtractStatu
 def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
     """
     Read extract status from file. If there are multiple status recorded, read the best one.
+    Returns:
+        - The best extract status
+        - The index of the best status in the list of all statuses. (0-based)
     """
     # we should read from the all the record
     record_file = pjoin(individual_expr_dir, "extract_status.json")
@@ -140,7 +143,7 @@ def get_final_patch_path(individual_expr_dir: str) -> str | None:
     on the patch extraction history.
     """
     _, best_index = read_extract_status(individual_expr_dir)
-    best_patch_name = f"extracted_patch_{best_index+1}.diff"
+    best_patch_name = f"extracted_patch_{best_index + 1}.diff"
     final_patch_path = pjoin(individual_expr_dir, best_patch_name)
 
     if not os.path.isfile(final_patch_path):

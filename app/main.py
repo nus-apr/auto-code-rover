@@ -3,7 +3,6 @@ The main driver.
 """
 
 import json
-import subprocess
 from argparse import ArgumentParser
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -11,7 +10,6 @@ from datetime import datetime
 from itertools import chain
 from os.path import abspath
 from os.path import join as pjoin
-from subprocess import CalledProcessError
 
 from loguru import logger
 
@@ -27,16 +25,6 @@ from app.post_process import (
 )
 from app.raw_tasks import RawGithubTask, RawSweTask, RawTask
 from app.task import Task
-
-
-def get_current_commit_hash() -> str:
-    command = ["git", "rev-parse", "HEAD"]
-    cp = subprocess.run(command, text=True, capture_output=True)
-    try:
-        cp.check_returncode()
-        return cp.stdout.strip()
-    except CalledProcessError as e:
-        raise RuntimeError(f"Failed to get SHA-1 of HEAD: {cp.stderr}") from e
 
 
 def main():
@@ -254,9 +242,20 @@ def make_swe_tasks(
     with open(tasks_map_file) as f:
         tasks_map = json.load(f)
 
+    # Check if all task ids are in the setup and tasks map
+    # This allows failing safely if some tasks are not set up properly
+    missing_task_ids = [x for x in all_task_ids if not (x in setup_map and x in tasks_map)]
+    if missing_task_ids:
+        # Log the tasks that are not in the setup or tasks map
+        for task_id in sorted(missing_task_ids):
+            log.print_with_time(f"Skipping task {task_id} which was not found in setup or tasks map.")
+        # And drop them from the list of all task ids
+        all_task_ids = filter(lambda x: x not in missing_task_ids, all_task_ids)
+
+    all_task_ids = sorted(all_task_ids)
+
     # for each task in the list to run, create a Task instance
     all_tasks = []
-    all_task_ids = sorted(all_task_ids)
     for task_id in all_task_ids:
         setup_info = setup_map[task_id]
         task_info = tasks_map[task_id]
@@ -471,7 +470,7 @@ def dump_cost(
         json.dump(
             {
                 "model": globals.model,
-                "commit": get_current_commit_hash(),
+                "commit": apputils.get_current_commit_hash(),
                 "input_cost_per_token": input_cost_per_token,
                 "output_cost_per_token": output_cost_per_token,
                 "total_input_tokens": gpt.total_input_tokens,
@@ -488,18 +487,5 @@ def dump_cost(
 
 
 if __name__ == "__main__":
-    # from app.raw_tasks import RawJavaTask
-    #
-    # task = RawJavaTask(
-    #     "time-4b",
-    #     "/home/crhf/projects/reverse-prompt/acr-private/java-projects/time-4b/",
-    #     "HEAD",
-    #     "/tmp/a.txt",
-    # )
-    # globals.enable_layered = True
-    # globals.enable_sbfl = True
-    # globals.only_save_sbfl_result = True
-    # run_raw_task(task)
-
     logger.remove()
     main()

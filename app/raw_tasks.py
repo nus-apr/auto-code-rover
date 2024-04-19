@@ -133,7 +133,7 @@ class RawGithubTask(RawTask):
 
         title, body, created_at = retrieved_issue
 
-        problem_statement = title + "\n" + body
+        problem_statement = f"{title}\n{body}"
 
         return problem_statement, created_at
 

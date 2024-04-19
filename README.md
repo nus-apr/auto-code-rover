@@ -33,7 +33,7 @@ AutoCodeRover has two unique features:
 
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427">
-    <img src="https://github.com/nus-apr/auto-code-rover/assets/48704330/3d42a873-dd9f-41f3-ae09-eba477db2420" alt="First page of arXiv paper" width="570">
+    <img src="https://github.com/nus-apr/auto-code-rover/assets/48704330/c6422951-a6e8-4494-9403-b5ada3d9ee7d" alt="First page of arXiv paper" width="570">
   </a>
 </p>
 
@@ -64,20 +64,72 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/26c9d5d4-04e0-4b98-be
 ## 🚀 Setup & Running
 
 We recommend running AutoCodeRover in a Docker container.
-First of all, build and start the docker image:
+
+Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+
+```
+export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
+```
+
+Build and start the docker image:
 
 ```
 docker build -f Dockerfile -t acr .
-docker run -it acr
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
 ```
 
-In the docker container, set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
+Dockerfile.scratch will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.  That supports arm64 (Apple silicon) and ppc in addition to amd64.
 
 ```
-export OPENAI_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+docker build -f Dockerfile.scratch -t acr .
 ```
 
-### Set up one or more tasks in SWE-bench
+There are build args for customizing the build like this:
+
+```
+docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
+       --build-arg SWE_BENCH_REPO=https://github.com/your_id/SWE-bench.git \
+       -f Dockerfile.scratch -t acr .
+```
+
+### (Fresh issue mode) Set up and run on new GitHub issues
+
+> [!NOTE]
+> This section is for running AutoCodeRover on new GitHub issues. For running it on SWE-bench tasks, refer to [SWE-bench mode](#swe-bench-mode-set-up-and-run-on-swe-bench-tasks).
+
+If you want to use AutoCodeRover for new GitHub issues in a project, prepare the following:
+
+- Link to clone the project (used for `git clone ...`).
+- Commit hash of the project version for AutoCodeRover to work on (used for `git checkout ...`).
+- Link to the GitHub issue page.
+
+Then, in the docker container (or your local copy of AutoCodeRover), run the following commands to set up the target project
+and generate patch:
+
+```
+cd /opt/auto-code-rover
+conda activate auto-code-rover
+PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
+```
+
+The `<task id>` can be any string used to identify this issue.
+
+If patch generation is successful, the path to the generated patch will be printed in the end.
+
+Instead of cloning a remote project and run ACR on an online issue, you can also prepare the local repository and issue beforehand,
+if that suits the use case. For running ACR on a local issue and local codebase, do
+
+```
+PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
+```
+
+
+### (SWE-bench mode) Set up and run on SWE-bench tasks
+
+> [!NOTE]
+> This section is for running AutoCodeRover on SWE-bench tasks. For running it on new GitHub issues, refer to [Fresh issue mode](#fresh-issue-mode-set-up-and-run-on-new-github-issues).
+
+#### Set up
 
 In the docker container, we need to first set up the tasks to run in SWE-bench (e.g., `django__django-11133`). The list of all tasks can be found in [`conf/swe_lite_tasks.txt`](conf/swe_lite_tasks.txt).
 
@@ -86,6 +138,12 @@ The tasks need to be put in a file, one per line:
 ```
 cd /opt/SWE-bench
 echo django__django-11133 > tasks.txt
+```
+
+Or if running on arm64 (e.g. Apple silicon), try this one which doesn't depend on Python 3.6 (which isn't supported in this env):
+
+```
+echo django__django-16041 > tasks.txt
 ```
 
 Then, set up these tasks by running:
@@ -108,7 +166,7 @@ A conda environment will also be created for this task instance.
 
 _If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
 
-### Run a single task
+#### Run a single task
 
 Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
 
@@ -120,12 +178,14 @@ PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --se
 
 The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
 
-### Run multiple tasks
+#### Run multiple tasks
 
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
 ```
-PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file tasks.txt
+cd /opt/auto-code-rover
+conda activate auto-code-rover
+PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).

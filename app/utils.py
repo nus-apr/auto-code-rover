@@ -6,6 +6,7 @@ import subprocess
 from os.path import dirname as pdirname
 from os.path import join as pjoin
 from pathlib import Path
+from subprocess import CalledProcessError
 
 from app.log import log_and_print
 
@@ -37,6 +38,59 @@ def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
         log_and_print(f"Error running command: {cmd}, {e}")
         raise e
     return cp
+
+
+def is_git_repo() -> bool:
+    """
+    Check if the current directory is a git repo.
+    """
+    git_dir = ".git"
+    return os.path.isdir(git_dir)
+
+
+def initialize_git_repo_and_commit(logger=None):
+    """
+    Initialize the current directory as a git repository and make an initial commit.
+    """
+    init_cmd = ["git", "init"]
+    add_all_cmd = ["git", "add", "."]
+    commit_cmd = ["git", "commit", "-m", "Temp commit made by ACR."]
+    run_command(logger, init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(
+        logger, add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    run_command(
+        logger, commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+
+def get_current_commit_hash() -> str:
+    command = ["git", "rev-parse", "HEAD"]
+    cp = subprocess.run(command, text=True, capture_output=True)
+    try:
+        cp.check_returncode()
+        return cp.stdout.strip()
+    except CalledProcessError as e:
+        raise RuntimeError(f"Failed to get SHA-1 of HEAD: {cp.stderr}") from e
+
+
+def clone_repo_and_checkout(
+    clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
+):
+    """
+    Clone a repo to dest_dir, and checkout to commit `commit_hash`.
+
+    Returns:
+        - path to the newly cloned directory.
+    """
+    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    checkout_cmd = ["git", "checkout", commit_hash]
+    with cd(dest_dir):
+        run_command(None, clone_cmd)
+    cloned_dir = pjoin(dest_dir, cloned_name)
+    with cd(cloned_dir):
+        run_command(None, checkout_cmd)
+    return cloned_dir
 
 
 def repo_commit_current_changes():

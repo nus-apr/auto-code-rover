@@ -158,6 +158,7 @@ def parse_python_file(file_full_path: str) -> tuple[list, dict, list] | None:
             # line numbers are 1-based
             classes.append((class_name, start_lineno, end_lineno))
 
+            ## class part (2): collect function info inside this class
             class_funcs = [
                 (n.name, n.lineno, n.end_lineno)
                 for n in ast.walk(node)
