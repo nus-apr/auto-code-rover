@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from os.path import join as pjoin
-from pathlib import Path
 from tempfile import mkstemp
 
 import app.utils as apputils
@@ -285,7 +283,11 @@ class SweTask(Task):
 
 
 @dataclass(kw_only=True)
-class GithubTask(Task):
+class PlainTask(Task):
+    """
+    Tasks that only contain a codebase and an issue descripion (no test suite).
+    """
+
     clone_link: str
     commit_hash: str
     clone_path: str
@@ -296,21 +298,8 @@ class GithubTask(Task):
         return self.clone_path
 
     def setup_project(self) -> None:
-        project_path = Path(self.project_path)
-        if os.path.exists(project_path):
-            log_and_print(
-                f"Path {project_path} already exists. Removing it to get a fresh clone."
-            )
-            shutil.rmtree(project_path)
-
-        apputils.clone_repo_and_checkout(
-            self.clone_link,
-            self.commit_hash,
-            str(project_path.parent),
-            project_path.name,
-        )
-
-        log_and_print(f"Cloned source code to {project_path}.")
+        with apputils.cd(self.project_path):
+            apputils.repo_reset_and_clean_checkout(self.commit_hash)
 
     def reset_project(self) -> None:
         with apputils.cd(self.project_path):

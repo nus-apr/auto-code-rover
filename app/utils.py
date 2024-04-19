@@ -74,25 +74,6 @@ def get_current_commit_hash() -> str:
         raise RuntimeError(f"Failed to get SHA-1 of HEAD: {cp.stderr}") from e
 
 
-def clone_repo_and_checkout(
-    clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
-):
-    """
-    Clone a repo to dest_dir, and checkout to commit `commit_hash`.
-
-    Returns:
-        - path to the newly cloned directory.
-    """
-    clone_cmd = ["git", "clone", clone_link, cloned_name]
-    checkout_cmd = ["git", "checkout", commit_hash]
-    with cd(dest_dir):
-        run_command(None, clone_cmd)
-    cloned_dir = pjoin(dest_dir, cloned_name)
-    with cd(cloned_dir):
-        run_command(None, checkout_cmd)
-    return cloned_dir
-
-
 def repo_commit_current_changes():
     """
     Commit the current active changes so that it's safer to do git reset later on.
@@ -104,6 +85,21 @@ def repo_commit_current_changes():
     run_command(commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def clone_repo(clone_link: str, dest_dir: str, cloned_name: str):
+    """
+    Clone a repo to dest_dir.
+
+    Returns:
+        - path to the newly cloned directory.
+    """
+    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    create_dir_if_not_exists(dest_dir)
+    with cd(dest_dir):
+        run_command(clone_cmd)
+    cloned_dir = pjoin(dest_dir, cloned_name)
+    return cloned_dir
+
+
 def clone_repo_and_checkout(
     clone_link: str, commit_hash: str, dest_dir: str, cloned_name: str
 ):
@@ -113,12 +109,8 @@ def clone_repo_and_checkout(
     Returns:
         - path to the newly cloned directory.
     """
-    clone_cmd = ["git", "clone", clone_link, cloned_name]
+    cloned_dir = clone_repo(clone_link, dest_dir, cloned_name)
     checkout_cmd = ["git", "checkout", commit_hash]
-    create_dir_if_not_exists(dest_dir)
-    with cd(dest_dir):
-        run_command(clone_cmd)
-    cloned_dir = pjoin(dest_dir, cloned_name)
     with cd(cloned_dir):
         run_command(checkout_cmd)
     return cloned_dir

@@ -1,10 +1,15 @@
 import json
+import os
+import shutil
 from abc import ABC, abstractmethod
 from os.path import join as pjoin
+from pathlib import Path
 
 import requests
 
-from app.task import GithubTask, SweTask, Task
+from app import utils as app_utils
+from app.log import log_and_print
+from app.task import PlainTask, SweTask, Task
 
 
 class RawTask(ABC):
@@ -97,10 +102,21 @@ class RawGithubTask(RawTask):
         self.setup_dir = setup_dir
         self.clone_path = pjoin(self.setup_dir, self.task_id)
         self.problem_statement, self.created_at = self.fetch_issue()
+        self.clone_repo()
 
     @property
     def task_id(self) -> str:
         return self._task_id
+
+    def clone_repo(self):
+        clone_path = Path(self.clone_path)
+        if os.path.exists(clone_path):
+            log_and_print(
+                f"Path {clone_path} already exists. Removing it to get a fresh clone."
+            )
+            shutil.rmtree(clone_path)
+        app_utils.clone_repo(self.clone_link, str(clone_path.parent), clone_path.name)
+        log_and_print(f"Cloned source code to {clone_path}.")
 
     def dump_meta_data(self, output_dir: str):
         meta = {
@@ -161,8 +177,8 @@ class RawGithubTask(RawTask):
 
         return title, body, created_at
 
-    def to_task(self) -> GithubTask:
-        return GithubTask(
+    def to_task(self) -> PlainTask:
+        return PlainTask(
             clone_link=self.clone_link,
             commit_hash=self.commit_hash,
             clone_path=self.clone_path,
