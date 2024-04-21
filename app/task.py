@@ -288,14 +288,9 @@ class PlainTask(Task):
     Tasks that only contain a codebase and an issue descripion (no test suite).
     """
 
-    clone_link: str
     commit_hash: str
-    clone_path: str
+    project_path: str
     problem_statement: str
-
-    @property
-    def project_path(self) -> str:
-        return self.clone_path
 
     def setup_project(self) -> None:
         with apputils.cd(self.project_path):

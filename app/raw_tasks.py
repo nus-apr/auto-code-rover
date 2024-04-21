@@ -179,8 +179,57 @@ class RawGithubTask(RawTask):
 
     def to_task(self) -> PlainTask:
         return PlainTask(
-            clone_link=self.clone_link,
             commit_hash=self.commit_hash,
-            clone_path=self.clone_path,
+            project_path=self.clone_path,
+            problem_statement=self.problem_statement,
+        )
+
+
+class RawLocalTask(RawTask):
+    """
+    Encapsulate everything required to run ACR on a local issue on the disk.
+    """
+
+    def __init__(self, task_id: str, local_repo: str, issue_file: str):
+        self._task_id = task_id
+        self.local_repo = local_repo
+        self.issue_file = issue_file
+        self.commit_hash = self.init_local_repo()
+        self.problem_statement = self.read_issue_from_file()
+
+    def init_local_repo(self):
+        with app_utils.cd(self.local_repo):
+            if not app_utils.is_git_repo():
+                # non git repo - let's make it a git repo first
+                app_utils.initialize_git_repo_and_commit()
+            commit = app_utils.get_current_commit_hash()
+        return commit
+
+    def read_issue_from_file(self) -> str:
+        # ignore encoding errors so at least we can have some issue content
+        issue = Path(self.issue_file).read_text(errors="ignore")
+        return issue
+
+    def dump_meta_data(self, output_dir: str):
+        meta = {
+            "task_info": {
+                "base_commit": self.commit_hash,
+                "problem_statement": self.problem_statement,
+                "instance_id": self.task_id,
+            },
+            "setup_info": {
+                "repo_path": self.local_repo,
+            },
+        }
+
+        meta_file = pjoin(output_dir, "meta.json")
+
+        with open(meta_file, "w") as f:
+            json.dump(meta, f, indent=4)
+
+    def to_task(self) -> PlainTask:
+        return PlainTask(
+            commit_hash=self.commit_hash,
+            project_path=self.local_repo,
             problem_statement=self.problem_statement,
         )

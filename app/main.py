@@ -23,7 +23,7 @@ from app.post_process import (
     organize_and_form_input,
     reextract_organize_and_form_inputs,
 )
-from app.raw_tasks import RawGithubTask, RawSweTask, RawTask
+from app.raw_tasks import RawGithubTask, RawLocalTask, RawSweTask, RawTask
 from app.task import Task
 
 
@@ -43,6 +43,9 @@ def main():
         help="Run an online github issue",
     )
     set_github_parser_args(github_parser)
+
+    local_parser = subparsers.add_parser("local-issue", help="Run a local issue.")
+    set_local_parser_args(local_parser)
 
     extract_patches_parser = subparsers.add_parser(
         "extract-patches", help="Only extract patches from the raw results dir"
@@ -100,6 +103,20 @@ def main():
         )
         groups = {"github": [task]}
         run_task_groups(groups, num_processes)
+    elif subcommand == "local-issue":
+        local_repo = args.local_repo
+        if local_repo is not None:
+            local_repo = abspath(local_repo)
+        issue_file = args.issue_file
+        if issue_file is not None:
+            issue_file = abspath(issue_file)
+        task = RawLocalTask(
+            args.task_id,
+            local_repo,
+            issue_file,
+        )
+        groups = {"local": [task]}
+        run_task_groups(groups, num_processes)
     elif subcommand == "extract-patches":
         extract_organize_and_form_input(args.experiment_dir)
     elif subcommand == "re-extract-patches":
@@ -146,6 +163,17 @@ def set_github_parser_args(parser: ArgumentParser) -> None:
         type=str,
         help="The directory where repositories should be cloned to.",
     )
+
+
+def set_local_parser_args(parser: ArgumentParser) -> None:
+    add_task_related_args(parser)
+    parser.add_argument(
+        "--task-id", type=str, help="Assign an id to the current local issue task."
+    )
+    parser.add_argument(
+        "--local-repo", type=str, help="Path to a local copy of the target repo."
+    )
+    parser.add_argument("--issue-file", type=str, help="Path to a local issue file.")
 
 
 def add_task_related_args(parser: ArgumentParser) -> None:
@@ -244,11 +272,15 @@ def make_swe_tasks(
 
     # Check if all task ids are in the setup and tasks map
     # This allows failing safely if some tasks are not set up properly
-    missing_task_ids = [x for x in all_task_ids if not (x in setup_map and x in tasks_map)]
+    missing_task_ids = [
+        x for x in all_task_ids if not (x in setup_map and x in tasks_map)
+    ]
     if missing_task_ids:
         # Log the tasks that are not in the setup or tasks map
         for task_id in sorted(missing_task_ids):
-            log.print_with_time(f"Skipping task {task_id} which was not found in setup or tasks map.")
+            log.print_with_time(
+                f"Skipping task {task_id} which was not found in setup or tasks map."
+            )
         # And drop them from the list of all task ids
         all_task_ids = filter(lambda x: x not in missing_task_ids, all_task_ids)
 
@@ -289,7 +321,7 @@ def run_task_groups(
     num_processes: int,
 ):
     """
-    Main entry for swe-bench mode.
+    Main entry for running tasks.
     """
     all_tasks = list(chain.from_iterable(task_groups.values()))
     num_tasks = len(all_tasks)
