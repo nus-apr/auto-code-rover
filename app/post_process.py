@@ -125,14 +125,15 @@ def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
     if not os.path.isfile(record_file):
         # if no status file is written, means that we did not even
         # reach the state of extracting patches
-        return ExtractStatus.NO_PATCH
+        return ExtractStatus.NO_PATCH, -1
     with open(record_file) as f:
         record = json.load(f)
     # convert string to enum type
     all_status = [ExtractStatus(s) for s in record["extract_status"]]
+
     best_status = ExtractStatus.max(all_status)
-    idx = all_status.index(best_status)
-    return best_status, idx
+    best_idx = all_status.index(best_status)
+    return best_status, best_idx
 
 
 def get_final_patch_path(individual_expr_dir: str) -> str | None:
@@ -144,10 +145,11 @@ def get_final_patch_path(individual_expr_dir: str) -> str | None:
     _, best_index = read_extract_status(individual_expr_dir)
     best_patch_name = f"extracted_patch_{best_index + 1}.diff"
     final_patch_path = pjoin(individual_expr_dir, best_patch_name)
-    if os.path.isfile(final_patch_path):
-        return final_patch_path
-    else:
+
+    if not os.path.isfile(final_patch_path):
         return None
+
+    return final_patch_path
 
 
 def extract_diff_one_instance(
@@ -239,7 +241,7 @@ def extract_diff_one_instance(
         # at this point, at least some of the edits could be applied (some others may be unmatched)
         # we first try to get the diff
         diff = apputils.run_command(
-            None, ["git", "diff"], stdout=subprocess.PIPE
+            ["git", "diff"], stdout=subprocess.PIPE
         ).stdout.decode()
 
         # After extracting diff, we have nothing more to do in the actual code base
@@ -459,8 +461,9 @@ def reextract_organize_and_form_inputs(expr_dir: str):
     Move individual experiment dirs out of the categories (applicable_patch, etc.),
     before extracting patches and organizng again.
     """
-    un_classify_expr_dir(expr_dir)
-    extract_diffs_and_organize_tasks(expr_dir)
+    abs_expr_dir = os.path.abspath(expr_dir)
+    un_classify_expr_dir(abs_expr_dir)
+    extract_diffs_and_organize_tasks(abs_expr_dir)
 
 
 def un_classify_expr_dir(expr_dir: str):
@@ -482,9 +485,9 @@ def extract_organize_and_form_input(expr_dir):
     Args:
         - expr_dir: the overall experiment directory.
     """
-    extract_diffs_and_organize_tasks(expr_dir)
-    swe_input_file = extract_swe_bench_input(expr_dir)
-    return swe_input_file
+    abs_expr_dir = os.path.abspath(expr_dir)
+    extract_diffs_and_organize_tasks(abs_expr_dir)
+    extract_swe_bench_input(abs_expr_dir)
 
 
 def organize_and_form_input(expr_dir):

@@ -6,6 +6,11 @@
   <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
 </p>
 
+
+## 📣 Updates
+
+- [April 19, 2024] AutoCodeRover now supports running on [GitHub issues](#github-issue-mode-set-up-and-run-on-new-github-issues) and [local issues](#local-issue-mode-set-up-and-run-on-local-repositories-and-local-issues)! Feel free to try it out and we welcome your feedback!
+
 ## 👋 Overview
 
 AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fixing and feature addition) where LLMs are combined with analysis and debugging capabilities to prioritize patch locations ultimately leading to a patch.
@@ -78,13 +83,14 @@ docker build -f Dockerfile -t acr .
 docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
 ```
 
-Dockerfile.scratch will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.  That supports arm64 (Apple silicon) and ppc in addition to amd64.
+Alternatively, you can use `Dockerfile.scratch` which supports arm64 (Apple silicon) and ppc in addition to amd64.
+`Dockerfile.scratch` will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.
 
 ```
 docker build -f Dockerfile.scratch -t acr .
 ```
 
-There are build args for customizing the build like this:
+There are build args for customizing the build in `Dockerfile.scratch` like this:
 
 ```
 docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
@@ -92,10 +98,13 @@ docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
        -f Dockerfile.scratch -t acr .
 ```
 
-### (Fresh issue mode) Set up and run on new GitHub issues
+After setting up, we can run ACR in three modes:
 
-> [!NOTE]
-> This section is for running AutoCodeRover on new GitHub issues. For running it on SWE-bench tasks, refer to [SWE-bench mode](#swe-bench-mode-set-up-and-run-on-swe-bench-tasks).
+1. GitHub issue mode: Run ACR on a live GitHub issue by providing a link to the issue page.
+2. Local issue mode: Run ACR on a local repository and a file containing the issue description.
+3. SWE-bench mode: Run ACR on SWE-bench task instances.
+
+### [GitHub issue mode] Set up and run on new GitHub issues
 
 If you want to use AutoCodeRover for new GitHub issues in a project, prepare the following:
 
@@ -109,25 +118,39 @@ and generate patch:
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
+PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
+```
+Here is an example command for running ACR on an issue from the langchain GitHub issue tracker:
+
+```
+PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --task-id langchain-20453 --clone-link https://github.com/langchain-ai/langchain.git --commit-hash cb6e5e5 --issue-link https://github.com/langchain-ai/langchain/issues/20453
 ```
 
 The `<task id>` can be any string used to identify this issue.
 
 If patch generation is successful, the path to the generated patch will be printed in the end.
 
+
+### [Local issue mode] Set up and run on local repositories and local issues
+
 Instead of cloning a remote project and run ACR on an online issue, you can also prepare the local repository and issue beforehand,
-if that suits the use case. For running ACR on a local issue and local codebase, do
+if that suits the use case.
+
+For running ACR on a local issue and local codebase, prepare a local codebase and write an issue description into a file,
+and run the following commands:
 
 ```
-PYTHONPATH=. python app/main.py --mode fresh_issue --output-dir output --model gpt-4-0125-preview --model-temperature 0.2 --fresh-task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
+cd /opt/auto-code-rover
+conda activate auto-code-rover
+PYTHONPATH=. python app/main.py local-issue --output-dir output --model gpt-4-0125-preview --model-temperature 0.2 --task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
 ```
 
+If patch generation is successful, the path to the generated patch will be printed in the end.
 
-### (SWE-bench mode) Set up and run on SWE-bench tasks
 
-> [!NOTE]
-> This section is for running AutoCodeRover on SWE-bench tasks. For running it on new GitHub issues, refer to [Fresh issue mode](#fresh-issue-mode-set-up-and-run-on-new-github-issues).
+### [SWE-bench mode] Set up and run on SWE-bench tasks
+
+This mode is for running ACR on existing issue tasks contained in SWE-bench.
 
 #### Set up
 
@@ -166,26 +189,26 @@ A conda environment will also be created for this task instance.
 
 _If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
 
-#### Run a single task
+#### Run a single task in SWE-bench
 
 Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
 
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
 The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
 
-#### Run multiple tasks
+#### Run multiple tasks in SWE-bench
 
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py --enable-layered --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).

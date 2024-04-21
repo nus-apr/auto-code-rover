@@ -1,5 +1,6 @@
 import ast
 import glob
+import pathlib
 import re
 from dataclasses import dataclass
 from os.path import join as pjoin
@@ -85,7 +86,7 @@ class SearchResult:
         return res_str
 
 
-def get_all_py_files(dir_path: str) -> list[str]:
+def find_python_files(dir_path: str) -> list[str]:
     """Get all .py files recursively from a directory.
 
     Skips files that are obviously not from the source code, such third-party library code.
@@ -129,14 +130,13 @@ def get_all_py_files(dir_path: str) -> list[str]:
     return res
 
 
-def get_all_info_from_file(file_full_path: str) -> tuple[list, dict, list] | None:
+def parse_python_file(file_full_path: str) -> tuple[list, dict, list] | None:
     """
     Main method to parse AST and build search index.
     Handles complication where python ast module cannot parse a file.
     """
     try:
-        with open(file_full_path) as f:
-            file_content = f.read()
+        file_content = pathlib.Path(file_full_path).read_text()
         tree = ast.parse(file_content)
     except Exception:
         # failed to read/parse one file, we should ignore it
@@ -145,7 +145,7 @@ def get_all_info_from_file(file_full_path: str) -> tuple[list, dict, list] | Non
     # (1) get all classes defined in the file
     classes = []
     # (2) for each class in the file, get all functions defined in the class.
-    class_to_funcs = dict()
+    class_to_funcs = {}
     # (3) get top-level functions in the file (exclues functions defined in classes)
     top_level_funcs = []
 
@@ -159,13 +159,11 @@ def get_all_info_from_file(file_full_path: str) -> tuple[list, dict, list] | Non
             classes.append((class_name, start_lineno, end_lineno))
 
             ## class part (2): collect function info inside this class
-            class_funcs = []
-            for n in ast.walk(node):
-                if isinstance(n, ast.FunctionDef):
-                    function_name = n.name
-                    start_lineno = n.lineno
-                    end_lineno = n.end_lineno
-                    class_funcs.append((function_name, start_lineno, end_lineno))
+            class_funcs = [
+                (n.name, n.lineno, n.end_lineno)
+                for n in ast.walk(node)
+                if isinstance(n, ast.FunctionDef)
+            ]
             class_to_funcs[class_name] = class_funcs
 
         elif isinstance(node, ast.FunctionDef):

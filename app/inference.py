@@ -6,7 +6,7 @@ from pathlib import Path
 
 from termcolor import colored
 
-from app import globals
+from app import globals, log
 from app.api.manage import ProjectApiManager
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_and_cprint, log_and_print
@@ -69,7 +69,6 @@ def start_conversation_round_stratified(
     This version uses json data to process API calls, instead of using the OpenAI function calling.
     Advantage is that multiple API calls can be made in a single round.
     """
-    logger = api_manager.logger
     msg_thread.add_user(
         """Based on the files, classes, methods, code statements from the issue that related to the bug, you can use below search APIs to get more context of the project.
         search_class(class_name: str): Search for a class in the codebase.
@@ -91,19 +90,13 @@ def start_conversation_round_stratified(
         msg_thread.save_to_file(conversation_file)
 
         log_and_cprint(
-            logger,
             f"\n========== Conversation Round {round_no} ==========",
             "red",
             attrs=["bold"],
         )
-        log_and_print(
-            logger, f"{colored('Current message thread:', 'green')}\n{msg_thread}"
-        )
+        log_and_print(f"{colored('Current message thread:', 'green')}\n{msg_thread}")
 
-        res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            logger, msg_thread.to_msg()
-        )
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, *_ = call_gpt(msg_thread.to_msg())
 
         # print("raw API selection output", res_text)
 
@@ -153,7 +146,7 @@ def start_conversation_round_stratified(
         collated_tool_response = ""
 
         for api_call in json_api_calls:
-            func_name, func_args = parse_function_invocation(api_call, logger)
+            func_name, func_args = parse_function_invocation(api_call)
 
             arg_spec = inspect.getfullargspec(getattr(SearchManager, func_name))
             arg_names = arg_spec.args[1:]  # first parameter is self
@@ -172,10 +165,7 @@ def start_conversation_round_stratified(
         msg_thread.add_user(collated_tool_response)
         msg_thread.add_user("Let's analyze collected context first")
 
-        res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            logger, msg_thread.to_msg()
-        )
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, *_ = call_gpt(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
 
         if round_no < globals.conv_round_limit:
@@ -185,13 +175,13 @@ def start_conversation_round_stratified(
                 "  - where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
             )
     else:
-        log_and_print(logger, "Too many rounds. Try writing patch anyway.")
+        log_and_print("Too many rounds. Try writing patch anyway.")
 
     round_no += 1
 
     api_manager.start_new_tool_call_layer()
 
-    api_manager.logger.info("Gathered enough information. Invoking write_patch.")
+    log.log_and_print("Gathered enough information. Invoking write_patch.")
 
     write_patch_intent = FunctionCallIntent("write_patch", {}, None)
     api_manager.dispatch_intent(write_patch_intent, msg_thread)
@@ -199,7 +189,7 @@ def start_conversation_round_stratified(
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
     msg_thread.save_to_file(conversation_file)
 
-    log_and_print(logger, "Invoked write_patch. Ending workflow.")
+    log_and_print("Invoked write_patch. Ending workflow.")
 
     return True
 
@@ -285,49 +275,37 @@ def start_conversation_round_state_machine(
         api_manager (ProjectApiManager): The API manager to be used.
         start_round_no (int): The round number to start with.
     """
-    logger = api_manager.logger
-
     round_no = start_round_no
     for round_no in range(start_round_no, globals.conv_round_limit + 1):
         conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
         # save current state before starting a new round
         msg_thread.save_to_file(conversation_file)
         log_and_cprint(
-            logger,
             f"\n========== Conversation Round {round_no} ==========",
             "red",
             attrs=["bold"],
         )
-        log_and_print(
-            logger, f"{colored('Current message thread:', 'green')}\n{msg_thread}"
-        )
+        log_and_print(f"{colored('Current message thread:', 'green')}\n{msg_thread}")
 
         allowed_tools = api_manager.next_tools()
         # TODO: configure the list of tools based on state machine
         tools = ProjectApiManager.get_full_funcs_for_openai(allowed_tools)
 
-        log_and_cprint(logger, f"Current tool state: {api_manager.curr_tool}", "yellow")
-        log_and_cprint(logger, f"Allowed next tool states: {allowed_tools}", "yellow")
+        log_and_cprint(f"Current tool state: {api_manager.curr_tool}", "yellow")
+        log_and_cprint(f"Allowed next tool states: {allowed_tools}", "yellow")
 
         # create a new iteration of conversation
-        (
-            res_text,
-            raw_tool_calls,
-            func_call_intents,
-            cost,
-            input_tokens,
-            output_tokens,
-        ) = call_gpt(logger, msg_thread.to_msg(), tools=tools)
-        api_manager.accumulate_cost_and_tokens(cost, input_tokens, output_tokens)
+        res_text, raw_tool_calls, func_call_intents, cost, *_ = call_gpt(
+            msg_thread.to_msg(), tools=tools
+        )
         log_and_print(
-            logger, f"{colored('This roud model response (text):', 'blue')} {res_text}"
+            f"{colored('This roud model response (text):', 'blue')} {res_text}"
         )
         # model can decide whether to create a function call
         if len(func_call_intents) == 1:
             # good case in which we can check function call
             func_call_intent: FunctionCallIntent = func_call_intents[0]
             log_and_print(
-                logger,
                 f"{colored('This round model response (function call):', 'blue')} {func_call_intent}",
             )
             # dispatch this function call
@@ -346,9 +324,7 @@ def start_conversation_round_state_machine(
 
         next_user_message = add_step_trigger(summary)
 
-        log_and_cprint(
-            logger, f"Cost - current: {cost}; total: {api_manager.cost}", "yellow"
-        )
+        log_and_cprint(f"Cost - current: {cost}; total: {api_manager.cost}", "yellow")
         # form message thread for next round. should include what the model said as well
         msg_thread.add_model(this_model_response, this_model_tools)
         if this_model_tools:
@@ -361,12 +337,12 @@ def start_conversation_round_state_machine(
         if len(func_call_intents) == 1:
             func_call_name = func_call_intents[0].func_name
             if func_call_name == "write_patch":
-                log_and_print(logger, "Ending workflow. write_patch has been invoked.")
+                log_and_print("Ending workflow. write_patch has been invoked.")
                 break
 
-        log_and_print(logger, "Going to next round ..........")
+        log_and_print("Going to next round ..........")
     else:
-        log_and_print(logger, "Too many rounds. Try writing patch anyway.")
+        log_and_print("Too many rounds. Try writing patch anyway.")
         write_patch_intent = FunctionCallIntent("write_patch", {}, None)
         api_manager.dispatch_intent(write_patch_intent, msg_thread)
 

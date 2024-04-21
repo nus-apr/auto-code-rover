@@ -3,13 +3,15 @@ An agent, which is only responsible for the write_patch tool call.
 """
 
 import json
+import shutil
+from collections.abc import Iterable
 from copy import deepcopy
 from os.path import join as pjoin
 
 from app import globals
-from app.analysis.sbfl import MethodId
-from app.api import agent_common, validation
-from app.data_structures import MessageThread
+from app.api import agent_common
+from app.api.python import validation
+from app.data_structures import MessageThread, MethodId
 from app.log import log_and_print
 from app.model.gpt import call_gpt
 from app.post_process import (
@@ -17,6 +19,7 @@ from app.post_process import (
     extract_diff_one_instance,
     record_extract_status,
 )
+from app.task import SweTask, Task
 
 SYSTEM_PROMPT = """You are a software developer maintaining a large project.
 You are working on an issue submitted to your project.
@@ -30,14 +33,14 @@ Return the patch in the format below. Within <file></file>, replace "..." with a
 You can write multiple modifications if needed.
 
 # modification 1
-```python
+```
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
 ```
 
 # modification 2
-```python
+```
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
@@ -49,16 +52,9 @@ You can write multiple modifications if needed.
 
 
 def run_with_retries(
-    logger,
     message_thread: MessageThread,
     output_dir: str,
-    project_path,
-    test_cmd,
-    repo_name,
-    env_name,
-    task_id: str,
-    testcases_passing,
-    testcases_failing,
+    task: Task,
     retries=3,
 ) -> tuple[str, float, int, int]:
     """
@@ -89,13 +85,13 @@ def run_with_retries(
         if can_stop or i > retries:
             break
 
-        log_and_print(logger, f"Trying to write a patch. Try {i} of {retries}.")
+        log_and_print(f"Trying to write a patch. Try {i} of {retries}.")
 
         raw_patch_file = pjoin(output_dir, f"agent_patch_raw_{i}")
 
         # actually calling gpt
         res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
-            logger, new_thread.to_msg()
+            new_thread.to_msg()
         )
 
         all_cost += cost
@@ -104,9 +100,7 @@ def run_with_retries(
 
         new_thread.add_model(res_text, [])  # no tools
 
-        log_and_print(
-            logger, f"Raw patch produced in try {i}. Writing patch into file."
-        )
+        log_and_print(f"Raw patch produced in try {i}. Writing patch into file.")
 
         with open(raw_patch_file, "w") as f:
             f.write(res_text)
@@ -124,19 +118,10 @@ def run_with_retries(
             # patch generated is applicable and all edits are ok, so we can think about validation
             if globals.enable_validation:
                 # if we have a patch extracted, apply it and validate
-                run_test_suite_log_file = pjoin(output_dir, f"run_test_suite_{i}.log")
-                patch_is_correct, err_message = validation.validate(
-                    diff_file,
-                    repo_name,
-                    output_dir,
-                    project_path,
-                    test_cmd,
-                    env_name,
-                    testcases_passing,
-                    testcases_failing,
-                    run_test_suite_log_file,
-                    logger,
-                )
+
+                patch_is_correct, err_message, log_file = task.validate(diff_file)
+                shutil.move(log_file, pjoin(output_dir, f"run_test_suite_{i}.log"))
+
                 if patch_is_correct:
                     result_msg = (
                         "Written a patch that resolves the issue. Congratulations!"
@@ -146,14 +131,19 @@ def run_with_retries(
                 # the following two branches cannot be swapped, because
                 # --enable-perfect-angelic is meant to override --enable-angelic
                 elif globals.enable_perfect_angelic:
+                    if not isinstance(task, SweTask):
+                        raise NotImplementedError(
+                            f"Angelic debugging not implemented for {type(task).__name__}"
+                        )
+
                     msg = (
                         f"Written an applicable patch, but it did not resolve the issue. Error message: {err_message}.",
                     )
 
                     incorrect_locations = validation.perfect_angelic_debug(
-                        task_id, diff_file, project_path
+                        task.task_id, diff_file, task.project_path
                     )
-                    angelic_msg = angelic_debugging_message(incorrect_locations)
+                    angelic_msg = angelic_debugging_message(incorrect_locations[0])
 
                     result_msg = f"{msg}\n{angelic_msg}"
                     new_thread.add_user(result_msg)
@@ -168,12 +158,17 @@ def run_with_retries(
                     new_thread.add_user(result_msg)
                     continue
             elif globals.enable_perfect_angelic:
+                if not isinstance(task, SweTask):
+                    raise NotImplementedError(
+                        f"Angelic debugging not implemented for {type(task).__name__}"
+                    )
+
                 incorrect_locations = validation.perfect_angelic_debug(
-                    task_id, diff_file, project_path
+                    task.task_id, diff_file, task.project_path
                 )
 
                 msg = "Extracted a patch."
-                if angelic_msg := angelic_debugging_message(incorrect_locations):
+                if angelic_msg := angelic_debugging_message(incorrect_locations[0]):
                     result_msg = f"{msg}\n{angelic_msg}"
                 else:
                     result_msg = msg
@@ -200,7 +195,9 @@ def run_with_retries(
     return result_msg, all_cost, all_input_tokens, all_output_tokens
 
 
-def angelic_debugging_message(incorrect_locations: list[tuple[str, MethodId]]) -> str:
+def angelic_debugging_message(
+    incorrect_locations: Iterable[tuple[str, MethodId]],
+) -> str:
     msg = []
 
     if incorrect_locations:

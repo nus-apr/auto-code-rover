@@ -1,11 +1,26 @@
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pprint import pformat
 
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
     Function as OpenaiFunction,
 )
+
+
+@dataclass
+class MethodId:
+    class_name: str
+    method_name: str
+
+    def __str__(self):
+        if self.class_name:
+            return f"{self.class_name}.{self.method_name}"
+        return self.method_name
+
+    def __hash__(self):
+        return hash((self.class_name, self.method_name))
 
 
 class FunctionCallIntent:
