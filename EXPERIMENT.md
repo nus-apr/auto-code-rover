@@ -7,6 +7,10 @@
 > [!IMPORTANT]
 > There can be minor improvements to the Docker image from time to time. Please pull the latest version of the image.
 
+> [!NOTE]
+> The experiments were conducted on Ubuntu 20.04. Since SWE-bench evaluation may have different behavior
+> under different host systems, it is recommened to run the provided docker on Ubuntu 20.04.
+
 We have built a docker image with all task instances environment in it (it's a large image ~25GB!).
 With this image, you can directly start an experiment run.
 
