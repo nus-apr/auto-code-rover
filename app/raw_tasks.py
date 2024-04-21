@@ -180,7 +180,7 @@ class RawGithubTask(RawTask):
     def to_task(self) -> PlainTask:
         return PlainTask(
             commit_hash=self.commit_hash,
-            project_path=self.clone_path,
+            local_path=self.clone_path,
             problem_statement=self.problem_statement,
         )
 
@@ -196,6 +196,10 @@ class RawLocalTask(RawTask):
         self.issue_file = issue_file
         self.commit_hash = self.init_local_repo()
         self.problem_statement = self.read_issue_from_file()
+
+    @property
+    def task_id(self) -> str:
+        return self._task_id
 
     def init_local_repo(self):
         with app_utils.cd(self.local_repo):
@@ -230,6 +234,6 @@ class RawLocalTask(RawTask):
     def to_task(self) -> PlainTask:
         return PlainTask(
             commit_hash=self.commit_hash,
-            project_path=self.local_repo,
+            local_path=self.local_repo,
             problem_statement=self.problem_statement,
         )

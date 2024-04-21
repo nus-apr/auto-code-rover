@@ -289,8 +289,12 @@ class PlainTask(Task):
     """
 
     commit_hash: str
-    project_path: str
+    local_path: str
     problem_statement: str
+
+    @property
+    def project_path(self) -> str:
+        return self.local_path
 
     def setup_project(self) -> None:
         with apputils.cd(self.project_path):

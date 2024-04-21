@@ -88,18 +88,18 @@ def main():
         )
 
         groups = group_swe_tasks_by_env(tasks)
-        run_task_groups(groups, num_processes)
+        run_task_groups(groups, num_processes, organize_output=True)
     elif subcommand == "github-issue":
         setup_dir = args.setup_dir
         if setup_dir is not None:
             setup_dir = abspath(setup_dir)
 
         task = RawGithubTask(
-            args.fresh_task_id,
+            args.task_id,
             args.clone_link,
             args.commit_hash,
             args.issue_link,
-            args.setup_dir,
+            setup_dir,
         )
         groups = {"github": [task]}
         run_task_groups(groups, num_processes)
@@ -319,6 +319,7 @@ def group_swe_tasks_by_env(tasks: list[RawSweTask]) -> dict[str, list[RawSweTask
 def run_task_groups(
     task_groups: Mapping[str, Sequence[RawTask]],
     num_processes: int,
+    organize_output: bool = False,
 ):
     """
     Main entry for running tasks.
@@ -347,10 +348,11 @@ def run_task_groups(
         log.print_with_time("Only saving SBFL results. Exiting.")
         return
 
-    # post-process completed experiments to get input file to SWE-bench
-    log.print_with_time("Post-processing completed experiment results.")
-    swe_input_file = organize_and_form_input(globals.output_dir)
-    log.print_with_time(f"SWE-Bench input file created: {swe_input_file}")
+    if organize_output:
+        # post-process completed experiments to get input file to SWE-bench
+        log.print_with_time("Post-processing completed experiment results.")
+        swe_input_file = organize_and_form_input(globals.output_dir)
+        log.print_with_time(f"SWE-Bench input file created: {swe_input_file}")
 
 
 def run_tasks_serial(tasks: list[RawTask]) -> None:
@@ -448,6 +450,11 @@ def run_raw_task(task: RawTask) -> bool:
         log.log_and_always_print(
             f"Please find the generated patch at: {final_patch_path}"
         )
+        if isinstance(task, RawSweTask):
+            log.log_and_always_print(
+                "[SWE-bench mode] Note that the patch may be move to other paths in SWE-bench mode. "
+                "Please check the SWE-bench input file containing generated patches for all tasks."
+            )
     else:
         log.log_and_always_print("No patch generated. You can try running ACR again.")
 
