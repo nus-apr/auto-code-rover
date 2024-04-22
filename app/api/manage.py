@@ -7,13 +7,14 @@ from os.path import join as pjoin
 from pathlib import Path
 
 from docstring_parser import parse
+from loguru import logger
 
 from app import log
 from app.analysis import sbfl
 from app.analysis.sbfl import NoCoverageData
 from app.api import agent_proxy, agent_write_patch
 from app.data_structures import FunctionCallIntent, MessageThread
-from app.log import log_and_print, log_exception
+from app.log import log_exception
 from app.search.search_manage import SearchManager
 
 # from app.api.python.validation import PythonValidator
@@ -211,7 +212,7 @@ class ProjectApiManager:
             summary = "The tool returned error message."
             call_res = (error, summary, False)
 
-        log_and_print(f"Result of dispatch_intent: {call_res}")
+        logger.debug("Result of dispatch_intent: {}", call_res)
 
         # record this call and its result separately
         _, _, call_is_ok = call_res

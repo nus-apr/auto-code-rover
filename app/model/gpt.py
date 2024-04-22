@@ -8,6 +8,7 @@ import sys
 from typing import Literal, cast
 
 from dotenv import load_dotenv
+from loguru import logger
 from openai import BadRequestError, OpenAI
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
@@ -21,7 +22,7 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from app import globals
 from app.data_structures import FunctionCallIntent
-from app.log import log_and_cprint, log_and_print
+from app.log import log_and_print
 
 load_dotenv()
 
@@ -51,10 +52,11 @@ def calc_cost(model_name, input_tokens, output_tokens) -> float:
         globals.MODEL_COST_PER_INPUT[model_name] * input_tokens
         + globals.MODEL_COST_PER_OUTPUT[model_name] * output_tokens
     )
-    log_and_cprint(
-        f"Model API request cost info: "
-        f"input_tokens={input_tokens}, output_tokens={output_tokens}, cost={cost:.6f}",
-        "yellow",
+    logger.debug(
+        ("Model API request cost info: input_tokens={}, output_tokens={}, cost={}"),
+        input_tokens,
+        output_tokens,
+        cost,
     )
     return cost
 
@@ -168,7 +170,7 @@ def call_gpt(
         total_output_tokens += output_tokens
 
         raw_response = response.choices[0].message
-        log_and_print(f"Raw model response: {raw_response}")
+        logger.debug("Raw model response: {}", raw_response)
         content = extract_gpt_content(raw_response)
         raw_tool_calls = raw_response.tool_calls
         func_call_intents = extract_gpt_func_calls(raw_response)

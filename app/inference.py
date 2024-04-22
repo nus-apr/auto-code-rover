@@ -4,12 +4,19 @@ import re
 from os.path import join as pjoin
 from pathlib import Path
 
+from loguru import logger
 from termcolor import colored
 
-from app import globals, log
+from app import globals
 from app.api.manage import ProjectApiManager
 from app.data_structures import FunctionCallIntent, MessageThread
-from app.log import log_and_cprint, log_and_print
+from app.log import (
+    log_and_cprint,
+    log_and_print,
+    print_acr,
+    print_banner,
+    print_retrieval,
+)
 from app.model.gpt import call_gpt
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
@@ -69,8 +76,7 @@ def start_conversation_round_stratified(
     This version uses json data to process API calls, instead of using the OpenAI function calling.
     Advantage is that multiple API calls can be made in a single round.
     """
-    msg_thread.add_user(
-        """Based on the files, classes, methods, code statements from the issue that related to the bug, you can use below search APIs to get more context of the project.
+    prompt = """Based on the files, classes, methods, code statements from the issue that related to the bug, you can use below search APIs to get more context of the project.
         search_class(class_name: str): Search for a class in the codebase.
         search_method_in_file(method_name: str, file_path: str): Search for a method in a given file.
         search_method_in_class(method_name: str, class_name: str): Search for a method in a given class.
@@ -80,7 +86,9 @@ def start_conversation_round_stratified(
         Note that you can use multiple search APIs in one round.
         Now analyze the issue and select necessary APIs to get more context of the project, each API call must have concrete arguments as inputs.
         """
-    )
+    msg_thread.add_user(prompt)
+    print_acr(prompt, f"context retrieval round {start_round_no}")
+
     round_no = start_round_no
     for round_no in range(start_round_no, globals.conv_round_limit + 1):
         api_manager.start_new_tool_call_layer()
@@ -89,18 +97,12 @@ def start_conversation_round_stratified(
         # save current state before starting a new round
         msg_thread.save_to_file(conversation_file)
 
-        log_and_cprint(
-            f"\n========== Conversation Round {round_no} ==========",
-            "red",
-            attrs=["bold"],
-        )
-        log_and_print(f"{colored('Current message thread:', 'green')}\n{msg_thread}")
+        print_banner(f"CONTEXT RETRIEVAL ROUND {round_no}")
 
         res_text, *_ = call_gpt(msg_thread.to_msg())
 
-        # print("raw API selection output", res_text)
-
         msg_thread.add_model(res_text, tools=[])
+        print_retrieval(res_text, f"round {round_no}")
 
         selected_apis, _, proxy_threads = api_manager.proxy_apis(res_text)
 
@@ -109,16 +111,29 @@ def start_conversation_round_stratified(
         proxy_log.write_text(json.dumps(proxy_messages, indent=4))
 
         if selected_apis is None:
-            msg_thread.add_user(
-                "The search API calls seem not valid. Please check the arguments you give carefully and try again."
-            )
+            msg = "The search API calls seem not valid. Please check the arguments you give carefully and try again."
+            msg_thread.add_user(msg)
+            print_acr(msg, f"context retrieval round {round_no}")
             continue
 
-        # print(selected_apis)
-
         selected_apis_json = json.loads(selected_apis)
+
         json_api_calls = selected_apis_json.get("API_calls", [])
         buggy_locations = selected_apis_json.get("bug_locations", [])
+
+        formatted = []
+        if json_api_calls:
+            formatted.append("API calls:")
+            for call in json_api_calls:
+                formatted.extend([f"\n- `{call}`"])
+
+        if buggy_locations:
+            formatted.append("\n\nBug locations")
+            for location in buggy_locations:
+                s = ", ".join(f"{k}: `{v}`" for k, v in location.items())
+                formatted.extend([f"\n- {s}"])
+
+        print_acr("\n".join(formatted), "Agent-selected API calls")
 
         # collected enough information to write patch
         if buggy_locations and (not json_api_calls):
@@ -135,11 +150,15 @@ def start_conversation_round_stratified(
                 and "Could not" not in collated_tool_response
             ):
                 msg_thread.add_user(collated_tool_response)
+
+                print_banner("PATCH GENERATION")
+                logger.debug("Gathered enough information. Invoking write_patch.")
+                print_acr(collated_tool_response, "patch generation round 1")
                 break
 
-            msg_thread.add_user(
-                "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
-            )
+            msg = "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
+            msg_thread.add_user(msg)
+            print_acr(msg, f"context retrieval round {round_no}")
             continue
 
         # prepare response from tools
@@ -163,17 +182,24 @@ def start_conversation_round_stratified(
             collated_tool_response += tool_output + "\n\n"
 
         msg_thread.add_user(collated_tool_response)
-        msg_thread.add_user("Let's analyze collected context first")
+        print_acr(collated_tool_response, f"context retrieval round {round_no}")
+
+        msg = "Let's analyze collected context first"
+        msg_thread.add_user(msg)
+        print_acr(msg, f"context retrieval round {round_no}")
 
         res_text, *_ = call_gpt(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
+        print_retrieval(res_text, f"round {round_no}")
 
         if round_no < globals.conv_round_limit:
-            msg_thread.add_user(
+            msg = (
                 "Based on your analysis, answer below questions:"
                 "  - do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
                 "  - where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
             )
+            msg_thread.add_user(msg)
+            print_acr(msg, f"context retrieval round {round_no}")
     else:
         log_and_print("Too many rounds. Try writing patch anyway.")
 
@@ -181,15 +207,13 @@ def start_conversation_round_stratified(
 
     api_manager.start_new_tool_call_layer()
 
-    log.log_and_print("Gathered enough information. Invoking write_patch.")
-
     write_patch_intent = FunctionCallIntent("write_patch", {}, None)
     api_manager.dispatch_intent(write_patch_intent, msg_thread)
 
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
     msg_thread.save_to_file(conversation_file)
 
-    log_and_print("Invoked write_patch. Ending workflow.")
+    logger.info("Invoked write_patch. Ending workflow.")
 
     return True
 
@@ -281,9 +305,7 @@ def start_conversation_round_state_machine(
         # save current state before starting a new round
         msg_thread.save_to_file(conversation_file)
         log_and_cprint(
-            f"\n========== Conversation Round {round_no} ==========",
-            "red",
-            attrs=["bold"],
+            f"\n========== Conversation Round {round_no} ==========", style="red bold"
         )
         log_and_print(f"{colored('Current message thread:', 'green')}\n{msg_thread}")
 
@@ -291,8 +313,8 @@ def start_conversation_round_state_machine(
         # TODO: configure the list of tools based on state machine
         tools = ProjectApiManager.get_full_funcs_for_openai(allowed_tools)
 
-        log_and_cprint(f"Current tool state: {api_manager.curr_tool}", "yellow")
-        log_and_cprint(f"Allowed next tool states: {allowed_tools}", "yellow")
+        log_and_cprint(f"Current tool state: {api_manager.curr_tool}", style="yellow")
+        log_and_cprint(f"Allowed next tool states: {allowed_tools}", style="yellow")
 
         # create a new iteration of conversation
         res_text, raw_tool_calls, func_call_intents, cost, *_ = call_gpt(
@@ -324,7 +346,9 @@ def start_conversation_round_state_machine(
 
         next_user_message = add_step_trigger(summary)
 
-        log_and_cprint(f"Cost - current: {cost}; total: {api_manager.cost}", "yellow")
+        log_and_cprint(
+            f"Cost - current: {cost}; total: {api_manager.cost}", style="yellow"
+        )
         # form message thread for next round. should include what the model said as well
         msg_thread.add_model(this_model_response, this_model_tools)
         if this_model_tools:

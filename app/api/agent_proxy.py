@@ -5,6 +5,8 @@ A proxy agent. Process raw response into json format.
 import inspect
 from typing import Any
 
+from loguru import logger
+
 from app.data_structures import MessageThread
 from app.log import log_and_print
 from app.model.gpt import call_gpt
@@ -51,7 +53,9 @@ def run_with_retries(
 
     msg_threads = []
     for idx in range(1, retries + 1):
-        log_and_print(f"Trying to select search APIs in json. Try {idx} of {retries}.")
+        logger.debug(
+            "Trying to select search APIs in json. Try {} of {}.", idx, retries
+        )
 
         res_text, new_thread, cost, input_tokens, output_tokens = run(
             text,
@@ -73,7 +77,7 @@ def run_with_retries(
             log_and_print(f"{diagnosis}. Will retry.")
             continue
 
-        log_and_print("Extracted a valid json. Congratulations!")
+        logger.debug("Extracted a valid json")
         return res_text, msg_threads, all_cost, all_input_tokens, all_output_tokens
     return None, msg_threads, all_cost, all_input_tokens, all_output_tokens
 

@@ -8,11 +8,13 @@ from collections.abc import Iterable
 from copy import deepcopy
 from os.path import join as pjoin
 
+from loguru import logger
+
 from app import globals
 from app.api import agent_common
 from app.api.python import validation
 from app.data_structures import MessageThread, MethodId
-from app.log import log_and_print
+from app.log import print_acr, print_patch_generation
 from app.model.gpt import call_gpt
 from app.post_process import (
     ExtractStatus,
@@ -85,7 +87,7 @@ def run_with_retries(
         if can_stop or i > retries:
             break
 
-        log_and_print(f"Trying to write a patch. Try {i} of {retries}.")
+        logger.info(f"Trying to write a patch. Try {i} of {retries}.")
 
         raw_patch_file = pjoin(output_dir, f"agent_patch_raw_{i}")
 
@@ -100,10 +102,12 @@ def run_with_retries(
 
         new_thread.add_model(res_text, [])  # no tools
 
-        log_and_print(f"Raw patch produced in try {i}. Writing patch into file.")
+        logger.info(f"Raw patch produced in try {i}. Writing patch into file.")
 
         with open(raw_patch_file, "w") as f:
             f.write(res_text)
+
+        print_patch_generation(res_text, f"try {i} / {retries}")
 
         # Attemp to extract a real patch from the raw patch
         diff_file = pjoin(output_dir, f"extracted_patch_{i}.diff")
@@ -127,6 +131,7 @@ def run_with_retries(
                         "Written a patch that resolves the issue. Congratulations!"
                     )
                     new_thread.add_user(result_msg)  # just for logging
+                    print_acr(result_msg, f"patch generation try {i} / {retries}")
                     can_stop = True
                 # the following two branches cannot be swapped, because
                 # --enable-perfect-angelic is meant to override --enable-angelic
@@ -147,6 +152,7 @@ def run_with_retries(
 
                     result_msg = f"{msg}\n{angelic_msg}"
                     new_thread.add_user(result_msg)
+                    print_acr(result_msg, f"patch generation try {i} / {retries}")
                     continue
                 elif globals.enable_angelic:
                     raise NotImplementedError(
@@ -156,6 +162,7 @@ def run_with_retries(
                     result_msg = f"Written an applicable patch, but it did not resolve the issue. {err_message} "
                     result_msg += " Please try again."
                     new_thread.add_user(result_msg)
+                    print_acr(result_msg, f"patch generation try {i} / {retries}")
                     continue
             elif globals.enable_perfect_angelic:
                 if not isinstance(task, SweTask):
@@ -174,12 +181,14 @@ def run_with_retries(
                     result_msg = msg
 
                 new_thread.add_user(result_msg)
+                print_acr(result_msg, f"patch generation try {i} / {retries}")
                 continue
             elif globals.enable_angelic:
                 raise NotImplementedError("Angelic debugging has not been integrated")
             else:
                 result_msg = "Extracted a patch. Since validation is disabled, you should validation the patch later on. Ending the workflow."
                 new_thread.add_user(result_msg)  # just for logging
+                print_acr(result_msg, f"patch generation try {i} / {retries}")
                 can_stop = True
 
         else:
@@ -190,6 +199,7 @@ def run_with_retries(
                 + " Please try again."
             )
             new_thread.add_user(new_prompt)
+            print_acr(result_msg, f"patch generation try {i} / {retries}")
             result_msg = "Failed to write a valid patch."
 
     return result_msg, all_cost, all_input_tokens, all_output_tokens
