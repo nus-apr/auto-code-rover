@@ -55,13 +55,9 @@ def initialize_git_repo_and_commit(logger=None):
     init_cmd = ["git", "init"]
     add_all_cmd = ["git", "add", "."]
     commit_cmd = ["git", "commit", "-m", "Temp commit made by ACR."]
-    run_command(logger, init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run_command(
-        logger, add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    )
-    run_command(
-        logger, commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    )
+    run_command(init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command(commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def get_current_commit_hash() -> str:
