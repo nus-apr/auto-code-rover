@@ -8,7 +8,8 @@ from typing import Any
 from loguru import logger
 
 from app.data_structures import MessageThread
-from app.model.gpt import call_gpt
+from app.log import log_and_print
+from app.model import common
 from app.post_process import ExtractStatus, is_valid_json
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
@@ -91,7 +92,7 @@ def run(
     msg_thread = MessageThread()
     msg_thread.add_system(PROXY_PROMPT)
     msg_thread.add_user(text)
-    res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
+    res_text, _, _, cost, input_tokens, output_tokens = common.SELECTED_MODEL.call(
         msg_thread.to_msg(), response_format="json_object"
     )
 

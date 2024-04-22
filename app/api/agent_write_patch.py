@@ -16,7 +16,7 @@ from app.api import agent_common
 from app.api.python import validation
 from app.data_structures import MessageThread, MethodId
 from app.log import print_acr, print_patch_generation
-from app.model.gpt import call_gpt
+from app.model import common
 from app.post_process import (
     ExtractStatus,
     extract_diff_one_instance,
@@ -92,7 +92,7 @@ def run_with_retries(
         raw_patch_file = pjoin(output_dir, f"agent_patch_raw_{i}")
 
         # actually calling gpt
-        res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
+        res_text, _, _, cost, input_tokens, output_tokens = common.SELECTED_MODEL.call(
             new_thread.to_msg()
         )
 

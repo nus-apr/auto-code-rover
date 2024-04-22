@@ -17,7 +17,7 @@ from app.log import (
     print_banner,
     print_retrieval,
 )
-from app.model.gpt import call_gpt
+from app.model import common
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
 
@@ -101,8 +101,7 @@ def start_conversation_round_stratified(
 
         print_acr(prompt, f"context retrieval round {start_round_no}")
 
-        res_text, *_ = call_gpt(msg_thread.to_msg())
-
+        res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
         print_retrieval(res_text, f"round {round_no}")
 
@@ -190,7 +189,7 @@ def start_conversation_round_stratified(
         msg_thread.add_user(msg)
         print_acr(msg, f"context retrieval round {round_no}")
 
-        res_text, *_ = call_gpt(msg_thread.to_msg())
+        res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
         print_retrieval(res_text, f"round {round_no}")
 
@@ -319,8 +318,8 @@ def start_conversation_round_state_machine(
         log_and_cprint(f"Allowed next tool states: {allowed_tools}", style="yellow")
 
         # create a new iteration of conversation
-        res_text, raw_tool_calls, func_call_intents, cost, *_ = call_gpt(
-            msg_thread.to_msg(), tools=tools
+        res_text, raw_tool_calls, func_call_intents, cost, *_ = (
+            common.SELECTED_MODEL.call(msg_thread.to_msg(), tools=tools)
         )
         log_and_print(
             f"{colored('This roud model response (text):', 'blue')} {res_text}"
@@ -393,9 +392,7 @@ def run_one_task(
     msg_thread = MessageThread()
 
     system_prompt = SYSTEM_PROMPT
-    if (
-        not globals.enable_layered
-    ) and globals.model in globals.PARALLEL_TOOL_CALL_MODELS:
+    if (not globals.enable_layered) and common.SELECTED_MODEL.parallel_tool_call:
         # these models support parallel tool calls, let's try to make them not do it
         system_prompt += " In your response, DO NOT make more than one tool call."
 
