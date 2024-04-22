@@ -7,6 +7,7 @@ import shutil
 from collections.abc import Iterable
 from copy import deepcopy
 from os.path import join as pjoin
+from pathlib import Path
 
 from loguru import logger
 
@@ -30,26 +31,24 @@ You ultimate goal is to write a patch that resolves this issue.
 """
 
 
-USER_PROMPT_INIT = """Write a patch for the issue, based on the retrieved context. You can import necessary libraries.
-Return the patch in the format below. Within <file></file>, replace "..." with actual file path. Within <original></original>, replace "..." with the original code snippet from the program. Within <patched></patched>, replace "..." with the fixed version of the original code. When adding orignal code and updated code, pay attention to indentation, as the code is in Python.
+USER_PROMPT_INIT = """Write a patch for the issue, based on the retrieved context.\n\nYou can import necessary libraries.\n\n
+Return the patch in the format below.\n\nWithin `<file></file>`, replace `...` with actual file path.\n\nWithin `<original></original>`, replace `...` with the original code snippet from the program.\n\nWithin `<patched></patched>`, replace `...` with the fixed version of the original code. When adding orignal code and updated code, pay attention to indentation, as the code is in Python.
 You can write multiple modifications if needed.
 
-# modification 1
 ```
+# modification 1
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
-```
 
 # modification 2
-```
 <file>...</file>
 <original>...</original>
 <patched>...</patched>
-```
 
 # modification 3
 ...
+```
 """
 
 
@@ -70,6 +69,7 @@ def run_with_retries(
 
     # (2) add the initial user prompt
     new_thread.add_user(USER_PROMPT_INIT)
+    print_acr(USER_PROMPT_INIT, "patch generation")
 
     can_stop = False
     result_msg = ""
@@ -119,6 +119,9 @@ def run_with_retries(
         record_extract_status(output_dir, extract_status)
 
         if extract_status == ExtractStatus.APPLICABLE_PATCH:
+            patch_content = Path(diff_file).read_text()
+            print_acr(f"```diff\n{patch_content}\n```", "extracted patch")
+
             # patch generated is applicable and all edits are ok, so we can think about validation
             if globals.enable_validation:
                 # if we have a patch extracted, apply it and validate
@@ -199,7 +202,7 @@ def run_with_retries(
                 + " Please try again."
             )
             new_thread.add_user(new_prompt)
-            print_acr(result_msg, f"patch generation try {i} / {retries}")
+            print_acr(new_prompt, f"patch generation try {i} / {retries}")
             result_msg = "Failed to write a valid patch."
 
     return result_msg, all_cost, all_input_tokens, all_output_tokens

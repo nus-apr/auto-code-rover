@@ -207,15 +207,13 @@ class SearchManager:
 
         # the good path
         # for all the searched result, append them and form the final result
-        tool_result = (
-            f"Found {len(search_res)} classes with name {class_name} in the codebase.\n"
-        )
+        tool_result = f"Found {len(search_res)} classes with name {class_name} in the codebase:\n\n"
         summary = tool_result
         if len(search_res) > 2:
             tool_result += "Too many results, showing full code for 2 of them:\n"
         for idx, res in enumerate(search_res[:2]):
             res_str = res.to_tagged_str(self.project_path)
-            tool_result += f"Search result {idx + 1}: {res_str}\n\n"
+            tool_result += f"- Search result {idx + 1}:\n```\n{res_str}\n```"
         return tool_result, summary, True
 
     def search_class(self, class_name: str) -> tuple[str, str, bool]:
@@ -239,9 +237,7 @@ class SearchManager:
 
         # the good path
         # for all the searched result, append them and form the final result
-        tool_result = (
-            f"Found {len(search_res)} classes with name {class_name} in the codebase.\n"
-        )
+        tool_result = f"Found {len(search_res)} classes with name {class_name} in the codebase:\n\n"
         if len(search_res) > RESULT_SHOW_LIMIT:
             tool_result += "They appeared in the following files:\n"
             tool_result += SearchResult.collapse_to_file_level(
@@ -250,7 +246,7 @@ class SearchManager:
         else:
             for idx, res in enumerate(search_res):
                 res_str = res.to_tagged_str(self.project_path)
-                tool_result += f"Search result {idx + 1}: {res_str}\n\n"
+                tool_result += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         summary = f"The tool returned information about class `{class_name}`."
         return tool_result, summary, True
 
@@ -282,11 +278,11 @@ class SearchManager:
             return tool_output, summary, False
 
         # good path; we have result, now just form a response
-        tool_output = f"Found {len(search_res)} classes with name {class_name} in file {file_name}.\n"
+        tool_output = f"Found {len(search_res)} classes with name {class_name} in file {file_name}:\n\n"
         summary = tool_output
         for idx, res in enumerate(search_res):
             res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         return tool_output, summary, True
 
     def search_method_in_file(
@@ -322,14 +318,14 @@ class SearchManager:
             summary = tool_output
             return tool_output, summary, False
 
-        tool_output = f"Found {len(filtered_res)} methods with name `{method_name}` in file {file_name}.\n"
+        tool_output = f"Found {len(filtered_res)} methods with name `{method_name}` in file {file_name}:\n\n"
         summary = tool_output
 
         # when searching for a method in one file, it's rare that there are
         # many candidates, so we do not trim the result
         for idx, res in enumerate(filtered_res):
             res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         return tool_output, summary, True
 
     def search_method_in_class(
@@ -350,7 +346,7 @@ class SearchManager:
             return tool_output, summary, False
 
         # found some methods, prepare the result
-        tool_output = f"Found {len(search_res)} methods with name {method_name} in class {class_name}.\n"
+        tool_output = f"Found {len(search_res)} methods with name {method_name} in class {class_name}:\n\n"
         summary = tool_output
 
         # There can be multiple classes defined in multiple files, which contain the same method
@@ -358,13 +354,13 @@ class SearchManager:
         if len(search_res) > RESULT_SHOW_LIMIT:
             tool_output += f"Too many results, showing full code for {RESULT_SHOW_LIMIT} of them, and the rest just file names:\n"
         first_five = search_res[:RESULT_SHOW_LIMIT]
-        rest = search_res[RESULT_SHOW_LIMIT:]
         for idx, res in enumerate(first_five):
             res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         # for the rest, collect the file names into a set
-        tool_output += "Other results are in these files:\n"
-        tool_output += SearchResult.collapse_to_file_level(rest, self.project_path)
+        if rest := search_res[RESULT_SHOW_LIMIT:]:
+            tool_output += "Other results are in these files:\n"
+            tool_output += SearchResult.collapse_to_file_level(rest, self.project_path)
         return tool_output, summary, True
 
     def search_method(self, method_name: str) -> tuple[str, str, bool]:
@@ -377,7 +373,7 @@ class SearchManager:
             summary = tool_output
             return tool_output, summary, False
 
-        tool_output = f"Found {len(search_res)} methods with name {method_name} in the codebase.\n"
+        tool_output = f"Found {len(search_res)} methods with name {method_name} in the codebase:\n\n"
         summary = tool_output
 
         if len(search_res) > RESULT_SHOW_LIMIT:
@@ -388,7 +384,7 @@ class SearchManager:
         else:
             for idx, res in enumerate(search_res):
                 res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
 
         return tool_output, summary, True
 
@@ -416,7 +412,7 @@ class SearchManager:
             return tool_output, summary, False
 
         # good path
-        tool_output = f"Found {len(all_search_results)} snippets containing `{code_str}` in the codebase.\n"
+        tool_output = f"Found {len(all_search_results)} snippets containing `{code_str}` in the codebase:\n\n"
         summary = tool_output
 
         if len(all_search_results) > RESULT_SHOW_LIMIT:
@@ -427,7 +423,7 @@ class SearchManager:
         else:
             for idx, res in enumerate(all_search_results):
                 res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         return tool_output, summary, True
 
     def search_code_in_file(
@@ -465,7 +461,7 @@ class SearchManager:
 
         # good path
         # There can be a lot of results, from multiple files.
-        tool_output = f"Found {len(all_search_results)} snippets with code {code_str} in file {file_name}.\n"
+        tool_output = f"Found {len(all_search_results)} snippets with code {code_str} in file {file_name}:\n\n"
         summary = tool_output
         if len(all_search_results) > RESULT_SHOW_LIMIT:
             tool_output += "They appeared in the following methods:\n"
@@ -475,7 +471,7 @@ class SearchManager:
         else:
             for idx, res in enumerate(all_search_results):
                 res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"Search result {idx + 1}: {res_str}\n\n"
+                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
         return tool_output, summary, True
 
     def retrieve_code_snippet(

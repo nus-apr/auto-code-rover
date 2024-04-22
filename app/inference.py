@@ -76,16 +76,17 @@ def start_conversation_round_stratified(
     This version uses json data to process API calls, instead of using the OpenAI function calling.
     Advantage is that multiple API calls can be made in a single round.
     """
-    prompt = """Based on the files, classes, methods, code statements from the issue that related to the bug, you can use below search APIs to get more context of the project.
-        search_class(class_name: str): Search for a class in the codebase.
-        search_method_in_file(method_name: str, file_path: str): Search for a method in a given file.
-        search_method_in_class(method_name: str, class_name: str): Search for a method in a given class.
-        search_method(method_name: str): Search for a method in the entire codebase.
-        search_code(code_str: str): Search for a code snippet in the entire codebase.
-        search_code_in_file(code_str: str, file_path: str): Search for a code snippet in a given file file.
-        Note that you can use multiple search APIs in one round.
-        Now analyze the issue and select necessary APIs to get more context of the project, each API call must have concrete arguments as inputs.
-        """
+    prompt = (
+        "Based on the files, classes, methods, and code statements from the issue related to the bug, you can use the following search APIs to get more context of the project."
+        "\n- search_class(class_name: str): Search for a class in the codebase"
+        "\n- search_method_in_file(method_name: str, file_path: str): Search for a method in a given file"
+        "\n- search_method_in_class(method_name: str, class_name: str): Search for a method in a given class"
+        "\n- search_method(method_name: str): Search for a method in the entire codebase"
+        "\n- search_code(code_str: str): Search for a code snippet in the entire codebase"
+        "\n- search_code_in_file(code_str: str, file_path: str): Search for a code snippet in a given file file"
+        "\n\nNote that you can use multiple search APIs in one round."
+        "\n\nNow analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs."
+    )
     msg_thread.add_user(prompt)
     print_acr(prompt, f"context retrieval round {start_round_no}")
 
@@ -137,13 +138,13 @@ def start_conversation_round_stratified(
 
         # collected enough information to write patch
         if buggy_locations and (not json_api_calls):
-            collated_tool_response = "Here are the code in buggy locations:\n"
+            collated_tool_response = "Here is the code in buggy locations:\n\n"
             # provide the buggy locations to the model
             for bug_location in buggy_locations:
                 tool_output, *_ = search_for_bug_location(
                     api_manager, msg_thread, bug_location
                 )
-                collated_tool_response += f"{tool_output}\n"
+                collated_tool_response += f"\n\n{tool_output}\n"
 
             if (
                 "Unknown function" not in collated_tool_response
@@ -178,7 +179,7 @@ def start_conversation_round_stratified(
             intent = FunctionCallIntent(func_name, kwargs, None)
             tool_output, _, _ = api_manager.dispatch_intent(intent, msg_thread)
 
-            collated_tool_response += f"Result of {api_call}:\n"
+            collated_tool_response += f"Result of {api_call}:\n\n"
             collated_tool_response += tool_output + "\n\n"
 
         msg_thread.add_user(collated_tool_response)
@@ -195,8 +196,8 @@ def start_conversation_round_stratified(
         if round_no < globals.conv_round_limit:
             msg = (
                 "Based on your analysis, answer below questions:"
-                "  - do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
-                "  - where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
+                "\n- do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
+                "\n- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
             )
             msg_thread.add_user(msg)
             print_acr(msg, f"context retrieval round {round_no}")

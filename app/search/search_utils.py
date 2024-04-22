@@ -27,9 +27,9 @@ class SearchResult:
         """Convert the search result to a tagged string, upto class."""
         prefix = self.to_tagged_upto_file(project_root)
         class_part = (
-            f" <class>{self.class_name}</class>" if self.class_name is not None else ""
+            f"<class>{self.class_name}</class>" if self.class_name is not None else ""
         )
-        return f"{prefix}{class_part}"
+        return f"{prefix}\n{class_part}"
 
     def to_tagged_upto_func(self, project_root: str):
         """Convert the search result to a tagged string, upto function."""
@@ -42,8 +42,8 @@ class SearchResult:
     def to_tagged_str(self, project_root: str):
         """Convert the search result to a tagged string."""
         prefix = self.to_tagged_upto_func(project_root)
-        code_part = f" <code>{self.code}</code>"
-        return f"{prefix}{code_part}"
+        code_part = f"<code>\n{self.code}\n</code>"
+        return f"{prefix}\n{code_part}"
 
     @staticmethod
     def collapse_to_file_level(lst, project_root: str) -> str:
@@ -58,7 +58,7 @@ class SearchResult:
         for file_path, count in res.items():
             rel_path = apputils.to_relative_path(file_path, project_root)
             file_part = f"<file>{rel_path}</file>"
-            res_str += f"{file_part} ({count} matches)\n"
+            res_str += f"- {file_part} ({count} matches)\n"
         return res_str
 
     @staticmethod
@@ -82,7 +82,7 @@ class SearchResult:
                     func_part = func
                 else:
                     func_part = f" <func>{func}</func>"
-                res_str += f"{file_part}{func_part} ({count} matches)\n"
+                res_str += f"- {file_part}{func_part} ({count} matches)\n"
         return res_str
 
 
