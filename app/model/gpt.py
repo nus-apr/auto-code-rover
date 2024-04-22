@@ -22,7 +22,6 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from app import globals
 from app.data_structures import FunctionCallIntent
-from app.log import log_and_print
 
 load_dotenv()
 
@@ -184,5 +183,5 @@ def call_gpt(
         )
     except BadRequestError as e:
         if e.code == "context_length_exceeded":
-            log_and_print("Context length exceeded")
+            logger.error("Context length exceeded")
         raise e

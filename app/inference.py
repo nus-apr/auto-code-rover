@@ -88,7 +88,6 @@ def start_conversation_round_stratified(
         "\n\nNow analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs."
     )
     msg_thread.add_user(prompt)
-    print_acr(prompt, f"context retrieval round {start_round_no}")
 
     round_no = start_round_no
     for round_no in range(start_round_no, globals.conv_round_limit + 1):
@@ -99,6 +98,8 @@ def start_conversation_round_stratified(
         msg_thread.save_to_file(conversation_file)
 
         print_banner(f"CONTEXT RETRIEVAL ROUND {round_no}")
+
+        print_acr(prompt, f"context retrieval round {start_round_no}")
 
         res_text, *_ = call_gpt(msg_thread.to_msg())
 
@@ -202,7 +203,7 @@ def start_conversation_round_stratified(
             msg_thread.add_user(msg)
             print_acr(msg, f"context retrieval round {round_no}")
     else:
-        log_and_print("Too many rounds. Try writing patch anyway.")
+        logger.info("Too many rounds. Try writing patch anyway.")
 
     round_no += 1
 

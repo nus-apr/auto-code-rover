@@ -8,7 +8,6 @@ from typing import Any
 from loguru import logger
 
 from app.data_structures import MessageThread
-from app.log import log_and_print
 from app.model.gpt import call_gpt
 from app.post_process import ExtractStatus, is_valid_json
 from app.search.search_manage import SearchManager
@@ -69,12 +68,12 @@ def run_with_retries(
         extract_status, data = is_valid_json(res_text)
 
         if extract_status != ExtractStatus.IS_VALID_JSON:
-            log_and_print("Invalid json. Will retry.")
+            logger.debug("Invalid json. Will retry.")
             continue
 
         valid, diagnosis = is_valid_response(data)
         if not valid:
-            log_and_print(f"{diagnosis}. Will retry.")
+            logger.debug(f"{diagnosis}. Will retry.")
             continue
 
         logger.debug("Extracted a valid json")
