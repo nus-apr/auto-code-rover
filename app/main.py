@@ -17,6 +17,7 @@ from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
 from app.model import common
+from app.model.register import register_all_models
 from app.post_process import (
     extract_organize_and_form_input,
     get_final_patch_path,
@@ -28,6 +29,7 @@ from app.task import Task
 
 
 def main():
+    register_all_models()
     parser = ArgumentParser()
 
     subparser_dest_attr_name = "command"

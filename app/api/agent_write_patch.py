@@ -57,7 +57,7 @@ def run_with_retries(
     output_dir: str,
     task: Task,
     retries=3,
-) -> tuple[str, float, int, int]:
+) -> str:
     """
     Since the agent may not always write an applicable patch, we allow for retries.
     This is a wrapper around the actual run.
@@ -74,10 +74,6 @@ def run_with_retries(
     can_stop = False
     result_msg = ""
 
-    all_cost = 0.0
-    all_input_tokens = 0
-    all_output_tokens = 0
-
     for i in range(1, retries + 2):
         if i > 1:
             debug_file = pjoin(output_dir, f"debug_agent_write_patch_{i - 1}.json")
@@ -91,14 +87,8 @@ def run_with_retries(
 
         raw_patch_file = pjoin(output_dir, f"agent_patch_raw_{i}")
 
-        # actually calling gpt
-        res_text, _, _, cost, input_tokens, output_tokens = common.SELECTED_MODEL.call(
-            new_thread.to_msg()
-        )
-
-        all_cost += cost
-        all_input_tokens += input_tokens
-        all_output_tokens += output_tokens
+        # actually calling model
+        res_text, *_ = common.SELECTED_MODEL.call(new_thread.to_msg())
 
         new_thread.add_model(res_text, [])  # no tools
 
@@ -205,7 +195,7 @@ def run_with_retries(
             print_acr(new_prompt, f"patch generation try {i} / {retries}")
             result_msg = "Failed to write a valid patch."
 
-    return result_msg, all_cost, all_input_tokens, all_output_tokens
+    return result_msg
 
 
 def angelic_debugging_message(

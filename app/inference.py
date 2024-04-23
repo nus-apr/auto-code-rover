@@ -318,8 +318,8 @@ def start_conversation_round_state_machine(
         log_and_cprint(f"Allowed next tool states: {allowed_tools}", style="yellow")
 
         # create a new iteration of conversation
-        res_text, raw_tool_calls, func_call_intents, cost, *_ = (
-            common.SELECTED_MODEL.call(msg_thread.to_msg(), tools=tools)
+        res_text, raw_tool_calls, func_call_intents, *_ = common.SELECTED_MODEL.call(
+            msg_thread.to_msg(), tools=tools
         )
         log_and_print(
             f"{colored('This roud model response (text):', 'blue')} {res_text}"
@@ -347,9 +347,6 @@ def start_conversation_round_state_machine(
 
         next_user_message = add_step_trigger(summary)
 
-        log_and_cprint(
-            f"Cost - current: {cost}; total: {api_manager.cost}", style="yellow"
-        )
         # form message thread for next round. should include what the model said as well
         msg_thread.add_model(this_model_response, this_model_tools)
         if this_model_tools:

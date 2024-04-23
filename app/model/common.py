@@ -30,7 +30,7 @@ class Model(ABC):
         raise NotImplementedError("abstract base class")
 
     @abstractmethod
-    def call(self, messages):
+    def call(self, messages: list[dict]):
         raise NotImplementedError("abstract base class")
 
     def calc_cost(self, input_tokens: int, output_tokens: int) -> float:
@@ -68,6 +68,10 @@ def register_model(model: Model):
     MODEL_HUB[model.name] = model
 
 
+def get_all_model_names():
+    return list(MODEL_HUB.keys())
+
+
 # To be set at runtime - the selected model for a run
 SELECTED_MODEL: Model | None = None
 
@@ -84,29 +88,3 @@ def set_model(model_name: str):
 # the model temperature to use
 # For OpenAI models: this value should be from 0 to 2
 MODEL_TEMP: float = 0.0
-
-
-# NAME_TO_MODEL = {
-#     ## OpenAI
-#     "gpt-4-0125-preview": Model("gpt-4-0125-preview", "OPENAI_KEY", "Turbo. Up to Dec 2023.", 0.00001, 0.00003, True),
-#     "gpt-4-1106-preview": Model("gpt-4-1106-preview", "OPENAI_KEY", "Turbo. Up to Apr 2023.", 0.00001, 0.00003, True),
-
-#     "gpt-3.5-turbo-0125": Model("gpt-3.5-turbo-0125", "OPENAI_KEY", "Turbo. Up to Sep 2021.", 0.0000005, 0.0000015, True), # cheapest!
-
-#     "gpt-3.5-turbo-1106": Model("gpt-3.5-turbo-1106", "OPENAI_KEY", "Turbo. Up to Sep 2021.", 0.000001, 0.000002, True),
-
-
-#     "gpt-3.5-turbo-16k-0613": Model("gpt-3.5-turbo-16k-0613", "OPENAI_KEY", "Turbo. Deprecated. Up to Sep 2021.", 0.000003, 0.000004, False),
-
-
-#     "gpt-3.5-turbo-0613": Model("gpt-3.5-turbo-0613", "OPENAI_KEY", "Turbo. Deprecated. Only 4k window. Up to Sep 2021.", 0.0000015, 0.000002, False),
-
-
-#     "gpt-4-0613": Model("gpt-4-0613", "OPENAI_KEY", "Not turbo. Up to Sep 2021.", 0.00003, 0.00006, False), # most expensive
-
-
-#     ## Antropic
-#     "claude-3-opus-20240229": Model("claude-3-opus-20240229", "ANTROPIC_API_KEY", "Most powerful model from Antropic", 0.000015, 0.000075, True),
-#     "claude-3-sonnet-20240229": Model("claude-3-sonnet-20240229", "ANTROPIC_API_KEY", "Most balanced (intelligence and speed) model from Antropic", 0.000003 , 0.000015, True),
-#     "claude-3-haiku-20240307": Model("claude-3-haiku-20240307", "ANTROPIC_API_KEY", "Fastest model from Antropic", 0.00000025, 0.00000125, True),
-# }

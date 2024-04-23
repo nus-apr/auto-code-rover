@@ -21,7 +21,7 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 from app.data_structures import FunctionCallIntent
 from app.log import log_and_print
 from app.model import common
-from app.model.common import Model, register_model
+from app.model.common import Model
 
 
 class OpenaiModel(Model):
@@ -111,7 +111,7 @@ class OpenaiModel(Model):
     @retry(wait=wait_random_exponential(min=30, max=600), stop=stop_after_attempt(3))
     def call(
         self,
-        messages,
+        messages: list[dict],
         top_p=1,
         tools=None,
         response_format: Literal["text", "json_object"] = "text",
@@ -168,14 +168,6 @@ class OpenaiModel(Model):
             output_tokens = int(response.usage.completion_tokens)
             cost = self.calc_cost(input_tokens, output_tokens)
 
-            # common.process_cost.set(common.process_cost.get() + cost)
-            # common.process_input_tokens.set(common.process_input_tokens.get() + input_tokens)
-            # common.process_output_tokens.set(
-            #     common.process_output_tokens.get() + output_tokens
-            # # )
-            # import threading
-            # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> {os.getpid()}, {threading.current_thread().ident}")
-
             common.thread_cost.process_cost += cost
             common.thread_cost.process_input_tokens += input_tokens
             common.thread_cost.process_output_tokens += output_tokens
@@ -208,7 +200,7 @@ class Gpt4_0125Preview(OpenaiModel):
 
 class Gpt4_1106Preview(OpenaiModel):
     def __init__(self):
-        super().__init__("gpt-4-1106-preview", 0.0001, 0.00003)
+        super().__init__("gpt-4-1106-preview", 0.00001, 0.00003)
         self.parallel_tool_call = True
         self.note = "Turbo. Up to Apr 2023."
 
@@ -247,12 +239,3 @@ class Gpt4_0613(OpenaiModel):
         super().__init__("gpt-4-0613", 0.00003, 0.00006)
         self.parallel_tool_call = False
         self.note = "Not turbo. Up to Sep 2021."
-
-
-register_model(Gpt4_0125Preview())
-register_model(Gpt4_1106Preview())
-register_model(Gpt35_Turbo0125())
-register_model(Gpt35_Turbo1106())
-register_model(Gpt35_Turbo16k_0613())
-register_model(Gpt35_Turbo0613())
-register_model(Gpt4_0613())
