@@ -8,7 +8,6 @@ from typing import Any
 from loguru import logger
 
 from app.data_structures import MessageThread
-from app.log import log_and_print
 from app.model import common
 from app.post_process import ExtractStatus, is_valid_json
 from app.search.search_manage import SearchManager
@@ -33,6 +32,7 @@ search_code(code_str: str)
 Provide your answer in JSON structure like this, you should ignore the argument placeholders in api calls.
 For example, search_code(code_str="str") should be search_code("str")
 search_method_in_file("method_name", "path.to.file") should be search_method_in_file("method_name", "path/to/file")
+Make sure each API call is written as a valid python expression.
 
 {
     "API_calls": ["api_call_1(args)", "api_call_2(args)", ...],
