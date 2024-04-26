@@ -15,11 +15,19 @@ thread_cost.process_output_tokens = 0
 
 
 class Model(ABC):
-    def __init__(self, name: str, cost_per_input: float, cost_per_output: float):
+    def __init__(
+        self,
+        name: str,
+        cost_per_input: float,
+        cost_per_output: float,
+        parallel_tool_call: bool = False,
+    ):
         self.name: str = name
         # cost stats - zero for local models
         self.cost_per_input: float = cost_per_input
         self.cost_per_output: float = cost_per_output
+        # whether the model supports parallel tool call
+        self.parallel_tool_call: bool = parallel_tool_call
 
     @abstractmethod
     def check_api_key(self) -> str:
@@ -30,7 +38,7 @@ class Model(ABC):
         raise NotImplementedError("abstract base class")
 
     @abstractmethod
-    def call(self, messages: list[dict]):
+    def call(self, messages: list[dict], **kwargs):
         raise NotImplementedError("abstract base class")
 
     def calc_cost(self, input_tokens: int, output_tokens: int) -> float:
@@ -43,7 +51,7 @@ class Model(ABC):
         log_and_cprint(
             f"Model API request cost info: "
             f"input_tokens={input_tokens}, output_tokens={output_tokens}, cost={cost:.6f}",
-            "yellow",
+            style="yellow",
         )
         return cost
 
@@ -73,7 +81,7 @@ def get_all_model_names():
 
 
 # To be set at runtime - the selected model for a run
-SELECTED_MODEL: Model | None = None
+SELECTED_MODEL: Model
 
 
 def set_model(model_name: str):

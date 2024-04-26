@@ -126,6 +126,21 @@ def print_patch_generation(msg: str, desc="") -> None:
     console.print(panel)
 
 
+def print_issue(content: str) -> None:
+    if not print_stdout:
+        return
+
+    title = "Issue description"
+    panel = Panel(
+        content,
+        title=title,
+        title_align="left",
+        border_style="red",
+        width=WIDTH,
+    )
+    console.print(panel)
+
+
 def log_and_print(msg):
     logger.info(msg)
     if print_stdout:

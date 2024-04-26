@@ -15,9 +15,10 @@ from app.log import (
     log_and_print,
     print_acr,
     print_banner,
+    print_issue,
     print_retrieval,
 )
-from app.model import common
+from app.model import common, ollama
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
 
@@ -199,6 +200,9 @@ def start_conversation_round_stratified(
                 "\n- do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
                 "\n- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
             )
+            if isinstance(common.SELECTED_MODEL, ollama.OllamaModel):
+                # llama models tend to always output search APIs and buggy locations.
+                msg += "\n\nNOTE: If you have already identified the bug locations, do not make any search API calls."
             msg_thread.add_user(msg)
             print_acr(msg, f"context retrieval round {round_no}")
     else:
@@ -386,6 +390,8 @@ def run_one_task(
         api_manager (ProjectApiManager): The already-initialized API manager.
         problem_stmt (str): The original problem statement submitted to the task issue.
     """
+    print_banner("Starting AutoCodeRover on the following issue")
+    print_issue(problem_stmt)
     msg_thread = MessageThread()
 
     system_prompt = SYSTEM_PROMPT

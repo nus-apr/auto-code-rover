@@ -7,6 +7,7 @@ import sys
 from typing import Literal
 
 import litellm
+from litellm.utils import ModelResponse
 from openai import BadRequestError
 from openai.types.chat import ChatCompletionMessage
 from tenacity import retry, stop_after_attempt, wait_random_exponential
@@ -29,10 +30,16 @@ class AntropicModel(Model):
             cls._instances[cls]._initialized = False
         return cls._instances[cls]
 
-    def __init__(self, name: str, cost_per_input: float, cost_per_output: float):
+    def __init__(
+        self,
+        name: str,
+        cost_per_input: float,
+        cost_per_output: float,
+        parallel_tool_call: bool = False,
+    ):
         if self._initialized:
             return
-        super().__init__(name, cost_per_input, cost_per_output)
+        super().__init__(name, cost_per_input, cost_per_output, parallel_tool_call)
         self._initialized = True
 
     def setup(self) -> None:
@@ -67,12 +74,12 @@ class AntropicModel(Model):
         top_p=1,
         tools=None,
         response_format: Literal["text", "json_object"] = "text",
+        **kwargs,
     ):
         # FIXME: ignore tools field since we don't use tools now
         try:
-            # FIXME: antropic does not support response_format field
-            # so we should make it clean in the prompt, and possibly
-            # prefill the assistant field with {
+            # antropic models - prefilling response with { increase the success rate
+            # of producing json output
             prefill_content = "{"
             if response_format == "json_object":  # prefill
                 messages.append({"role": "assistant", "content": prefill_content})
@@ -83,9 +90,13 @@ class AntropicModel(Model):
                 temperature=common.MODEL_TEMP,
                 max_tokens=1024,
                 top_p=top_p,
+                stream=False,
             )
-            input_tokens = int(response.usage.prompt_tokens)
-            output_tokens = int(response.usage.completion_tokens)
+            assert isinstance(response, ModelResponse)
+            resp_usage = response.usage
+            assert resp_usage is not None
+            input_tokens = int(resp_usage.prompt_tokens)
+            output_tokens = int(resp_usage.completion_tokens)
             cost = self.calc_cost(input_tokens, output_tokens)
 
             common.thread_cost.process_cost += cost
@@ -93,7 +104,7 @@ class AntropicModel(Model):
             common.thread_cost.process_output_tokens += output_tokens
 
             raw_response = response.choices[0].message
-            log_and_print(f"Raw model response: {raw_response}")
+            # log_and_print(f"Raw model response: {raw_response}")
             content = self.extract_resp_content(raw_response)
             if response_format == "json_object":
                 # prepend the prefilled character
@@ -109,20 +120,23 @@ class AntropicModel(Model):
 
 class Claude3Haiku(AntropicModel):
     def __init__(self):
-        super().__init__("claude-3-haiku-20240307", 0.00000025, 0.00000125)
-        self.parallel_tool_call = True
+        super().__init__(
+            "claude-3-haiku-20240307", 0.00000025, 0.00000125, parallel_tool_call=True
+        )
         self.note = "Fastest model from Antropic"
 
 
 class Claude3Sonnet(AntropicModel):
     def __init__(self):
-        super().__init__("claude-3-sonnet-20240229", 0.000003, 0.000015)
-        self.parallel_tool_call = True
+        super().__init__(
+            "claude-3-sonnet-20240229", 0.000003, 0.000015, parallel_tool_call=True
+        )
         self.note = "Most balanced (intelligence and speed) model from Antropic"
 
 
 class Claude3Opus(AntropicModel):
     def __init__(self):
-        super().__init__("claude-3-opus-20240229", 0.000015, 0.000075)
-        self.parallel_tool_call = True
+        super().__init__(
+            "claude-3-opus-20240229", 0.000015, 0.000075, parallel_tool_call=True
+        )
         self.note = "Most powerful model from Antropic"

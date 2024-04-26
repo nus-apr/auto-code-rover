@@ -38,10 +38,16 @@ class OpenaiModel(Model):
             cls._instances[cls]._initialized = False
         return cls._instances[cls]
 
-    def __init__(self, name: str, cost_per_input: float, cost_per_output: float):
+    def __init__(
+        self,
+        name: str,
+        cost_per_input: float,
+        cost_per_output: float,
+        parallel_tool_call: bool = False,
+    ):
         if self._initialized:
             return
-        super().__init__(name, cost_per_input, cost_per_output)
+        super().__init__(name, cost_per_input, cost_per_output, parallel_tool_call)
         # client for making request
         self.client: OpenAI | None = None
         self._initialized = True
@@ -115,6 +121,7 @@ class OpenaiModel(Model):
         top_p=1,
         tools=None,
         response_format: Literal["text", "json_object"] = "text",
+        **kwargs,
     ) -> tuple[
         str,
         list[ChatCompletionMessageToolCall],
@@ -173,7 +180,7 @@ class OpenaiModel(Model):
             common.thread_cost.process_output_tokens += output_tokens
 
             raw_response = response.choices[0].message
-            log_and_print(f"Raw model response: {raw_response}")
+            # log_and_print(f"Raw model response: {raw_response}")
             content = self.extract_resp_content(raw_response)
             raw_tool_calls = raw_response.tool_calls
             func_call_intents = self.extract_resp_func_calls(raw_response)
@@ -193,49 +200,50 @@ class OpenaiModel(Model):
 
 class Gpt4_0125Preview(OpenaiModel):
     def __init__(self):
-        super().__init__("gpt-4-0125-preview", 0.00001, 0.00003)
-        self.parallel_tool_call = True
+        super().__init__(
+            "gpt-4-0125-preview", 0.00001, 0.00003, parallel_tool_call=True
+        )
         self.note = "Turbo. Up to Dec 2023."
 
 
 class Gpt4_1106Preview(OpenaiModel):
     def __init__(self):
-        super().__init__("gpt-4-1106-preview", 0.00001, 0.00003)
-        self.parallel_tool_call = True
+        super().__init__(
+            "gpt-4-1106-preview", 0.00001, 0.00003, parallel_tool_call=True
+        )
         self.note = "Turbo. Up to Apr 2023."
 
 
 class Gpt35_Turbo0125(OpenaiModel):
     # cheapest gpt model
     def __init__(self):
-        super().__init__("gpt-3.5-turbo-0125", 0.0000005, 0.0000015)
-        self.parallel_tool_call = True
+        super().__init__(
+            "gpt-3.5-turbo-0125", 0.0000005, 0.0000015, parallel_tool_call=True
+        )
         self.note = "Turbo. Up to Sep 2021."
 
 
 class Gpt35_Turbo1106(OpenaiModel):
     def __init__(self):
-        super().__init__("gpt-3.5-turbo-1106", 0.000001, 0.000002)
-        self.parallel_tool_call = True
+        super().__init__(
+            "gpt-3.5-turbo-1106", 0.000001, 0.000002, parallel_tool_call=True
+        )
         self.note = "Turbo. Up to Sep 2021."
 
 
 class Gpt35_Turbo16k_0613(OpenaiModel):
     def __init__(self):
         super().__init__("gpt-3.5-turbo-16k-0613", 0.000003, 0.000004)
-        self.parallel_tool_call = False
         self.note = "Turbo. Deprecated. Up to Sep 2021."
 
 
 class Gpt35_Turbo0613(OpenaiModel):
     def __init__(self):
         super().__init__("gpt-3.5-turbo-0613", 0.0000015, 0.000002)
-        self.parallel_tool_call = False
         self.note = "Turbo. Deprecated. Only 4k window. Up to Sep 2021."
 
 
 class Gpt4_0613(OpenaiModel):
     def __init__(self):
         super().__init__("gpt-4-0613", 0.00003, 0.00006)
-        self.parallel_tool_call = False
         self.note = "Not turbo. Up to Sep 2021."
