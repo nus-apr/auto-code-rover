@@ -16,7 +16,7 @@ from app.model import common
 from app.model.common import Model
 
 
-class AntropicModel(Model):
+class AnthropicModel(Model):
     """
     Base class for creating Singleton instances of Antropic models.
     """
@@ -117,7 +117,7 @@ class AntropicModel(Model):
             raise e
 
 
-class Claude3Haiku(AntropicModel):
+class Claude3Haiku(AnthropicModel):
     def __init__(self):
         super().__init__(
             "claude-3-haiku-20240307", 0.00000025, 0.00000125, parallel_tool_call=True
@@ -125,7 +125,7 @@ class Claude3Haiku(AntropicModel):
         self.note = "Fastest model from Antropic"
 
 
-class Claude3Sonnet(AntropicModel):
+class Claude3Sonnet(AnthropicModel):
     def __init__(self):
         super().__init__(
             "claude-3-sonnet-20240229", 0.000003, 0.000015, parallel_tool_call=True
@@ -133,7 +133,7 @@ class Claude3Sonnet(AntropicModel):
         self.note = "Most balanced (intelligence and speed) model from Antropic"
 
 
-class Claude3Opus(AntropicModel):
+class Claude3Opus(AnthropicModel):
     def __init__(self):
         super().__init__(
             "claude-3-opus-20240229", 0.000015, 0.000075, parallel_tool_call=True
