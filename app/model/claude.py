@@ -117,12 +117,12 @@ class AnthropicModel(Model):
             raise e
 
 
-class Claude3Haiku(AnthropicModel):
+class Claude3Opus(AnthropicModel):
     def __init__(self):
         super().__init__(
-            "claude-3-haiku-20240307", 0.00000025, 0.00000125, parallel_tool_call=True
+            "claude-3-opus-20240229", 0.000015, 0.000075, parallel_tool_call=True
         )
-        self.note = "Fastest model from Antropic"
+        self.note = "Most powerful model from Antropic"
 
 
 class Claude3Sonnet(AnthropicModel):
@@ -133,9 +133,9 @@ class Claude3Sonnet(AnthropicModel):
         self.note = "Most balanced (intelligence and speed) model from Antropic"
 
 
-class Claude3Opus(AnthropicModel):
+class Claude3Haiku(AnthropicModel):
     def __init__(self):
         super().__init__(
-            "claude-3-opus-20240229", 0.000015, 0.000075, parallel_tool_call=True
+            "claude-3-haiku-20240307", 0.00000025, 0.00000125, parallel_tool_call=True
         )
-        self.note = "Most powerful model from Antropic"
+        self.note = "Fastest model from Antropic"
