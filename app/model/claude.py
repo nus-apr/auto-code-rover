@@ -48,9 +48,10 @@ class AntropicModel(Model):
         self.check_api_key()
 
     def check_api_key(self) -> str:
-        key = os.getenv("ANTHROPIC_API_KEY")
+        key_name = "ANTHROPIC_API_KEY"
+        key = os.getenv(key_name)
         if not key:
-            print("Please set the ANTHROPIC_API_KEY env var")
+            print(f"Please set the {key_name} env var")
             sys.exit(1)
         return key
 
@@ -103,7 +104,6 @@ class AntropicModel(Model):
             first_resp_choice = response.choices[0]
             assert isinstance(first_resp_choice, Choices)
             resp_msg: Message = first_resp_choice.message
-            # log_and_print(f"Raw model response: {raw_response}")
             content = self.extract_resp_content(resp_msg)
             if response_format == "json_object":
                 # prepend the prefilled character
