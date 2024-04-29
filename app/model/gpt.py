@@ -8,7 +8,11 @@ import sys
 from typing import Literal, cast
 
 from openai import BadRequestError, OpenAI
-from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessage,
+    ChatCompletionMessageToolCall,
+)
 from openai.types.chat.chat_completion_message_tool_call import (
     Function as OpenaiFunction,
 )
@@ -118,13 +122,13 @@ class OpenaiModel(Model):
     def call(
         self,
         messages: list[dict],
-        top_p=1,
-        tools=None,
+        top_p: float = 1,
+        tools: list[dict] | None = None,
         response_format: Literal["text", "json_object"] = "text",
         **kwargs,
     ) -> tuple[
         str,
-        list[ChatCompletionMessageToolCall],
+        list[ChatCompletionMessageToolCall] | None,
         list[FunctionCallIntent],
         float,
         int,
@@ -144,35 +148,40 @@ class OpenaiModel(Model):
             Raw response and parsed components.
             The raw response is to be sent back as part of the message history.
         """
+        assert self.client is not None
         try:
             if tools is not None and len(tools) == 1:
                 # there is only one tool => force the model to use it
                 tool_name = tools[0]["function"]["name"]
                 tool_choice = {"type": "function", "function": {"name": tool_name}}
-                response = self.client.chat.completions.create(
+                response: ChatCompletion = self.client.chat.completions.create(
                     model=self.name,
-                    messages=messages,
-                    tools=tools,  # TODO: see what happens if this is []
+                    messages=messages,  # type: ignore
+                    tools=tools,  # type: ignore
                     tool_choice=cast(ChatCompletionToolChoiceOptionParam, tool_choice),
                     temperature=common.MODEL_TEMP,
                     response_format=ResponseFormat(type=response_format),
                     max_tokens=1024,
                     top_p=top_p,
+                    stream=False,
                 )
             else:
-                response = self.client.chat.completions.create(
+                response: ChatCompletion = self.client.chat.completions.create(
                     model=self.name,
-                    messages=messages,
-                    # FIXME: how to get rid of type check warning?
-                    tools=tools,  # FIXME: see what happens if this is []
+                    messages=messages,  # type: ignore
+                    tools=tools,  # type: ignore
                     temperature=common.MODEL_TEMP,
                     response_format=ResponseFormat(type=response_format),
                     max_tokens=1024,
                     top_p=top_p,
+                    stream=False,
                 )
 
-            input_tokens = int(response.usage.prompt_tokens)
-            output_tokens = int(response.usage.completion_tokens)
+            usage_stats = response.usage
+            assert usage_stats is not None
+
+            input_tokens = int(usage_stats.prompt_tokens)
+            output_tokens = int(usage_stats.completion_tokens)
             cost = self.calc_cost(input_tokens, output_tokens)
 
             common.thread_cost.process_cost += cost

@@ -113,7 +113,7 @@ class ProjectApiManager:
         return summary
 
     @classmethod
-    def get_full_funcs_for_openai(cls, tool_list: list[str]):
+    def get_full_funcs_for_openai(cls, tool_list: list[str]) -> list[dict]:
         """
         Return a list of function objects which can be sent to OpenAI for
         the function calling feature.

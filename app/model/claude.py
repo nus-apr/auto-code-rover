@@ -7,9 +7,8 @@ import sys
 from typing import Literal
 
 import litellm
-from litellm.utils import ModelResponse
+from litellm.utils import Choices, Message, ModelResponse
 from openai import BadRequestError
-from openai.types.chat import ChatCompletionMessage
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from app.log import log_and_print
@@ -55,13 +54,11 @@ class AntropicModel(Model):
             sys.exit(1)
         return key
 
-    def extract_resp_content(
-        self, chat_completion_message: ChatCompletionMessage
-    ) -> str:
+    def extract_resp_content(self, chat_message: Message) -> str:
         """
         Given a chat completion message, extract the content from it.
         """
-        content = chat_completion_message.content
+        content = chat_message.content
         if content is None:
             return ""
         else:
@@ -103,9 +100,11 @@ class AntropicModel(Model):
             common.thread_cost.process_input_tokens += input_tokens
             common.thread_cost.process_output_tokens += output_tokens
 
-            raw_response = response.choices[0].message
+            first_resp_choice = response.choices[0]
+            assert isinstance(first_resp_choice, Choices)
+            resp_msg: Message = first_resp_choice.message
             # log_and_print(f"Raw model response: {raw_response}")
-            content = self.extract_resp_content(raw_response)
+            content = self.extract_resp_content(resp_msg)
             if response_format == "json_object":
                 # prepend the prefilled character
                 if not content.startswith(prefill_content):

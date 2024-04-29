@@ -4,11 +4,13 @@ Create all models managed by Ollama here, since they need to talk to ollama serv
 """
 
 import sys
+from collections.abc import Mapping
 from copy import deepcopy
-from typing import Literal
+from typing import Literal, cast
 
 import ollama
 import timeout_decorator
+from ollama._types import Message, Options
 from openai.types.chat import ChatCompletionMessage
 
 from app.model import common
@@ -105,16 +107,21 @@ class OllamaModel(Model):
                 options.update({"stop": json_stop_words, "num_predict": 128})
                 response = ollama.chat(
                     model=self.name,
-                    messages=messages,
+                    messages=cast(list[Message], messages),
                     format="json",
-                    options=options,
+                    options=cast(Options, options),
+                    stream=False,
                 )
             else:
                 options.update({"stop": stop_words, "num_predict": 1024})
                 response = ollama.chat(
-                    model=self.name, messages=messages, options=options
+                    model=self.name,
+                    messages=cast(list[Message], messages),
+                    options=cast(Options, options),
+                    stream=False,
                 )
 
+            assert isinstance(response, Mapping)
             resp_msg = response.get("message", None)
             if resp_msg is None:
                 return "", 0, 0, 0
