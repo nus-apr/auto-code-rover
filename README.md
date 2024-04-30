@@ -9,6 +9,7 @@
 
 ## 📣 Updates
 
+- [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
 - [April 19, 2024] AutoCodeRover now supports running on [GitHub issues](#github-issue-mode-set-up-and-run-on-new-github-issues) and [local issues](#local-issue-mode-set-up-and-run-on-local-repositories-and-local-issues)! Feel free to try it out and we welcome your feedback!
 
 ## 👋 Overview
@@ -68,6 +69,8 @@ https://github.com/nus-apr/auto-code-rover/assets/48704330/26c9d5d4-04e0-4b98-be
 
 ## 🚀 Setup & Running
 
+### Setup API key and environment
+
 We recommend running AutoCodeRover in a Docker container.
 
 Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key):
@@ -75,6 +78,7 @@ Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/art
 ```
 export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
 ```
+(Alternatively, if you want to use Anthropic models instead, set `ANTHROPIC_API_KEY`.)
 
 Build and start the docker image:
 
@@ -222,6 +226,30 @@ A config file can be used by:
 ```
 python scripts/run.py conf/vanilla-lite.conf
 ```
+
+### Using a different model
+
+AutoCodeRover works with different foundation models. You can set the foundation model to be used with the `--model` command line argument.
+
+The current list of supported models:
+
+|  | Model | AutoCodeRover cmd line argument |
+|:--------------:|---------------|--------------|
+| OpenAI         | gpt-4-turbo-2024-04-09 | --model gpt-4-turbo-2024-04-09 |
+|                | gpt-4-0125-preview     | --model gpt-4-0125-preview |
+|                | gpt-4-1106-preview     | --model gpt-4-1106-preview |
+|                | gpt-3.5-turbo-0125     | --model gpt-3.5-turbo-0125 |
+|                | gpt-3.5-turbo-1106     | --model gpt-3.5-turbo-1106 |
+|                | gpt-3.5-turbo-16k-0613 | --model gpt-3.5-turbo-16k-0613 |
+|                | gpt-3.5-turbo-0613     | --model gpt-3.5-turbo-0613 |
+|                | gpt-4-0613             | --model gpt-4-0613 |
+| Anthropic      | Claude 3 Opus          | --model claude-3-opus-20240229 |
+|                | Claude 3 Sonnet        | --model claude-3-sonnet-20240229 |
+|                | Claude 3 Haiku         | --model claude-3-haiku-20240307 |
+| Meta           | Llama 3 70B            | --model llama3:70b |
+|                | Llama 3 8B             | --model llama3     |
+
+Before using the llama models, please [install ollama](https://ollama.com/download/linux) and download the corresponding models with ollama (e.g. `ollama pull llama3`).
 
 ## Experiment Replication
 

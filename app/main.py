@@ -16,7 +16,8 @@ from loguru import logger
 from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
-from app.model import gpt
+from app.model import common
+from app.model.register import register_all_models
 from app.post_process import (
     extract_organize_and_form_input,
     get_final_patch_path,
@@ -28,6 +29,7 @@ from app.task import Task
 
 
 def main():
+    register_all_models()
     parser = ArgumentParser()
 
     subparser_dest_attr_name = "command"
@@ -71,8 +73,11 @@ def main():
     # set whether brief or verbose log
     print_stdout: bool = not args.no_print
     log.print_stdout = print_stdout
-    globals.model = args.model
-    globals.model_temperature = args.model_temperature
+    # model related
+    common.set_model(args.model)
+    # FIXME: make temperature part of the Model class
+    common.MODEL_TEMP = args.model_temperature
+    # acr related
     globals.conv_round_limit = args.conv_round_limit
     globals.enable_layered = args.enable_layered
     globals.enable_sbfl = args.enable_sbfl
@@ -192,7 +197,7 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         "--model",
         type=str,
         default="gpt-3.5-turbo-0125",
-        choices=globals.MODELS,
+        choices=list(common.MODEL_HUB.keys()),
         help="The model to use. Currently only OpenAI models are supported.",
     )
     parser.add_argument(
@@ -404,7 +409,7 @@ def run_task_group(task_group_id: str, task_group_items: list[RawTask]) -> None:
 
 
 def run_task_in_subprocess(task: RawTask) -> None:
-    with ProcessPoolExecutor(1) as executor:
+    with ProcessPoolExecutor(max_workers=1) as executor:
         executor.submit(run_raw_task, task)
 
 
@@ -503,26 +508,17 @@ def dump_cost(
     end_time: datetime,
     task_output_dir: str,
 ):
-    input_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
-    output_cost_per_token = globals.MODEL_COST_PER_INPUT[globals.model]
+    model_stats = common.SELECTED_MODEL.get_overall_exec_stats()
+    stats = {
+        "commit": apputils.get_current_commit_hash(),
+        "start_epoch": start_time.timestamp(),
+        "end_epoch": end_time.timestamp(),
+        "elapsed_seconds": (end_time - start_time).total_seconds(),
+    }
+    stats.update(model_stats)
+
     with open(pjoin(task_output_dir, "cost.json"), "w") as f:
-        json.dump(
-            {
-                "model": globals.model,
-                "commit": apputils.get_current_commit_hash(),
-                "input_cost_per_token": input_cost_per_token,
-                "output_cost_per_token": output_cost_per_token,
-                "total_input_tokens": gpt.total_input_tokens,
-                "total_output_tokens": gpt.total_output_tokens,
-                "total_tokens": gpt.total_input_tokens + gpt.total_output_tokens,
-                "total_cost": gpt.total_cost,
-                "start_epoch": start_time.timestamp(),
-                "end_epoch": end_time.timestamp(),
-                "elapsed_seconds": (end_time - start_time).total_seconds(),
-            },
-            f,
-            indent=4,
-        )
+        json.dump(stats, f, indent=4)
 
 
 if __name__ == "__main__":

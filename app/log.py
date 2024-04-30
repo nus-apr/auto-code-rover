@@ -32,10 +32,36 @@ def print_banner(msg: str) -> None:
     console.print()
 
 
+def replace_html_tags(content: str):
+    """
+    Helper method to process the content before printing to markdown.
+    """
+    replace_dict = {
+        "<file>": "[file]",
+        "<class>": "[class]",
+        "<func>": "[func]",
+        "<method>": "[method]",
+        "<code>": "[code]",
+        "<original>": "[original]",
+        "<patched>": "[patched]",
+        "</file>": "[/file]",
+        "</class>": "[/class]",
+        "</func>": "[/func]",
+        "</method>": "[/method]",
+        "</code>": "[/code]",
+        "</original>": "[/original]",
+        "</patched>": "[/patched]",
+    }
+    for key, value in replace_dict.items():
+        content = content.replace(key, value)
+    return content
+
+
 def print_acr(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
+    msg = replace_html_tags(msg)
     markdown = Markdown(msg)
 
     name = "AutoCodeRover"
@@ -48,7 +74,7 @@ def print_acr(msg: str, desc="") -> None:
         markdown,
         title=title,
         title_align="left",
-        border_style="white",
+        border_style="magenta",
         width=WIDTH,
     )
     console.print(panel)
@@ -58,6 +84,7 @@ def print_retrieval(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
+    msg = replace_html_tags(msg)
     markdown = Markdown(msg)
 
     name = "Context Retrieval Agent"
@@ -80,6 +107,7 @@ def print_patch_generation(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
+    msg = replace_html_tags(msg)
     markdown = Markdown(msg)
 
     name = "Patch Generation"
@@ -93,6 +121,21 @@ def print_patch_generation(msg: str, desc="") -> None:
         title=title,
         title_align="left",
         border_style="yellow",
+        width=WIDTH,
+    )
+    console.print(panel)
+
+
+def print_issue(content: str) -> None:
+    if not print_stdout:
+        return
+
+    title = "Issue description"
+    panel = Panel(
+        content,
+        title=title,
+        title_align="left",
+        border_style="red",
         width=WIDTH,
     )
     console.print(panel)

@@ -13,9 +13,9 @@ from glob import glob
 from os.path import join as pjoin
 from shutil import move
 
-from app import globals
 from app import utils as apputils
 from app.api.patch_utils import apply_edit, parse_edits
+from app.model import common
 
 
 def count_and_organize_tasks(
@@ -424,7 +424,7 @@ def extract_swe_bench_input(dir: str):
         task_id = meta["task_id"]
         this_result = {}
         this_result["instance_id"] = task_id
-        this_result["model_name_or_path"] = globals.model
+        this_result["model_name_or_path"] = common.SELECTED_MODEL.name
         with open(diff_file) as f:
             diff_content = f.read()
         if not diff_content:

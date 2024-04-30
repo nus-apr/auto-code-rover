@@ -8,7 +8,7 @@ from typing import Any
 from loguru import logger
 
 from app.data_structures import MessageThread
-from app.model.gpt import call_gpt
+from app.model import common
 from app.post_process import ExtractStatus, is_valid_json
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
@@ -32,6 +32,7 @@ search_code(code_str: str)
 Provide your answer in JSON structure like this, you should ignore the argument placeholders in api calls.
 For example, search_code(code_str="str") should be search_code("str")
 search_method_in_file("method_name", "path.to.file") should be search_method_in_file("method_name", "path/to/file")
+Make sure each API call is written as a valid python expression.
 
 {
     "API_calls": ["api_call_1(args)", "api_call_2(args)", ...],
@@ -42,28 +43,15 @@ NOTE: a bug location should at least has a "class" or "method".
 """
 
 
-def run_with_retries(
-    text: str,
-    retries=5,
-) -> tuple[str | None, list[MessageThread], float, int, int]:
-    all_cost = 0.0
-    all_input_tokens = 0
-    all_output_tokens = 0
-
+def run_with_retries(text: str, retries=5) -> tuple[str | None, list[MessageThread]]:
     msg_threads = []
     for idx in range(1, retries + 1):
         logger.debug(
             "Trying to select search APIs in json. Try {} of {}.", idx, retries
         )
 
-        res_text, new_thread, cost, input_tokens, output_tokens = run(
-            text,
-        )
+        res_text, new_thread = run(text)
         msg_threads.append(new_thread)
-
-        all_cost += cost
-        all_input_tokens += input_tokens
-        all_output_tokens += output_tokens
 
         extract_status, data = is_valid_json(res_text)
 
@@ -77,13 +65,11 @@ def run_with_retries(
             continue
 
         logger.debug("Extracted a valid json")
-        return res_text, msg_threads, all_cost, all_input_tokens, all_output_tokens
-    return None, msg_threads, all_cost, all_input_tokens, all_output_tokens
+        return res_text, msg_threads
+    return None, msg_threads
 
 
-def run(
-    text: str,
-) -> tuple[str, MessageThread, float, int, int]:
+def run(text: str) -> tuple[str, MessageThread]:
     """
     Run the agent to extract issue to json format.
     """
@@ -91,13 +77,13 @@ def run(
     msg_thread = MessageThread()
     msg_thread.add_system(PROXY_PROMPT)
     msg_thread.add_user(text)
-    res_text, _, _, cost, input_tokens, output_tokens = call_gpt(
+    res_text, *_ = common.SELECTED_MODEL.call(
         msg_thread.to_msg(), response_format="json_object"
     )
 
     msg_thread.add_model(res_text, [])  # no tools
 
-    return res_text, msg_thread, cost, input_tokens, output_tokens
+    return res_text, msg_thread
 
 
 def is_valid_response(data: Any) -> tuple[bool, str]:

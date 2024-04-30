@@ -15,9 +15,10 @@ from app.log import (
     log_and_print,
     print_acr,
     print_banner,
+    print_issue,
     print_retrieval,
 )
-from app.model.gpt import call_gpt
+from app.model import common, ollama
 from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
 
@@ -101,8 +102,7 @@ def start_conversation_round_stratified(
 
         print_acr(prompt, f"context retrieval round {start_round_no}")
 
-        res_text, *_ = call_gpt(msg_thread.to_msg())
-
+        res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
         print_retrieval(res_text, f"round {round_no}")
 
@@ -190,7 +190,7 @@ def start_conversation_round_stratified(
         msg_thread.add_user(msg)
         print_acr(msg, f"context retrieval round {round_no}")
 
-        res_text, *_ = call_gpt(msg_thread.to_msg())
+        res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
         print_retrieval(res_text, f"round {round_no}")
 
@@ -200,6 +200,9 @@ def start_conversation_round_stratified(
                 "\n- do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
                 "\n- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
             )
+            if isinstance(common.SELECTED_MODEL, ollama.OllamaModel):
+                # llama models tend to always output search APIs and buggy locations.
+                msg += "\n\nNOTE: If you have already identified the bug locations, do not make any search API calls."
             msg_thread.add_user(msg)
             print_acr(msg, f"context retrieval round {round_no}")
     else:
@@ -319,7 +322,7 @@ def start_conversation_round_state_machine(
         log_and_cprint(f"Allowed next tool states: {allowed_tools}", style="yellow")
 
         # create a new iteration of conversation
-        res_text, raw_tool_calls, func_call_intents, cost, *_ = call_gpt(
+        res_text, raw_tool_calls, func_call_intents, *_ = common.SELECTED_MODEL.call(
             msg_thread.to_msg(), tools=tools
         )
         log_and_print(
@@ -348,9 +351,6 @@ def start_conversation_round_state_machine(
 
         next_user_message = add_step_trigger(summary)
 
-        log_and_cprint(
-            f"Cost - current: {cost}; total: {api_manager.cost}", style="yellow"
-        )
         # form message thread for next round. should include what the model said as well
         msg_thread.add_model(this_model_response, this_model_tools)
         if this_model_tools:
@@ -390,12 +390,12 @@ def run_one_task(
         api_manager (ProjectApiManager): The already-initialized API manager.
         problem_stmt (str): The original problem statement submitted to the task issue.
     """
+    print_banner("Starting AutoCodeRover on the following issue")
+    print_issue(problem_stmt)
     msg_thread = MessageThread()
 
     system_prompt = SYSTEM_PROMPT
-    if (
-        not globals.enable_layered
-    ) and globals.model in globals.PARALLEL_TOOL_CALL_MODELS:
+    if (not globals.enable_layered) and common.SELECTED_MODEL.parallel_tool_call:
         # these models support parallel tool calls, let's try to make them not do it
         system_prompt += " In your response, DO NOT make more than one tool call."
 

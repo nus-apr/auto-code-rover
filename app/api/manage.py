@@ -113,7 +113,7 @@ class ProjectApiManager:
         return summary
 
     @classmethod
-    def get_full_funcs_for_openai(cls, tool_list: list[str]):
+    def get_full_funcs_for_openai(cls, tool_list: list[str]) -> list[dict]:
         """
         Return a list of function objects which can be sent to OpenAI for
         the function calling feature.
@@ -436,7 +436,7 @@ class ProjectApiManager:
 
         The tool returns a patch based on the current available information.
         """
-        tool_output, *_ = agent_write_patch.run_with_retries(
+        tool_output = agent_write_patch.run_with_retries(
             message_thread,
             self.output_dir,
             self.task,
@@ -448,7 +448,7 @@ class ProjectApiManager:
 
     def proxy_apis(self, text: str) -> tuple[str | None, str, list[MessageThread]]:
         """Proxy APIs to another agent."""
-        tool_output, new_thread, *_ = agent_proxy.run_with_retries(
+        tool_output, new_thread = agent_proxy.run_with_retries(
             text
         )  # FIXME: type of `text`
         if tool_output is None:
