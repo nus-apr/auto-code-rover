@@ -4,6 +4,7 @@ An agent, which is only responsible for the write_patch tool call.
 
 import json
 import shutil
+from typing import Callable
 from collections.abc import Iterable
 from copy import deepcopy
 from os.path import join as pjoin
@@ -57,7 +58,8 @@ def run_with_retries(
     output_dir: str,
     task: Task,
     retries=3,
-) -> str:
+    print_callback: Callable[[dict], None] | None = None
+) -> tuple[str, float, int, int]:
     """
     Since the agent may not always write an applicable patch, we allow for retries.
     This is a wrapper around the actual run.
@@ -69,7 +71,7 @@ def run_with_retries(
 
     # (2) add the initial user prompt
     new_thread.add_user(USER_PROMPT_INIT)
-    print_acr(USER_PROMPT_INIT, "patch generation")
+    print_acr(USER_PROMPT_INIT, "patch generation", print_callback=print_callback)
 
     can_stop = False
     result_msg = ""
@@ -97,7 +99,7 @@ def run_with_retries(
         with open(raw_patch_file, "w") as f:
             f.write(res_text)
 
-        print_patch_generation(res_text, f"try {i} / {retries}")
+        print_patch_generation(res_text, f"try {i} / {retries}", print_callback=print_callback)
 
         # Attemp to extract a real patch from the raw patch
         diff_file = pjoin(output_dir, f"extracted_patch_{i}.diff")
@@ -110,7 +112,7 @@ def run_with_retries(
 
         if extract_status == ExtractStatus.APPLICABLE_PATCH:
             patch_content = Path(diff_file).read_text()
-            print_acr(f"```diff\n{patch_content}\n```", "extracted patch")
+            print_acr(f"```diff\n{patch_content}\n```", "extracted patch", print_callback=print_callback)
 
             # patch generated is applicable and all edits are ok, so we can think about validation
             if globals.enable_validation:
@@ -124,7 +126,7 @@ def run_with_retries(
                         "Written a patch that resolves the issue. Congratulations!"
                     )
                     new_thread.add_user(result_msg)  # just for logging
-                    print_acr(result_msg, f"patch generation try {i} / {retries}")
+                    print_acr(result_msg, f"patch generation try {i} / {retries}", print_callback=print_callback)
                     can_stop = True
                 # the following two branches cannot be swapped, because
                 # --enable-perfect-angelic is meant to override --enable-angelic
@@ -145,7 +147,7 @@ def run_with_retries(
 
                     result_msg = f"{msg}\n{angelic_msg}"
                     new_thread.add_user(result_msg)
-                    print_acr(result_msg, f"patch generation try {i} / {retries}")
+                    print_acr(result_msg, f"patch generation try {i} / {retries}", print_callback=print_callback)
                     continue
                 elif globals.enable_angelic:
                     raise NotImplementedError(
@@ -155,7 +157,7 @@ def run_with_retries(
                     result_msg = f"Written an applicable patch, but it did not resolve the issue. {err_message} "
                     result_msg += " Please try again."
                     new_thread.add_user(result_msg)
-                    print_acr(result_msg, f"patch generation try {i} / {retries}")
+                    print_acr(result_msg, f"patch generation try {i} / {retries}", print_callback=print_callback)
                     continue
             elif globals.enable_perfect_angelic:
                 if not isinstance(task, SweTask):
@@ -174,14 +176,14 @@ def run_with_retries(
                     result_msg = msg
 
                 new_thread.add_user(result_msg)
-                print_acr(result_msg, f"patch generation try {i} / {retries}")
+                print_acr(result_msg, f"patch generation try {i} / {retries}", print_callback=print_callback)
                 continue
             elif globals.enable_angelic:
                 raise NotImplementedError("Angelic debugging has not been integrated")
             else:
                 result_msg = "Extracted a patch. Since validation is disabled, you should validation the patch later on. Ending the workflow."
                 new_thread.add_user(result_msg)  # just for logging
-                print_acr(result_msg, f"patch generation try {i} / {retries}")
+                print_acr(result_msg, f"patch generation try {i} / {retries}", print_callback=print_callback)
                 can_stop = True
 
         else:
@@ -192,7 +194,7 @@ def run_with_retries(
                 + " Please try again."
             )
             new_thread.add_user(new_prompt)
-            print_acr(new_prompt, f"patch generation try {i} / {retries}")
+            print_acr(new_prompt, f"patch generation try {i} / {retries}", print_callback=print_callback)
             result_msg = "Failed to write a valid patch."
 
     return result_msg

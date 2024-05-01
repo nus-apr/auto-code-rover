@@ -84,7 +84,7 @@ Build and start the docker image:
 
 ```
 docker build -f Dockerfile -t acr .
-docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" -p 3000:3000 -p 5000:5000 acr
 ```
 
 Alternatively, you can use `Dockerfile.scratch` which supports arm64 (Apple silicon) and ppc in addition to amd64.
@@ -133,6 +133,16 @@ PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir set
 The `<task id>` can be any string used to identify this issue.
 
 If patch generation is successful, the path to the generated patch will be printed in the end.
+
+Web UI is also provided for visualization of the issue fixing process. 
+In the docker shell, run the following command: 
+
+```bash
+cd /opt/auto-code-rover/demo_vis/
+bash run.sh
+```
+
+then open the url `localhost:3000` in the web explorer.
 
 
 ### [Local issue mode] Set up and run on local repositories and local issues
