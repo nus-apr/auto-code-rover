@@ -1,6 +1,7 @@
 import inspect
 import json
 import re
+from typing import Callable
 from os.path import join as pjoin
 from pathlib import Path
 
@@ -72,6 +73,7 @@ def start_conversation_round_stratified(
     msg_thread: MessageThread,
     api_manager: ProjectApiManager,
     start_round_no: int = 0,
+    print_callback: Callable[[dict], None] | None = None
 ) -> bool:
     """
     This version uses json data to process API calls, instead of using the OpenAI function calling.
@@ -100,11 +102,11 @@ def start_conversation_round_stratified(
 
         print_banner(f"CONTEXT RETRIEVAL ROUND {round_no}")
 
-        print_acr(prompt, f"context retrieval round {start_round_no}")
+        print_acr(prompt, f"context retrieval round {start_round_no}", print_callback=print_callback)
 
         res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
-        print_retrieval(res_text, f"round {round_no}")
+        print_retrieval(res_text, f"round {round_no}", print_callback=print_callback)
 
         selected_apis, _, proxy_threads = api_manager.proxy_apis(res_text)
 
@@ -115,7 +117,7 @@ def start_conversation_round_stratified(
         if selected_apis is None:
             msg = "The search API calls seem not valid. Please check the arguments you give carefully and try again."
             msg_thread.add_user(msg)
-            print_acr(msg, f"context retrieval round {round_no}")
+            print_acr(msg, f"context retrieval round {round_no}", print_callback=print_callback)
             continue
 
         selected_apis_json = json.loads(selected_apis)
@@ -135,7 +137,7 @@ def start_conversation_round_stratified(
                 s = ", ".join(f"{k}: `{v}`" for k, v in location.items())
                 formatted.extend([f"\n- {s}"])
 
-        print_acr("\n".join(formatted), "Agent-selected API calls")
+        print_acr("\n".join(formatted), "Agent-selected API calls", print_callback=print_callback)
 
         # collected enough information to write patch
         if buggy_locations and (not json_api_calls):
@@ -155,12 +157,12 @@ def start_conversation_round_stratified(
 
                 print_banner("PATCH GENERATION")
                 logger.debug("Gathered enough information. Invoking write_patch.")
-                print_acr(collated_tool_response, "patch generation round 1")
+                print_acr(collated_tool_response, "patch generation round 1", print_callback=print_callback)
                 break
 
             msg = "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
             msg_thread.add_user(msg)
-            print_acr(msg, f"context retrieval round {round_no}")
+            print_acr(msg, f"context retrieval round {round_no}", print_callback=print_callback)
             continue
 
         # prepare response from tools
@@ -184,15 +186,15 @@ def start_conversation_round_stratified(
             collated_tool_response += tool_output + "\n\n"
 
         msg_thread.add_user(collated_tool_response)
-        print_acr(collated_tool_response, f"context retrieval round {round_no}")
+        print_acr(collated_tool_response, f"context retrieval round {round_no}", print_callback=print_callback)
 
         msg = "Let's analyze collected context first"
         msg_thread.add_user(msg)
-        print_acr(msg, f"context retrieval round {round_no}")
+        print_acr(msg, f"context retrieval round {round_no}", print_callback=print_callback)
 
         res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
-        print_retrieval(res_text, f"round {round_no}")
+        print_retrieval(res_text, f"round {round_no}", print_callback=print_callback)
 
         if round_no < globals.conv_round_limit:
             msg = (
@@ -204,7 +206,7 @@ def start_conversation_round_stratified(
                 # llama models tend to always output search APIs and buggy locations.
                 msg += "\n\nNOTE: If you have already identified the bug locations, do not make any search API calls."
             msg_thread.add_user(msg)
-            print_acr(msg, f"context retrieval round {round_no}")
+            print_acr(msg, f"context retrieval round {round_no}", print_callback=print_callback)
     else:
         logger.info("Too many rounds. Try writing patch anyway.")
 
@@ -213,7 +215,7 @@ def start_conversation_round_stratified(
     api_manager.start_new_tool_call_layer()
 
     write_patch_intent = FunctionCallIntent("write_patch", {}, None)
-    api_manager.dispatch_intent(write_patch_intent, msg_thread)
+    api_manager.dispatch_intent(write_patch_intent, msg_thread, print_callback=print_callback)
 
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
     msg_thread.save_to_file(conversation_file)
@@ -381,7 +383,8 @@ def start_conversation_round_state_machine(
 
 
 def run_one_task(
-    output_dir: str, api_manager: ProjectApiManager, problem_stmt: str
+    output_dir: str, api_manager: ProjectApiManager, problem_stmt: str,
+    print_callback: Callable[[dict], None] | None = None
 ) -> bool:
     """
     Main entry point to run inference on one task.
@@ -412,7 +415,7 @@ def run_one_task(
         msg_thread.add_user(localization_prompt)
 
     if globals.enable_layered:
-        return start_conversation_round_stratified(output_dir, msg_thread, api_manager)
+        return start_conversation_round_stratified(output_dir, msg_thread, api_manager, print_callback=print_callback)
     else:
         return start_conversation_round_state_machine(
             output_dir, msg_thread, api_manager

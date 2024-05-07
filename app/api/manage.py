@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+from typing import Callable
 from collections.abc import Mapping
 from copy import deepcopy
 from os.path import join as pjoin
@@ -177,7 +178,9 @@ class ProjectApiManager:
         return all_tool_objs
 
     def dispatch_intent(
-        self, intent: FunctionCallIntent, message_thread: MessageThread
+        self, intent: FunctionCallIntent, 
+        message_thread: MessageThread,
+        print_callback:Callable[[dict], None] | None  = None
     ) -> tuple[str, str, bool]:
         """Dispatch a function call intent to actually perform its action.
 
@@ -201,7 +204,7 @@ class ProjectApiManager:
             self.curr_tool = intent.func_name
             if intent.func_name in ["write_patch"]:
                 # these two functions require the message thread
-                call_res = func_obj(message_thread)
+                call_res = func_obj(message_thread, print_callback=print_callback)
             else:
                 call_res = func_obj(**intent.arg_values)
         except Exception as e:
@@ -429,7 +432,10 @@ class ProjectApiManager:
         """
         return self.search_manager.search_code_in_file(code_str, file_name)
 
-    def write_patch(self, message_thread: MessageThread) -> tuple[str, str, bool]:
+    def write_patch(self, 
+        message_thread: MessageThread,
+        print_callback:Callable[[dict], None] | None  = None
+    ) -> tuple[str, str, bool]:
         """Based on the current context, ask another agent to write a patch.
 
         When you think the current information is sufficient to write a patch, invoke this tool.
@@ -441,6 +447,7 @@ class ProjectApiManager:
             self.output_dir,
             self.task,
             # self.validator,
+            print_callback=print_callback
         )
         summary = "The tool returned the patch written by another agent."
         # The return status of write_patch does not really matter, so we just use True here

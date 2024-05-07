@@ -4,6 +4,7 @@ The main driver.
 
 import json
 from argparse import ArgumentParser
+from typing import Callable
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
@@ -27,12 +28,8 @@ from app.post_process import (
 from app.raw_tasks import RawGithubTask, RawLocalTask, RawSweTask, RawTask
 from app.task import Task
 
-
-def main():
-    register_all_models()
+def get_args(from_command_line_str: str = None, subparser_dest_attr_name: str = "command"):
     parser = ArgumentParser()
-
-    subparser_dest_attr_name = "command"
     subparsers = parser.add_subparsers(dest=subparser_dest_attr_name)
 
     swe_parser = subparsers.add_parser(
@@ -63,7 +60,11 @@ def main():
     )
     re_extract_patches_parser.add_argument("experiment-dir", type=str)
 
-    args = parser.parse_args()
+    if not from_command_line_str:
+        return parser.parse_args()
+    return parser.parse_args(from_command_line_str.split())
+
+def main(args, subparser_dest_attr_name: str = "command"):
 
     ## common options
     globals.output_dir = args.output_dir
@@ -413,7 +414,7 @@ def run_task_in_subprocess(task: RawTask) -> None:
         executor.submit(run_raw_task, task)
 
 
-def run_raw_task(task: RawTask) -> bool:
+def run_raw_task(task: RawTask, print_callback: Callable[[dict], None] | None = None) -> bool:
     """
     High-level entry for running one task.
 
@@ -438,7 +439,7 @@ def run_raw_task(task: RawTask) -> bool:
     run_ok = False
 
     try:
-        run_ok = do_inference(task.to_task(), task_output_dir)
+        run_ok = do_inference(task.to_task(), task_output_dir, print_callback)
 
         if run_ok:
             run_status_message = f"Task {task_id} completed successfully."
@@ -466,7 +467,7 @@ def run_raw_task(task: RawTask) -> bool:
     return run_ok
 
 
-def do_inference(python_task: Task, task_output_dir: str) -> bool:
+def do_inference(python_task: Task, task_output_dir: str, print_callback: Callable[[dict], None] | None = None) -> bool:
 
     apputils.create_dir_if_not_exists(task_output_dir)
 
@@ -488,7 +489,8 @@ def do_inference(python_task: Task, task_output_dir: str) -> bool:
             _, _, run_ok = api_manager.fault_localization()
         else:
             run_ok = inference.run_one_task(
-                api_manager.output_dir, api_manager, python_task.get_issue_statement()
+                api_manager.output_dir, api_manager, python_task.get_issue_statement(), 
+                print_callback
             )
 
             api_manager.dump_tool_call_sequence_to_file()
@@ -523,4 +525,5 @@ def dump_cost(
 
 if __name__ == "__main__":
     logger.remove()
-    main()
+    args = get_args()
+    main(args)
