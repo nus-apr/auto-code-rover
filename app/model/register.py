@@ -1,4 +1,4 @@
-from app.model import claude, common, gpt, ollama
+from app.model import bedrock, claude, common, gpt, ollama
 
 
 def register_all_models() -> None:
@@ -17,6 +17,10 @@ def register_all_models() -> None:
     common.register_model(claude.Claude3Opus())
     common.register_model(claude.Claude3Sonnet())
     common.register_model(claude.Claude3Haiku())
+    
+    common.register_model(bedrock.AnthropicClaude3Opus())
+    common.register_model(bedrock.AnthropicClaude3Sonnet())
+    common.register_model(bedrock.AnthropicClaude3Haiku())
 
     common.register_model(ollama.Llama3_8B())
     common.register_model(ollama.Llama3_70B())
