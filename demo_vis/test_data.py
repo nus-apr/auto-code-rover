@@ -1,20 +1,24 @@
-import os, time
+import json
+import os
+import time
 from os.path import join as pjoin
 from pathlib import Path
-from app.log import log_and_print
-from app.raw_tasks import RawTask, PlainTask
+
 from app import utils as app_utils
+from app.log import log_and_print
+from app.raw_tasks import PlainTask, RawTask
+
 
 class RawGithubTask_for_debug(RawTask):
     """
-    Encapsulate everything required to run ACR on a fresh issue from the internet. 
-    
-    For debug / dev: github limits the calling times of api. Therefore when 
-    debuging, use the hardcode task: 
+    Encapsulate everything required to run ACR on a fresh issue from the internet.
+
+    For debug / dev: github limits the calling times of api. Therefore when
+    debuging, use the hardcode task:
         self.clone_link = 'https://github.com/langchain-ai/langchain.git'
         self.commit_hash = 'cb6e5e5'
         self.issue_link = 'https://github.com/langchain-ai/langchain/issues/20453'
-        self.problem_statement: refer to the implementation of fetch_github_issue function 
+        self.problem_statement: refer to the implementation of fetch_github_issue function
     """
 
     def __init__(
@@ -23,12 +27,12 @@ class RawGithubTask_for_debug(RawTask):
         clone_link: str,
         commit_hash: str,
         issue_link: str,
-        setup_dir: str
+        setup_dir: str,
     ):
         self._task_id = task_id
-        self.clone_link = 'https://github.com/langchain-ai/langchain.git'
-        self.commit_hash = 'cb6e5e5'
-        self.issue_link = 'https://github.com/langchain-ai/langchain/issues/20453'
+        self.clone_link = "https://github.com/langchain-ai/langchain.git"
+        self.commit_hash = "cb6e5e5"
+        self.issue_link = "https://github.com/langchain-ai/langchain/issues/20453"
         self.setup_dir = setup_dir
         self.clone_path = pjoin(self.setup_dir, self.task_id)
         self.problem_statement, self.created_at = self.fetch_issue()
@@ -41,11 +45,7 @@ class RawGithubTask_for_debug(RawTask):
     def clone_repo(self):
         clone_path = Path(self.clone_path)
         if os.path.exists(clone_path):
-            return # Dev/Debug mode
-            log_and_print(
-                f"Path {clone_path} already exists. Removing it to get a fresh clone."
-            )
-            shutil.rmtree(clone_path)
+            return  # Dev/Debug mode
         app_utils.clone_repo(self.clone_link, str(clone_path.parent), clone_path.name)
         log_and_print(f"Cloned source code to {clone_path}.")
 
@@ -88,8 +88,8 @@ class RawGithubTask_for_debug(RawTask):
     def fetch_github_issue(cls, issue_url: str) -> tuple[str, str, str]:
         """Extract owner, repo, and issue number from the URL"""
 
-        title = '''`PaiEasChatEndpoint._call_eas` should return `bytes` type instead of `str` type'''
-        body = ''' 
+        title = """`PaiEasChatEndpoint._call_eas` should return `bytes` type instead of `str` type"""
+        body = """
 ### Checked other resources
 
 - [X] I added a very descriptive title to this issue.
@@ -139,7 +139,7 @@ System Information
 ------------------
 > OS:  Linux
 > OS Version:  #190-Ubuntu SMP Fri Feb 2 23:24:22 UTC 2024
-> Python Version:  3.9.18 (main, Feb 13 2024, 14:37:08) 
+> Python Version:  3.9.18 (main, Feb 13 2024, 14:37:08)
 [GCC 9.4.0]
 
 Package Information
@@ -156,8 +156,8 @@ The following packages were not found:
 
 > langgraph
 > langserve
-'''
-        created_at = '''2024-04-15T07:47:06Z'''
+"""
+        created_at = """2024-04-15T07:47:06Z"""
 
         return title, body, created_at
 
@@ -170,10 +170,10 @@ The following packages were not found:
 
 
 test_data = [
-        {
-            'title': 'AutoCodeRover (context retrieval round 0)',
-            'category': 'auto_code_rover',
-            'message': '''Based on the files, classes, methods, and code statements from the issue related to the bug, you can use the following search APIs to get more context of the project.
+    {
+        "title": "AutoCodeRover (context retrieval round 0)",
+        "category": "auto_code_rover",
+        "message": """Based on the files, classes, methods, and code statements from the issue related to the bug, you can use the following search APIs to get more context of the project.
 - search_class(class_name: str): Search for a class in the codebase
 - search_method_in_file(method_name: str, file_path: str): Search for a method in a given file
 - search_method_in_class(method_name: str, class_name: str): Search for a method in a given class
@@ -183,31 +183,31 @@ test_data = [
 
 Note that you can use multiple search APIs in one round.
 
-Now analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs.'''
-        }, 
-        {
-            'title': 'Context Retrieval Agent (round 0)',
-            'category': 'context_retrieval_agent',
-            'message': '''I will start by searching for the `PaiEasChatEndpoint` class to understand its structure and methods. Then, I will search for the `_call_eas` method within this class to investigate its implementation.
+Now analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs.""",
+    },
+    {
+        "title": "Context Retrieval Agent (round 0)",
+        "category": "context_retrieval_agent",
+        "message": """I will start by searching for the `PaiEasChatEndpoint` class to understand its structure and methods. Then, I will search for the `_call_eas` method within this class to investigate its implementation.
 
 1. `search_class("PaiEasChatEndpoint")`
-2. `search_method_in_class("_call_eas", "PaiEasChatEndpoint")`'''
-        }, 
-        {
-            'title': 'AutoCodeRover (Agent-selected API calls)',
-            'category': 'auto_code_rover',
-            'message': '''
+2. `search_method_in_class("_call_eas", "PaiEasChatEndpoint")`""",
+    },
+    {
+        "title": "AutoCodeRover (Agent-selected API calls)",
+        "category": "auto_code_rover",
+        "message": """
             API calls:
 
 - `search_class('PaiEasChatEndpoint')`
 
 - `search_method_in_class('_call_eas', 'PaiEasChatEndpoint')`
-            '''
-        }, 
-        {
-            'title': 'AutoCodeRover (context retrieval round 0)',
-            'category': 'auto_code_rover',
-            'message': '''
+            """,
+    },
+    {
+        "title": "AutoCodeRover (context retrieval round 0)",
+        "category": "auto_code_rover",
+        "message": '''
             Result of search_class('PaiEasChatEndpoint'):
 
 Found 1 classes with name PaiEasChatEndpoint in the codebase:
@@ -292,17 +292,17 @@ return response.text
 
 </code>
 ```
-            '''
-        }, 
-        {
-            'title': 'Context Retrieval Agent (round 0)',
-            'category': 'auto_code_rover',
-            'message': '''Let's analyze collected context first'''
-        }, 
-        {
-            'title': 'AutoCodeRover (context retrieval round 0)',
-            'category': 'context_retrieval_agent',
-            'message': '''Based on the search results, here is the analysis of the `PaiEasChatEndpoint` class and the `_call_eas` method:
+            ''',
+    },
+    {
+        "title": "Context Retrieval Agent (round 0)",
+        "category": "auto_code_rover",
+        "message": """Let's analyze collected context first""",
+    },
+    {
+        "title": "AutoCodeRover (context retrieval round 0)",
+        "category": "context_retrieval_agent",
+        "message": """Based on the search results, here is the analysis of the `PaiEasChatEndpoint` class and the `_call_eas` method:
 
 1. **PaiEasChatEndpoint Class**:
 - The `PaiEasChatEndpoint` class is defined in the file `libs/community/langchain_community/chat_models/pai_eas_endpoint.py`.
@@ -317,19 +317,19 @@ return response.text
 - If the request fails (status code other than 200), it raises an exception with the status code and response message.
 - Currently, the method returns the response text as a `str`.
 
-Based on this analysis, the issue is indeed related to the `_call_eas` method returning a `str` type instead of `bytes`, which leads to a type mismatch in the `_call` method. The fix involves modifying the `_call_eas` method to return `bytes` instead of `str`.'''
-        }, 
-        {
-            'title': 'AutoCodeRover (context retrieval round 0)',
-            'category': 'auto_code_rover',
-            'message': '''Based on your analysis, answer below questions:
+Based on this analysis, the issue is indeed related to the `_call_eas` method returning a `str` type instead of `bytes`, which leads to a type mismatch in the `_call` method. The fix involves modifying the `_call_eas` method to return `bytes` instead of `str`.""",
+    },
+    {
+        "title": "AutoCodeRover (context retrieval round 0)",
+        "category": "auto_code_rover",
+        "message": """Based on your analysis, answer below questions:
 - do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)
-- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)'''
-        }, 
-        {
-            'title': 'AutoCodeRover (context retrieval round 0)',
-            'category': 'auto_code_rover',
-            'message': '''
+- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)""",
+    },
+    {
+        "title": "AutoCodeRover (context retrieval round 0)",
+        "category": "auto_code_rover",
+        "message": """
         Based on the files, classes, methods, and code statements from the issue related to the bug, you can use the following search APIs to get more context of the project.
 - search_class(class_name: str): Search for a class in the codebase
 - search_method_in_file(method_name: str, file_path: str): Search for a method in a given file
@@ -341,31 +341,31 @@ Based on this analysis, the issue is indeed related to the `_call_eas` method re
 Note that you can use multiple search APIs in one round.
 
 Now analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs.
-            '''
-        }, 
-        {
-            'title': 'Context Retrieval Agent (round 1)',
-            'category': 'context_retrieval_agent',
-            'message': '''- **More Context**:
+            """,
+    },
+    {
+        "title": "Context Retrieval Agent (round 1)",
+        "category": "context_retrieval_agent",
+        "message": """- **More Context**:
 - We have sufficient context to proceed with fixing the bug. No additional search API calls are needed at this point.
 
 - **Bug Locations**:
 - Buggy File: `libs/community/langchain_community/chat_models/pai_eas_endpoint.py`
-- Buggy Method: `_call_eas` in the `PaiEasChatEndpoint` class'''
-        }, 
-        {
-            'title': 'AutoCodeRover (Agent-selected API calls)',
-            'category': 'auto_code_rover',
-            'message': '''
+- Buggy Method: `_call_eas` in the `PaiEasChatEndpoint` class""",
+    },
+    {
+        "title": "AutoCodeRover (Agent-selected API calls)",
+        "category": "auto_code_rover",
+        "message": """
 
 Bug locations
 
-- file: `libs/community/langchain_community/chat_models/pai_eas_endpoint.py`, class: `PaiEasChatEndpoint`, method: `_call_eas`'''
-        }, 
-        {
-            'title': 'AutoCodeRover (Patch generation round 1)',
-            'category': 'auto_code_rover',
-            'message': '''Here is the code in buggy locations:
+- file: `libs/community/langchain_community/chat_models/pai_eas_endpoint.py`, class: `PaiEasChatEndpoint`, method: `_call_eas`""",
+    },
+    {
+        "title": "AutoCodeRover (Patch generation round 1)",
+        "category": "auto_code_rover",
+        "message": '''Here is the code in buggy locations:
 
 
 
@@ -399,12 +399,12 @@ return response.text
 
 </code>
 ```
-'''
-        }, 
-        {
-            'title': 'AutoCodeRover (patch generation)',
-            'category': 'auto_code_rover',
-            'message': '''
+''',
+    },
+    {
+        "title": "AutoCodeRover (patch generation)",
+        "category": "auto_code_rover",
+        "message": """
             Write a patch for the issue, based on the retrieved context.
 
 You can import necessary libraries.
@@ -432,12 +432,12 @@ You can write multiple modifications if needed.
 
 # modification 3
 ...
-```'''
-        }, 
-        {
-            'category': 'patch_generation',
-            'title': 'Patch Generation (try 1 / 3)',
-            'message': '''```
+```""",
+    },
+    {
+        "category": "patch_generation",
+        "title": "Patch Generation (try 1 / 3)",
+        "message": '''```
 # Patch for changing the return type of _call_eas method to bytes
 
 import requests
@@ -488,12 +488,12 @@ f" and message {response.text}"
 
 return response.content
 </patched>
-```'''
-        },
-        {
-            'title': 'AutoCodeRover (extracted patch)',
-            'category': 'auto_code_rover',
-            'message': '''```diff
+```''',
+    },
+    {
+        "title": "AutoCodeRover (extracted patch)",
+        "category": "auto_code_rover",
+        "message": '''```diff
 diff --git a/libs/community/langchain_community/chat_models/pai_eas_endpoint.py b/libs/community/langchain_community/chat_models/pai_eas_endpoint.py
 index e438ad25e..309c6d287 100644
 --- a/libs/community/langchain_community/chat_models/pai_eas_endpoint.py
@@ -517,17 +517,17 @@ f" and message {response.text}"
 def _call_eas_stream(self, query_body: dict) -> Any:
 """Generate text from the eas service."""
 
-```'''
-        }, 
-        {
-            'title': 'AutoCodeRover (patch generation try 1 / 3)',
-            'category': 'auto_code_rover',
-            'message': '''Extracted a patch. Since validation is disabled, you should validation the patch later on. Ending the workflow.'''
-        }, 
-    ]
+```''',
+    },
+    {
+        "title": "AutoCodeRover (patch generation try 1 / 3)",
+        "category": "auto_code_rover",
+        "message": """Extracted a patch. Since validation is disabled, you should validation the patch later on. Ending the workflow.""",
+    },
+]
+
 
 def test_generate_data(callback):
     for data in test_data:
         callback(data)
         time.sleep(1)
-

@@ -1,8 +1,7 @@
 import json
 import os
 import shutil
-from typing import Callable
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from os.path import join as pjoin
 from pathlib import Path
@@ -178,9 +177,10 @@ class ProjectApiManager:
         return all_tool_objs
 
     def dispatch_intent(
-        self, intent: FunctionCallIntent, 
+        self,
+        intent: FunctionCallIntent,
         message_thread: MessageThread,
-        print_callback:Callable[[dict], None] | None  = None
+        print_callback: Callable[[dict], None] | None = None,
     ) -> tuple[str, str, bool]:
         """Dispatch a function call intent to actually perform its action.
 
@@ -432,9 +432,10 @@ class ProjectApiManager:
         """
         return self.search_manager.search_code_in_file(code_str, file_name)
 
-    def write_patch(self, 
+    def write_patch(
+        self,
         message_thread: MessageThread,
-        print_callback:Callable[[dict], None] | None  = None
+        print_callback: Callable[[dict], None] | None = None,
     ) -> tuple[str, str, bool]:
         """Based on the current context, ask another agent to write a patch.
 
@@ -447,7 +448,7 @@ class ProjectApiManager:
             self.output_dir,
             self.task,
             # self.validator,
-            print_callback=print_callback
+            print_callback=print_callback,
         )
         summary = "The tool returned the patch written by another agent."
         # The return status of write_patch does not really matter, so we just use True here

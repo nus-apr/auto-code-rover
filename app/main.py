@@ -4,8 +4,7 @@ The main driver.
 
 import json
 from argparse import ArgumentParser
-from typing import Callable
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from itertools import chain
@@ -18,7 +17,6 @@ from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
 from app.model import common
-from app.model.register import register_all_models
 from app.post_process import (
     extract_organize_and_form_input,
     get_final_patch_path,
@@ -28,7 +26,10 @@ from app.post_process import (
 from app.raw_tasks import RawGithubTask, RawLocalTask, RawSweTask, RawTask
 from app.task import Task
 
-def get_args(from_command_line_str: str = None, subparser_dest_attr_name: str = "command"):
+
+def get_args(
+    from_command_line_str: str = None, subparser_dest_attr_name: str = "command"
+):
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(dest=subparser_dest_attr_name)
 
@@ -63,6 +64,7 @@ def get_args(from_command_line_str: str = None, subparser_dest_attr_name: str = 
     if not from_command_line_str:
         return parser.parse_args()
     return parser.parse_args(from_command_line_str.split())
+
 
 def main(args, subparser_dest_attr_name: str = "command"):
 
@@ -414,7 +416,9 @@ def run_task_in_subprocess(task: RawTask) -> None:
         executor.submit(run_raw_task, task)
 
 
-def run_raw_task(task: RawTask, print_callback: Callable[[dict], None] | None = None) -> bool:
+def run_raw_task(
+    task: RawTask, print_callback: Callable[[dict], None] | None = None
+) -> bool:
     """
     High-level entry for running one task.
 
@@ -467,7 +471,11 @@ def run_raw_task(task: RawTask, print_callback: Callable[[dict], None] | None = 
     return run_ok
 
 
-def do_inference(python_task: Task, task_output_dir: str, print_callback: Callable[[dict], None] | None = None) -> bool:
+def do_inference(
+    python_task: Task,
+    task_output_dir: str,
+    print_callback: Callable[[dict], None] | None = None,
+) -> bool:
 
     apputils.create_dir_if_not_exists(task_output_dir)
 
@@ -489,8 +497,10 @@ def do_inference(python_task: Task, task_output_dir: str, print_callback: Callab
             _, _, run_ok = api_manager.fault_localization()
         else:
             run_ok = inference.run_one_task(
-                api_manager.output_dir, api_manager, python_task.get_issue_statement(), 
-                print_callback
+                api_manager.output_dir,
+                api_manager,
+                python_task.get_issue_statement(),
+                print_callback,
             )
 
             api_manager.dump_tool_call_sequence_to_file()

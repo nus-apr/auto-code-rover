@@ -1,6 +1,6 @@
 import time
+from collections.abc import Callable
 from os import get_terminal_size
-from typing import Callable
 
 from loguru import logger
 from rich.console import Console
@@ -57,7 +57,10 @@ def replace_html_tags(content: str):
         content = content.replace(key, value)
     return content
 
-def print_acr(msg: str, desc="", print_callback: Callable[[dict], None] | None = None) -> None:
+
+def print_acr(
+    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
+) -> None:
     if not print_stdout:
         return
 
@@ -80,14 +83,14 @@ def print_acr(msg: str, desc="", print_callback: Callable[[dict], None] | None =
     console.print(panel)
 
     if print_callback:
-        print_callback({
-            'title': f"{name} ({desc})",
-            'message': msg,
-            'category': 'auto_code_rover'
-        })
+        print_callback(
+            {"title": f"{name} ({desc})", "message": msg, "category": "auto_code_rover"}
+        )
 
 
-def print_retrieval(msg: str, desc="", print_callback: Callable[[dict], None] | None = None) -> None:
+def print_retrieval(
+    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
+) -> None:
     if not print_stdout:
         return
 
@@ -109,14 +112,18 @@ def print_retrieval(msg: str, desc="", print_callback: Callable[[dict], None] | 
     )
     console.print(panel)
     if print_callback:
-        print_callback({
-            'title': f"{name} ({desc})",
-            'message': msg,
-            'category': 'context_retrieval_agent'
-        })
+        print_callback(
+            {
+                "title": f"{name} ({desc})",
+                "message": msg,
+                "category": "context_retrieval_agent",
+            }
+        )
 
 
-def print_patch_generation(msg: str, desc="", print_callback: Callable[[dict], None] | None = None) -> None:
+def print_patch_generation(
+    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
+) -> None:
     if not print_stdout:
         return
 
@@ -138,11 +145,13 @@ def print_patch_generation(msg: str, desc="", print_callback: Callable[[dict], N
     )
     console.print(panel)
     if print_callback:
-        print_callback({
-            'title': f"{name} ({desc})",
-            'message': msg,
-            'category': 'patch_generation'
-        })
+        print_callback(
+            {
+                "title": f"{name} ({desc})",
+                "message": msg,
+                "category": "patch_generation",
+            }
+        )
 
 
 def print_issue(content: str) -> None:
