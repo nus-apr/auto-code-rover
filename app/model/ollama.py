@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Literal, cast
 
+import httpx
 import ollama
 import timeout_decorator
 from ollama._types import Message, Options
@@ -35,6 +36,7 @@ class OllamaModel(Model):
             return
         # local models are free
         super().__init__(name, 0.0, 0.0)
+        self.client: ollama.Client | None = None
         self._initialized = True
 
     def setup(self) -> None:
@@ -51,6 +53,9 @@ class OllamaModel(Model):
                 e,
             )
             sys.exit(1)
+        except Exception as e:
+            print("Could not communicate with ollama server due to exception.", e)
+            sys.exit(1)
 
     @timeout_decorator.timeout(120)  # 2 min
     def send_empty_request(self):
@@ -60,7 +65,27 @@ class OllamaModel(Model):
         (2) preload the model for faster response time (models will be kept in memory for 5 mins after loaded)
         (see https://github.com/ollama/ollama/blob/main/docs/faq.md#how-can-i-pre-load-a-model-to-get-faster-response-times)
         """
-        ollama.chat(model=self.name, messages=[])
+        # localhost is used when (1) running both ACR and ollama on host machine; and
+        #   (2) running ollama in host, and ACR in container with --net=host
+        local_client = ollama.Client(host="http://localhost:11434")
+        # docker_host_client is used when running ollama in host and ACR in container, and
+        # Docker Desktop is installed
+        docker_host_client = ollama.Client(host="http://host.docker.internal:11434")
+        try:
+            local_client.chat(model=self.name, messages=[])
+            self.client = local_client
+            return
+        except httpx.ConnectError:
+            # failed to connect to client at localhost
+            pass
+
+        try:
+            docker_host_client.chat(model=self.name, messages=[])
+            self.client = docker_host_client
+        except httpx.ConnectError:
+            # also failed to connect via host.docker.internal
+            print("Could not connect to ollama server.")
+            sys.exit(1)
 
     def check_api_key(self) -> str:
         return "No key required for local models."
@@ -90,6 +115,8 @@ class OllamaModel(Model):
         json_stop_words.append("```")
         json_stop_words.append(" " * 10)
         # FIXME: ignore tools field since we don't use tools now
+
+        assert self.client is not None
         try:
             # build up options for ollama
             options = {
@@ -105,7 +132,7 @@ class OllamaModel(Model):
                 messages.append(json_instruction)
                 # give more stop words and lower max_token for json mode
                 options.update({"stop": json_stop_words, "num_predict": 128})
-                response = ollama.chat(
+                response = self.client.chat(
                     model=self.name,
                     messages=cast(list[Message], messages),
                     format="json",
@@ -114,7 +141,7 @@ class OllamaModel(Model):
                 )
             else:
                 options.update({"stop": stop_words, "num_predict": 1024})
-                response = ollama.chat(
+                response = self.client.chat(
                     model=self.name,
                     messages=cast(list[Message], messages),
                     options=cast(Options, options),

@@ -1,28 +1,34 @@
-import os, time, sys, datetime
-import threading
+import datetime
 import json
+import os
+import sys
+import threading
+import time
 from queue import Queue
-from flask import Flask, Response, request, jsonify
-from flask_cors import CORS, cross_origin
 
-sys.path.append('/opt/auto-code-rover/')
-from app.raw_tasks import RawGithubTask
-from app.model import common
-from app.model.register import register_all_models
-from app.main import get_args, run_raw_task
-from app import globals, log
+from flask import Flask, Response, jsonify, request
+from flask_cors import cross_origin
 
+sys.path.append("/opt/auto-code-rover/")
 from test_data import RawGithubTask_for_debug, test_generate_data
 
+from app import globals, log
+from app.main import get_args, run_raw_task
+from app.model import common
+from app.model.register import register_all_models
+from app.raw_tasks import RawGithubTask
+
 app = Flask(__name__)
+
 
 def initialize_thread_cost():
     common.thread_cost.process_cost = 0.0
     common.thread_cost.process_input_tokens = 0
     common.thread_cost.process_output_tokens = 0
 
-@app.route('/api/run_github_issue', methods=['POST'])
-@cross_origin(origin='http://localhost:3000') # nextjs cross origin
+
+@app.route("/api/run_github_issue", methods=["POST"])
+@cross_origin(origin="http://localhost:3000")  # nextjs cross origin
 def run_github_issue():
 
     if not request.is_json:
@@ -30,16 +36,17 @@ def run_github_issue():
     register_all_models()
 
     data = request.get_json()
-    args = get_args('''github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2''')
-    args.task_id = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    args.clone_link = data['repository_link']
-    args.commit_hash = data['commit_hash']
-    args.issue_link = data['issue_link']
+    args = get_args(
+        """github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2"""
+    )
+    args.task_id = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    args.clone_link = data["repository_link"]
+    args.commit_hash = data["commit_hash"]
+    args.issue_link = data["issue_link"]
 
     globals.output_dir = args.output_dir
     if globals.output_dir is not None:
         globals.output_dir = os.path.abspath(globals.output_dir)
-    num_processes: int = int(args.num_processes)
     # set whether brief or verbose log
     print_stdout: bool = not args.no_print
     log.print_stdout = print_stdout
@@ -73,33 +80,31 @@ def run_github_issue():
                 args.issue_link,
                 os.path.abspath(args.setup_dir),
             )
-    except RuntimeError as e: 
-        error_form = {
-            'message': str(e)
-        }
+    except RuntimeError as e:
+        error_form = {"message": str(e)}
         return jsonify(error_form), 400
 
     def stream_print():
         print_queue = Queue()
-        
+
         def callback(data: dict):
-            print_queue.put(f'{json.dumps(data)}</////json_end>')
-        
+            print_queue.put(f"{json.dumps(data)}</////json_end>")
+
         def run(task, callback):
             initialize_thread_cost()
-            callback({
-                'category': 'issue_info',
-                'problem_statement': task.problem_statement
-            })
+            callback(
+                {"category": "issue_info", "problem_statement": task.problem_statement}
+            )
             run_raw_task(task, callback)
 
         thread = threading.Thread(target=run, args=(task, callback))
         if app.debug:
-            callback({
-                'category': 'issue_info',
-                'problem_statement': task.problem_statement
-            })
-            thread = threading.Thread(target=test_generate_data, args=(callback,)) # debug
+            callback(
+                {"category": "issue_info", "problem_statement": task.problem_statement}
+            )
+            thread = threading.Thread(
+                target=test_generate_data, args=(callback,)
+            )  # debug
             time.sleep(1)
         else:
             thread = threading.Thread(target=run, args=(task, callback))
@@ -110,8 +115,10 @@ def run_github_issue():
                 yield print_queue.get()
             else:
                 time.sleep(0.1)
-    return Response(stream_print(), mimetype='text/event-stream')
+
+    return Response(stream_print(), mimetype="text/event-stream")
+
 
 # http://localhost:5000/
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

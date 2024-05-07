@@ -134,8 +134,8 @@ The `<task id>` can be any string used to identify this issue.
 
 If patch generation is successful, the path to the generated patch will be printed in the end.
 
-Web UI is also provided for visualization of the issue fixing process. 
-In the docker shell, run the following command: 
+Web UI is also provided for visualization of the issue fixing process.
+In the docker shell, run the following command:
 
 ```bash
 cd /opt/auto-code-rover/demo_vis/
@@ -259,7 +259,14 @@ The current list of supported models:
 | Meta           | Llama 3 70B            | --model llama3:70b |
 |                | Llama 3 8B             | --model llama3     |
 
-Before using the llama models, please [install ollama](https://ollama.com/download/linux) and download the corresponding models with ollama (e.g. `ollama pull llama3`).
+> [!NOTE]
+> Some notes on running ACR with local models such as llama3:
+> 1. Before using the llama3 models, please [install ollama](https://ollama.com/download/linux) and download the corresponding models with ollama (e.g. `ollama pull llama3`).
+> 2. You can run ollama server on the host machine, and ACR in its container. ACR will attempt to communicate to the ollama server on host.
+> 3. If your setup is ollama in host + ACR in its container, we recommend installing [Docker Desktop](https://docs.docker.com/desktop/) on the host, in addition to the [Docker Engine](https://docs.docker.com/engine/).
+>     - Docker Desktop contains Docker Engine, and also has a virtual machine which makes it easier to access the host ports from within a container. With Docker Desktop, this setup will work without additional effort.
+>     - When the docker installation is only Docker Engine, you may need to add either `--net=host` or `--add-host host.docker.internal=host-gateway` to the `docker run` command when starting the ACR container, so that ACR can communicate with the ollama server on the host machine.
+
 
 ## Experiment Replication
 
