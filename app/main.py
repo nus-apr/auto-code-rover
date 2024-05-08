@@ -17,6 +17,7 @@ from app import globals, globals_mut, inference, log
 from app import utils as apputils
 from app.api.manage import ProjectApiManager
 from app.model import common
+from app.model.register import register_all_models
 from app.post_process import (
     extract_organize_and_form_input,
     get_final_patch_path,
@@ -535,5 +536,6 @@ def dump_cost(
 
 if __name__ == "__main__":
     logger.remove()
+    register_all_models()
     args = get_args()
     main(args)
