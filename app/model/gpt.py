@@ -207,6 +207,14 @@ class OpenaiModel(Model):
             raise e
 
 
+class Gpt4o_20240513(OpenaiModel):
+    def __init__(self):
+        super().__init__(
+            "gpt-4o-2024-05-13", 0.000005, 0.000015, parallel_tool_call=True
+        )
+        self.note = "Multimodal model. Up to Oct 2023."
+
+
 class Gpt4_Turbo20240409(OpenaiModel):
     def __init__(self):
         super().__init__(
