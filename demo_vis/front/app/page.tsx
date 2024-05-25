@@ -206,7 +206,7 @@ export default function App() {
   };
 
   const onsubmmit_callback = async (data: FieldValues) => {
-    const call_server = fetch('http://localhost:5000/api/run_github_issue', {
+    const call_server = fetch('http://localhost:3000/api/run_github_issue', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
