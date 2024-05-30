@@ -1,11 +1,20 @@
 # AutoCodeRover: Autonomous Program Improvement
 
-![overall-workflow](https://github.com/nus-apr/auto-code-rover/assets/48704330/0b8da9ad-588c-4f7d-9c99-53f33d723d35)
+<br>
+
+<p align="center">
+  <img src="https://github.com/nus-apr/auto-code-rover/assets/16000056/8d249b02-1db4-4f58-a5a4-bdb694d65ab1" alt="autocoderover_logo" width="200px" height="200px">
+</p>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
 </p>
 
+<br>
+
+![overall-workflow](https://github.com/nus-apr/auto-code-rover/assets/48704330/0b8da9ad-588c-4f7d-9c99-53f33d723d35)
+
+<br>
 
 ## 📣 Updates
 
