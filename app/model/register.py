@@ -1,4 +1,4 @@
-from app.model import claude, common, gpt, ollama
+from app.model import claude, common, gemini, gpt, gptlitellm, ollama
 
 
 def register_all_models() -> None:
@@ -21,6 +21,19 @@ def register_all_models() -> None:
 
     common.register_model(ollama.Llama3_8B())
     common.register_model(ollama.Llama3_70B())
+
+    common.register_model(gptlitellm.Gpt4o_20240513LiteLLM())
+    common.register_model(gptlitellm.Gpt4_Turbo20240409LiteLLM())
+    common.register_model(gptlitellm.Gpt4_0125PreviewLiteLLM())
+    common.register_model(gptlitellm.Gpt4_1106PreviewLiteLLM())
+    common.register_model(gptlitellm.Gpt35_Turbo0125LiteLLM())
+    common.register_model(gptlitellm.Gpt35_Turbo1106LiteLLM())
+    common.register_model(gptlitellm.Gpt35_Turbo16k_0613LiteLLM())
+    common.register_model(gptlitellm.Gpt35_Turbo0613LiteLLM())
+    common.register_model(gptlitellm.Gpt4_0613LiteLLM())
+
+    common.register_model(gemini.GeminiPro())
+    common.register_model(gemini.Gemini15Pro())
 
     # register default model as selected
     common.SELECTED_MODEL = gpt.Gpt35_Turbo0125()
