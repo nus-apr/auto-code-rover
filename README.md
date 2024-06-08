@@ -87,7 +87,14 @@ Set the `OPENAI_KEY` env var to your [OpenAI key](https://help.openai.com/en/art
 ```
 export OPENAI_KEY=sk-YOUR-OPENAI-API-KEY-HERE
 ```
-(Alternatively, if you want to use Anthropic models instead, set `ANTHROPIC_API_KEY`.)
+
+For Anthropic model, Set the `ANTHROPIC_API_KEY` env var can be found [here](https://docs.anthropic.com/claude/reference/getting-started-with-the-api)
+
+```
+export ANTHROPIC_API_KEY=sk-ant-api...
+```
+
+The same with `GROQ_API_KEY`
 
 Build and start the docker image:
 
@@ -270,6 +277,11 @@ The current list of supported models:
 | AWS            | Claude 3 Opus          | --model bedrock/anthropic.claude-3-opus-20240229-v1:0 |
 |                | Claude 3 Sonnet        | --model bedrock/anthropic.claude-3-sonnet-20240229-v1:0 |
 |                | Claude 3 Haiku         | --model bedrock/anthropic.claude-3-haiku-20240307-v1:0 |
+| Groq           | Llama 3 8B             | --model groq/llama3-8b-8192 |
+|                | Llama 3 70B            | --model groq/llama3-70b-8192 |
+|                | Llama 2 70B            | --model groq/llama2-70b-4096 |
+|                | Mixtral 8x7B           | --model groq/mixtral-8x7b-32768 |
+|                | Gemma 7B               | --model groq/gemma-7b-it |
 
 > [!NOTE]
 > Some notes on running ACR with local models such as llama3:
