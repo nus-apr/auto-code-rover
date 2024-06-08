@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
+  <a href="https://discord.gg/ScXsdE49JY"><strong>Discord server</strong></a>
 </p>
 
 <br>
