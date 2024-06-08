@@ -6,8 +6,10 @@
   <img src="https://github.com/nus-apr/auto-code-rover/assets/16000056/8d249b02-1db4-4f58-a5a4-bdb694d65ab1" alt="autocoderover_logo" width="200px" height="200px">
 </p>
 
+
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://discord.gg/ScXsdE49JY"><strong>Discord server</strong></a>
 </p>
 
@@ -289,6 +291,7 @@ The current list of supported models:
 
 > [!NOTE]
 > Using the Groq models on a free plan can cause the context limit to be exceeded, even on simple issues.
+
 > [!NOTE]
 > Some notes on running ACR with local models such as llama3:
 > 1. Before using the llama3 models, please [install ollama](https://ollama.com/download/linux) and download the corresponding models with ollama (e.g. `ollama pull llama3`).
