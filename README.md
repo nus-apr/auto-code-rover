@@ -17,7 +17,7 @@
 <br>
 
 ## 📣 Updates
-- [June 08, 2024] Added support for Gemini and Anthropic models through AWS Bedrock (thanks [JGalego](https://github.com/JGalego) for the latter!).
+- [June 08, 2024] Added support for Gemini, Groq (thank you [KasaiHarcore](https://github.com/KasaiHarcore) for the contribution!) and Anthropic models through AWS Bedrock (thank you [JGalego](https://github.com/JGalego) for the contribution!).
 - [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
 - [April 19, 2024] AutoCodeRover now supports running on [GitHub issues](#github-issue-mode-set-up-and-run-on-new-github-issues) and [local issues](#local-issue-mode-set-up-and-run-on-local-repositories-and-local-issues)! Feel free to try it out and we welcome your feedback!
 
@@ -283,6 +283,9 @@ The current list of supported models:
 |                | Mixtral 8x7B           | --model groq/mixtral-8x7b-32768 |
 |                | Gemma 7B               | --model groq/gemma-7b-it |
 
+
+> [!NOTE]
+> Using the Groq models on a free plan can cause the context limit to be exceeded, even on simple issues.
 > [!NOTE]
 > Some notes on running ACR with local models such as llama3:
 > 1. Before using the llama3 models, please [install ollama](https://ollama.com/download/linux) and download the corresponding models with ollama (e.g. `ollama pull llama3`).
