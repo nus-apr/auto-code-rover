@@ -21,6 +21,8 @@
 - [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
 - [April 19, 2024] AutoCodeRover now supports running on [GitHub issues](#github-issue-mode-set-up-and-run-on-new-github-issues) and [local issues](#local-issue-mode-set-up-and-run-on-local-repositories-and-local-issues)! Feel free to try it out and we welcome your feedback!
 
+## [Discord](https://discord.gg/ScXsdE49JY) - server for general discussion, questions, and feedback.
+
 ## 👋 Overview
 
 AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fixing and feature addition) where LLMs are combined with analysis and debugging capabilities to prioritize patch locations ultimately leading to a patch.
