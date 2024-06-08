@@ -1,5 +1,4 @@
-from app.model import bedrock, claude, common, gemini, gpt, gptlitellm, groq , ollama
-
+from app.model import bedrock, claude, common, gemini, gpt, gptlitellm, groq, ollama
 
 
 def register_all_models() -> None:
@@ -26,7 +25,7 @@ def register_all_models() -> None:
 
     common.register_model(ollama.Llama3_8B())
     common.register_model(ollama.Llama3_70B())
-    
+
     common.register_model(groq.Llama3_8B())
     common.register_model(groq.Llama3_70B())
     common.register_model(groq.Mixtral_8x7B())
