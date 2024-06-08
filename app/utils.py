@@ -156,9 +156,7 @@ def repo_reset_and_clean_checkout(commit_hash: str) -> None:
     submodule_unbind_cmd = ["git", "submodule", "deinit", "-f", "."]
     submodule_init_cmd = ["git", "submodule", "update", "--init"]
     run_command(
-        submodule_unbind_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        submodule_unbind_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     run_command(
         submodule_init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -302,11 +300,11 @@ def parse_function_invocation(
                 log_and_print(
                     f"Refactored invocation argument parsing gives different result on "
                     f"{invocation_str!r}: old result is {arguments!r}, new result "
-                    f" is {new_arguments!r}",
+                    f" is {new_arguments!r}"
                 )
         except Exception as e:
             log_and_print(
-                f"Refactored invocation argument parsing failed on {invocation_str!r}: {e!s}",
+                f"Refactored invocation argument parsing failed on {invocation_str!r}: {e!s}"
             )
     except Exception as e:
         raise ValueError(f"Invalid function invocation: {invocation_str}") from e

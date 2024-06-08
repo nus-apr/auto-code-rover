@@ -119,10 +119,7 @@ class OllamaModel(Model):
         assert self.client is not None
         try:
             # build up options for ollama
-            options = {
-                "temperature": common.MODEL_TEMP,
-                "top_p": top_p,
-            }
+            options = {"temperature": common.MODEL_TEMP, "top_p": top_p}
             if response_format == "json_object":
                 # additional instructions for json mode
                 json_instruction = {

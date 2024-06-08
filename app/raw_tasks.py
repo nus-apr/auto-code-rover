@@ -126,9 +126,7 @@ class RawGithubTask(RawTask):
                 "problem_statement": self.problem_statement,
                 "instance_id": self.task_id,
             },
-            "setup_info": {
-                "repo_path": self.clone_path,
-            },
+            "setup_info": {"repo_path": self.clone_path},
         }
 
         meta_file = pjoin(output_dir, "meta.json")
@@ -221,9 +219,7 @@ class RawLocalTask(RawTask):
                 "problem_statement": self.problem_statement,
                 "instance_id": self.task_id,
             },
-            "setup_info": {
-                "repo_path": self.local_repo,
-            },
+            "setup_info": {"repo_path": self.local_repo},
         }
 
         meta_file = pjoin(output_dir, "meta.json")

@@ -4,7 +4,6 @@ For models other than those from OpenAI, use LiteLLM if possible.
 
 import os
 import sys
-
 from typing import Literal
 
 import litellm
@@ -42,7 +41,7 @@ class BedrockModel(Model):
         super().__init__(name, cost_per_input, cost_per_output, parallel_tool_call)
         self._model_provider = self.name.split(".")[0]
         self._initialized = True
-    
+
     def setup(self) -> None:
         """
         Check API key.
@@ -54,10 +53,14 @@ class BedrockModel(Model):
         required_env_vars = [
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
-            "AWS_REGION_NAME"
+            "AWS_REGION_NAME",
         ]
-        if len(set(os.environ).intersection(required_env_vars)) != len(required_env_vars):
-            print(f"Missing env vars. Please refer to https://litellm.vercel.app/docs/providers/bedrock")
+        if len(set(os.environ).intersection(required_env_vars)) != len(
+            required_env_vars
+        ):
+            print(
+                "Missing env vars. Please refer to https://litellm.vercel.app/docs/providers/bedrock"
+            )
             sys.exit(1)
         return os.getenv(required_env_vars[-1])
 
@@ -122,16 +125,25 @@ class BedrockModel(Model):
                 log_and_print("Context length exceeded")
             raise e
 
+
 class AnthropicClaude2(BedrockModel):
     def __init__(self):
-        super().__init__("bedrock/anthropic.claude-v2:1", 0.00000025, 0.00000125,parallel_tool_call= True)
+        super().__init__(
+            "bedrock/anthropic.claude-v2:1",
+            0.00000025,
+            0.00000125,
+            parallel_tool_call=True,
+        )
         self.note = "Older Claude model"
 
 
 class AnthropicClaude3Opus(BedrockModel):
     def __init__(self):
         super().__init__(
-            "bedrock/anthropic.claude-3-opus-20240229-v1:0", 0.000015, 0.000075, parallel_tool_call=True
+            "bedrock/anthropic.claude-3-opus-20240229-v1:0",
+            0.000015,
+            0.000075,
+            parallel_tool_call=True,
         )
         self.note = "Most powerful model from Antropic"
 
@@ -139,7 +151,10 @@ class AnthropicClaude3Opus(BedrockModel):
 class AnthropicClaude3Sonnet(BedrockModel):
     def __init__(self):
         super().__init__(
-            "bedrock/anthropic.claude-3-sonnet-20240229-v1:0", 0.000003, 0.000015, parallel_tool_call=True
+            "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
+            0.000003,
+            0.000015,
+            parallel_tool_call=True,
         )
         self.note = "Most balanced (intelligence and speed) model from Antropic"
 
@@ -147,6 +162,9 @@ class AnthropicClaude3Sonnet(BedrockModel):
 class AnthropicClaude3Haiku(BedrockModel):
     def __init__(self):
         super().__init__(
-            "bedrock/anthropic.claude-3-haiku-20240307-v1:0", 0.00000025, 0.00000125, parallel_tool_call=True
+            "bedrock/anthropic.claude-3-haiku-20240307-v1:0",
+            0.00000025,
+            0.00000125,
+            parallel_tool_call=True,
         )
         self.note = "Fastest model from Antropic"

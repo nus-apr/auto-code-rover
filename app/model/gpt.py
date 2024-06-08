@@ -84,8 +84,7 @@ class OpenaiModel(Model):
             return content
 
     def extract_resp_func_calls(
-        self,
-        chat_completion_message: ChatCompletionMessage,
+        self, chat_completion_message: ChatCompletionMessage
     ) -> list[FunctionCallIntent]:
         """
         Given a chat completion message, extract the function calls from it.

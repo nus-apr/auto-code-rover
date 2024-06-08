@@ -128,10 +128,7 @@ class SweTask(Task):
 
             # (2) install
             cp = apputils.run_string_cmd_in_conda(
-                task.install_cmd,
-                task.env_name,
-                capture_output=True,
-                text=True,
+                task.install_cmd, task.env_name, capture_output=True, text=True
             )
             if cp.returncode != 0:
                 log_and_print(cp.stderr)
@@ -141,10 +138,7 @@ class SweTask(Task):
                 "python -m pip install xmlrunner coverage pytest pytest-cov"
             )
             cp = apputils.run_string_cmd_in_conda(
-                other_install_cmd,
-                task.env_name,
-                capture_output=True,
-                text=True,
+                other_install_cmd, task.env_name, capture_output=True, text=True
             )
             if cp.returncode != 0:
                 log_and_print(cp.stderr)
@@ -195,7 +189,7 @@ class SweTask(Task):
             app_utils.repo_clean_changes()
 
         log_and_print(
-            f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}.",
+            f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}."
         )
         return tests_passed, msg, log_file
 

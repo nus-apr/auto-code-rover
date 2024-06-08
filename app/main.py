@@ -40,8 +40,7 @@ def get_args(
     set_swe_parser_args(swe_parser)
 
     github_parser = subparsers.add_parser(
-        "github-issue",
-        help="Run an online github issue",
+        "github-issue", help="Run an online github issue"
     )
     set_github_parser_args(github_parser)
 
@@ -104,11 +103,7 @@ def main(args, subparser_dest_attr_name: str = "command"):
             setup_dir = abspath(setup_dir)
 
         task = RawGithubTask(
-            args.task_id,
-            args.clone_link,
-            args.commit_hash,
-            args.issue_link,
-            setup_dir,
+            args.task_id, args.clone_link, args.commit_hash, args.issue_link, setup_dir
         )
         groups = {"github": [task]}
         run_task_groups(groups, num_processes)
@@ -119,11 +114,7 @@ def main(args, subparser_dest_attr_name: str = "command"):
         issue_file = args.issue_file
         if issue_file is not None:
             issue_file = abspath(issue_file)
-        task = RawLocalTask(
-            args.task_id,
-            local_repo,
-            issue_file,
-        )
+        task = RawLocalTask(args.task_id, local_repo, issue_file)
         groups = {"local": [task]}
         run_task_groups(groups, num_processes)
     elif subcommand == "extract-patches":
@@ -156,14 +147,10 @@ def set_swe_parser_args(parser: ArgumentParser) -> None:
 def set_github_parser_args(parser: ArgumentParser) -> None:
     add_task_related_args(parser)
     parser.add_argument(
-        "--task-id",
-        type=str,
-        help="Assign an id to the current fresh issue task.",
+        "--task-id", type=str, help="Assign an id to the current fresh issue task."
     )
     parser.add_argument(
-        "--clone-link",
-        type=str,
-        help="The link to the repository to clone.",
+        "--clone-link", type=str, help="The link to the repository to clone."
     )
     parser.add_argument("--commit-hash", type=str, help="The commit hash to checkout.")
     parser.add_argument("--issue-link", type=str, help="The link to the issue.")
@@ -370,17 +357,14 @@ def run_tasks_serial(tasks: list[RawTask]) -> None:
 
 
 def run_task_groups_parallel(
-    task_groups: Mapping[str, Sequence[RawTask]],
-    num_processes: int,
+    task_groups: Mapping[str, Sequence[RawTask]], num_processes: int
 ):
     num_task_groups = len(task_groups)
     globals_mut.init_total_num_task_groups(num_task_groups)
     num_processes = min(num_processes, num_task_groups)
 
     task_group_ids_items = sorted(
-        task_groups.items(),
-        key=lambda x: len(x[1]),
-        reverse=True,
+        task_groups.items(), key=lambda x: len(x[1]), reverse=True
     )
     log.print_with_time(f"Sorted task groups: {[x[0] for x in task_group_ids_items]}")
     try:
@@ -437,9 +421,7 @@ def run_raw_task(
 
     task.dump_meta_data(task_output_dir)
 
-    log.log_and_always_print(
-        f"============= Running task {task_id} =============",
-    )
+    log.log_and_always_print(f"============= Running task {task_id} =============")
 
     run_ok = False
 
@@ -516,11 +498,7 @@ def do_inference(
     return run_ok
 
 
-def dump_cost(
-    start_time: datetime,
-    end_time: datetime,
-    task_output_dir: str,
-):
+def dump_cost(start_time: datetime, end_time: datetime, task_output_dir: str):
     model_stats = common.SELECTED_MODEL.get_overall_exec_stats()
     stats = {
         "commit": apputils.get_current_commit_hash(),

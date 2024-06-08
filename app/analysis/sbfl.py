@@ -372,16 +372,14 @@ class PythonSbfl:
                 )
                 Path(log_file).write_text(cp.stdout)
             except TimeoutExpired:
-                log.log_and_print(
-                    "Timeout expired while running the test suite.",
-                )
+                log.log_and_print("Timeout expired while running the test suite.")
                 return "", log_file
 
             # (3) check whether the coverage file is there
             cov_file = pjoin(execution_dir, ".coverage")
             if not os.path.exists(cov_file):
                 log.log_and_print(
-                    "Coverage file is not produced after running the test suite.",
+                    "Coverage file is not produced after running the test suite."
                 )
                 return "", log_file
             return cov_file, log_file
@@ -450,9 +448,7 @@ class PythonSbfl:
                 Path(log_file).write_text(cp.stdout)
                 # Path(self.output_dir, "run_developer_tests.log").write_text(cp.stdout)
             except TimeoutExpired:
-                log.log_and_print(
-                    "Timeout expired while running the test suite.",
-                )
+                log.log_and_print("Timeout expired while running the test suite.")
                 return "", log_file
 
             # (2) check whether the coverage file is there
@@ -469,7 +465,7 @@ class PythonSbfl:
                 # now check again
                 if not os.path.exists(cov_file):
                     log.log_and_print(
-                        "Coverage file is not produced after running the test suite.",
+                        "Coverage file is not produced after running the test suite."
                     )
                     return "", log_file
             return cov_file, log_file

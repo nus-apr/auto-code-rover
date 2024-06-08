@@ -74,11 +74,7 @@ def print_acr(
         title = name
 
     panel = Panel(
-        markdown,
-        title=title,
-        title_align="left",
-        border_style="magenta",
-        width=WIDTH,
+        markdown, title=title, title_align="left", border_style="magenta", width=WIDTH
     )
     console.print(panel)
 
@@ -104,11 +100,7 @@ def print_retrieval(
         title = name
 
     panel = Panel(
-        markdown,
-        title=title,
-        title_align="left",
-        border_style="blue",
-        width=WIDTH,
+        markdown, title=title, title_align="left", border_style="blue", width=WIDTH
     )
     console.print(panel)
     if print_callback:
@@ -137,11 +129,7 @@ def print_patch_generation(
         title = name
 
     panel = Panel(
-        markdown,
-        title=title,
-        title_align="left",
-        border_style="yellow",
-        width=WIDTH,
+        markdown, title=title, title_align="left", border_style="yellow", width=WIDTH
     )
     console.print(panel)
     if print_callback:
@@ -160,11 +148,7 @@ def print_issue(content: str) -> None:
 
     title = "Issue description"
     panel = Panel(
-        content,
-        title=title,
-        title_align="left",
-        border_style="red",
-        width=WIDTH,
+        content, title=title, title_align="left", border_style="red", width=WIDTH
     )
     console.print(panel)
 

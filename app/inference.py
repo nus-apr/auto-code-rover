@@ -281,24 +281,15 @@ def search_for_bug_location(
         found |= call_is_ok
 
     if (not found) and method_name and class_name:
-        kwargs = {
-            "method_name": method_name,
-            "class_name": class_name,
-        }
+        kwargs = {"method_name": method_name, "class_name": class_name}
         call_function("search_method_in_class", kwargs)
 
     if (not found) and method_name and file_name:
-        kwargs = {
-            "method_name": method_name,
-            "file_name": file_name,
-        }
+        kwargs = {"method_name": method_name, "file_name": file_name}
         call_function("search_method_in_file", kwargs)
 
     if (not found) and class_name and file_name:
-        kwargs = {
-            "class_name": class_name,
-            "file_name": file_name,
-        }
+        kwargs = {"class_name": class_name, "file_name": file_name}
         call_function("search_class_in_file", kwargs)
 
     if (not found) and class_name:
@@ -367,7 +358,7 @@ def start_conversation_round_state_machine(
             # good case in which we can check function call
             func_call_intent: FunctionCallIntent = func_call_intents[0]
             log_and_print(
-                f"{colored('This round model response (function call):', 'blue')} {func_call_intent}",
+                f"{colored('This round model response (function call):', 'blue')} {func_call_intent}"
             )
             # dispatch this function call
             this_model_response = res_text
