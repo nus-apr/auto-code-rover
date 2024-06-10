@@ -10,6 +10,8 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2404.05427"><strong>ArXiv Paper</strong></a>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://autocoderover.dev/"><strong>Website</strong></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://discord.gg/ScXsdE49JY"><strong>Discord server</strong></a>
 </p>
 
