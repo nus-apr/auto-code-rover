@@ -5,7 +5,7 @@ from pprint import pprint
 
 
 def get_resolved_tasks(expr_dir):
-    final_report = pjoin(expr_dir, "final_report.json")
+    final_report = pjoin(expr_dir, "new_eval_results", "report.json")
     with open(final_report) as f:
         final_report = json.load(f)
     resolved_tasks = final_report["resolved"]
