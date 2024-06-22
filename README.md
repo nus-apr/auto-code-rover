@@ -26,6 +26,7 @@
 > This is a public version of the AutoCodeRover project. Check the latest results on our [website](https://autocoderover.dev/).
 
 ## 📣 Updates
+- [June 20, 2024] AutoCodeRover now achieves **30.67%** efficacy (pass@1) on SWE-bench-lite!
 - [June 08, 2024] Added support for Gemini, Groq (thank you [KasaiHarcore](https://github.com/KasaiHarcore) for the contribution!) and Anthropic models through AWS Bedrock (thank you [JGalego](https://github.com/JGalego) for the contribution!).
 - [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
 - [April 19, 2024] AutoCodeRover now supports running on [GitHub issues](#github-issue-mode-set-up-and-run-on-new-github-issues) and [local issues](#local-issue-mode-set-up-and-run-on-local-repositories-and-local-issues)! Feel free to try it out and we welcome your feedback!
@@ -36,11 +37,15 @@
 
 AutoCodeRover is a fully automated approach for resolving GitHub issues (bug fixing and feature addition) where LLMs are combined with analysis and debugging capabilities to prioritize patch locations ultimately leading to a patch.
 
-AutoCodeRover resolves ~**16%** of issues of [SWE-bench](https://www.swebench.com) (total 2294 GitHub issues) and ~**22%** issues of [SWE-bench lite](https://www.swebench.com/lite.html) (total 300 GitHub issues), improving over the current state-of-the-art efficacy of AI software engineers.
+[Update on June 20, 2024] AutoCodeRover now resolves **30.67%** of issues (pass@1) in SWE-bench lite! AutoCodeRover achieved this efficacy while being economical - each task costs **less than $0.7** and is completed within **7 mins**!
 
 <p align="center">
-<img src=https://github.com/nus-apr/auto-code-rover/assets/48704330/e10c3270-442c-4673-8656-735c892dfb66 width=500/>
+<img src=https://github.com/nus-apr/auto-code-rover/assets/16000056/78d184b2-f15c-4408-9eac-cfd3a11a503a width=500/>
+<img src=https://github.com/nus-apr/auto-code-rover/assets/16000056/83253ae9-8789-474e-942d-708495b5b310 width=500/>
 </p>
+
+[April 08, 2024] First release of AutoCodeRover resolves **19%** of issues in [SWE-bench lite](https://www.swebench.com/lite.html) (pass@1), improving over the current state-of-the-art efficacy of AI software engineers.
+
 
 AutoCodeRover works in two stages:
 
