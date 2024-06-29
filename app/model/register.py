@@ -1,4 +1,4 @@
-from app.model import bedrock, claude, common, gemini, gpt, gptlitellm, groq, ollama
+from app.model import bedrock, claude, common, gemini, gpt, gptlitellm, groq, ollama, vllm_models
 
 
 def register_all_models() -> None:
@@ -43,6 +43,9 @@ def register_all_models() -> None:
 
     common.register_model(gemini.GeminiPro())
     common.register_model(gemini.Gemini15Pro())
+
+    # ZZ: register all vllm models here
+    common.register_model(vllm_models.Llama3_70B_vllm())
 
     # register default model as selected
     common.SELECTED_MODEL = gpt.Gpt35_Turbo0125()
