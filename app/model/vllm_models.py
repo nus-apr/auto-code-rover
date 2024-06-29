@@ -98,39 +98,6 @@ class OpenaiModel(Model):
         else:
             return content
 
-    def extract_resp_func_calls(
-        self, chat_completion_message: ChatCompletionMessage
-    ) -> list[FunctionCallIntent]:
-        """
-        Given a chat completion message, extract the function calls from it.
-        Args:
-            chat_completion_message (ChatCompletionMessage): The chat completion message.
-        Returns:
-            List[FunctionCallIntent]: A list of function calls.
-        """
-        result = []
-        tool_calls = chat_completion_message.tool_calls
-        if tool_calls is None:
-            return result
-
-        call: ChatCompletionMessageToolCall
-        for call in tool_calls:
-            called_func: OpenaiFunction = call.function
-            func_name = called_func.name
-            func_args_str = called_func.arguments
-            # maps from arg name to arg value
-            if func_args_str == "":
-                args_dict = {}
-            else:
-                try:
-                    args_dict = json.loads(func_args_str, strict=False)
-                except json.decoder.JSONDecodeError:
-                    args_dict = {}
-            func_call_intent = FunctionCallIntent(func_name, args_dict, called_func)
-            result.append(func_call_intent)
-
-        return result
-
     # FIXME: the returned type contains OpenAI specific Types, which should be avoided
     @retry(wait=wait_random_exponential(min=30, max=600), stop=stop_after_attempt(3))
     def call(
@@ -163,35 +130,22 @@ class OpenaiModel(Model):
             The raw response is to be sent back as part of the message history.
         """
         assert self.client is not None
+        # ZZ: vllm does not support tools, manually handle the tool calling !
+        # ZZ: if response_format is json_object, switch back to text and specify directly in the prompt since vllm is buggy with this setup
+        if response_format == 'json_object':
+            messages[-1]['content'] += "\n\nPlease respond in JSON format directly without any introductory or concluding sentence."
+            response_format = "text" # manually switch to text and ask for response in JSON format explicitly in prompt
         try:
-            if tools is not None and len(tools) == 1:
-                # there is only one tool => force the model to use it
-                tool_name = tools[0]["function"]["name"]
-                tool_choice = {"type": "function", "function": {"name": tool_name}}
-                response: ChatCompletion = self.client.chat.completions.create(
-                    model=self.name,
-                    messages=messages,  # type: ignore
-                    tools=tools,  # type: ignore
-                    tool_choice=cast(ChatCompletionToolChoiceOptionParam, tool_choice),
-                    temperature=common.MODEL_TEMP,
-                    response_format=ResponseFormat(type=response_format),
-                    max_tokens=1024,
-                    top_p=top_p,
-                    stream=False,
-                    extra_body=self.vllm_extra_body # ZZ: vllm specific
-                )
-            else:
-                response: ChatCompletion = self.client.chat.completions.create(
-                    model=self.name,
-                    messages=messages,  # type: ignore
-                    tools=tools,  # type: ignore
-                    temperature=common.MODEL_TEMP,
-                    response_format=ResponseFormat(type=response_format),
-                    max_tokens=1024,
-                    top_p=top_p,
-                    stream=False,
-                    extra_body=self.vllm_extra_body # ZZ: vllm specific
-                )
+            response: ChatCompletion = self.client.chat.completions.create(
+                model=self.name,
+                messages=messages,  # type: ignore
+                temperature=common.MODEL_TEMP,
+                response_format=ResponseFormat(type=response_format),
+                max_tokens=1024,
+                top_p=top_p,
+                stream=False,
+                extra_body=self.vllm_extra_body # ZZ: vllm specific
+            )
 
             usage_stats = response.usage
             assert usage_stats is not None
@@ -207,12 +161,8 @@ class OpenaiModel(Model):
             raw_response = response.choices[0].message
             # log_and_print(f"Raw model response: {raw_response}")
             content = self.extract_resp_content(raw_response)
-            raw_tool_calls = raw_response.tool_calls
-            func_call_intents = self.extract_resp_func_calls(raw_response)
             return (
                 content,
-                raw_tool_calls,
-                func_call_intents,
                 cost,
                 input_tokens,
                 output_tokens,
@@ -226,7 +176,7 @@ class OpenaiModel(Model):
 class Llama3_70B_vllm(OpenaiModel):
     def __init__(self):
         super().__init__(
-            "Meta-Llama-3-70B-Instruct ", 0., 0., parallel_tool_call=True
+            "/dataset-vlm/ywli/Models/LLM/llama-3/Meta-Llama-3-70B-Instruct", 0., 0., parallel_tool_call=True
         )
         self.note = "Meta-Llama-3-70B-Instruct served by local vllm server. Cost per input/output assumed to be zero."
 
