@@ -141,7 +141,7 @@ class OpenaiModel(Model):
                 messages=messages,  # type: ignore
                 temperature=common.MODEL_TEMP,
                 response_format=ResponseFormat(type=response_format),
-                max_tokens=1024,
+                max_tokens=None,
                 top_p=top_p,
                 stream=False,
                 extra_body=self.vllm_extra_body # ZZ: vllm specific
@@ -170,6 +170,7 @@ class OpenaiModel(Model):
         except BadRequestError as e:
             if e.code == "context_length_exceeded":
                 log_and_print("Context length exceeded")
+            print(e)
             raise e
 
 

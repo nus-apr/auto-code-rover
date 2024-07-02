@@ -30,7 +30,7 @@ The issue contains a description marked between <issue> and </issue>.
 You ultimate goal is to write a patch that resolves this issue.
 """
 
-
+# ZZ: Make the fence requirement explicit ...
 USER_PROMPT_INIT = """Write a patch for the issue, based on the retrieved context.\n\nYou can import necessary libraries.\n\n
 Return the patch in the format below.\n\nWithin `<file></file>`, replace `...` with actual file path.\n\nWithin `<original></original>`, replace `...` with the original code snippet from the program.\n\nWithin `<patched></patched>`, replace `...` with the fixed version of the original code. When adding orignal code and updated code, pay attention to indentation, as the code is in Python.
 You can write multiple modifications if needed.
@@ -49,6 +49,7 @@ You can write multiple modifications if needed.
 # modification 3
 ...
 ```
+Please make sure your patch is wrapped in ``` as indicated above.
 """
 
 

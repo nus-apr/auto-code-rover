@@ -132,7 +132,7 @@ def run_agent(
     added_env = {"PYTHONPATH": root_dir}
     modified_env = {**os.environ, **added_env}
 
-    cmd = "python app/main.py "
+    cmd = "python app/main.py swe-bench "
     cmd += f"--setup-map {setup_map_json} "
     cmd += f"--tasks-map {tasks_map_json} "
     cmd += f"--output-dir {expr_dir} "

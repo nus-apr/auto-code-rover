@@ -88,7 +88,7 @@ def parse_edits(chat_string: str) -> list[Edit]:
     edits = []
     current_edit = []
     in_fence = False
-
+    # ZZ: This function expects mandatory fence but did not reflect the requirement in the prompt ... 
     for line in chat_string.split("\n"):
         if line.startswith("```") and in_fence:
             edits.extend(parse_in_fence(current_edit))
