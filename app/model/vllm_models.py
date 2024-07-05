@@ -132,6 +132,7 @@ class OpenaiModel(Model):
         assert self.client is not None
         # ZZ: vllm does not support tools, manually handle the tool calling !
         # ZZ: if response_format is json_object, switch back to text and specify directly in the prompt since vllm is buggy with this setup
+        orig_res_fm = response_format
         if response_format == 'json_object':
             messages[-1]['content'] += "\n\nPlease respond in JSON format directly without any introductory or concluding sentence."
             response_format = "text" # manually switch to text and ask for response in JSON format explicitly in prompt
@@ -161,6 +162,12 @@ class OpenaiModel(Model):
             raw_response = response.choices[0].message
             # log_and_print(f"Raw model response: {raw_response}")
             content = self.extract_resp_content(raw_response)
+            if orig_res_fm == 'json_object':
+                # ZZ: manual cleanning for json format 
+                if content.strip().startswith("```json"):
+                    content = content.strip()[7:-4]
+                if content.strip().startswith("```"):
+                    content = content.strip()[3:-4]
             return (
                 content,
                 cost,
@@ -183,4 +190,10 @@ class Llama3_70B_vllm(OpenaiModel):
 
 
 
+class DeepseekCoderV2_16B_vllm(OpenaiModel):
+    def __init__(self):
+        super().__init__(
+            "/dataset/pretrained-models/DeepSeek-Coder-V2-Lite-Instruct", 0., 0., parallel_tool_call=True
+        )
+        self.note = "DeepSeek-Coder-V2-Lite-Instruct served by local vllm server. Cost per input/output assumed to be zero."
 
