@@ -139,3 +139,11 @@ class Claude3Haiku(AnthropicModel):
             "claude-3-haiku-20240307", 0.00000025, 0.00000125, parallel_tool_call=True
         )
         self.note = "Fastest model from Antropic"
+
+
+class Claude3_5Sonnet(AnthropicModel):
+    def __init__(self):
+        super().__init__(
+            "claude-3-5-sonnet-20240620", 0.000003, 0.000015, parallel_tool_call=True
+        )
+        self.note = "Most intelligent model from Antropic"
