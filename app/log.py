@@ -5,6 +5,7 @@ from os import get_terminal_size
 from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 
 
@@ -148,7 +149,11 @@ def print_issue(content: str) -> None:
 
     title = "Issue description"
     panel = Panel(
-        content, title=title, title_align="left", border_style="red", width=WIDTH
+        escape(content),
+        title=title,
+        title_align="left",
+        border_style="red",
+        width=WIDTH,
     )
     console.print(panel)
 
