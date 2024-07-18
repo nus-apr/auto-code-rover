@@ -1,9 +1,11 @@
+import asyncio
 import json
 import os
 import shutil
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from os.path import join as pjoin
+from os.path import relpath
 from pathlib import Path
 
 from docstring_parser import parse
@@ -11,14 +13,13 @@ from loguru import logger
 
 from app import log
 from app.analysis import sbfl
-from app.analysis.sbfl import NoCoverageData
 from app.api import agent_proxy, agent_write_patch
-from app.data_structures import FunctionCallIntent, MessageThread
+from app.data_structures import FunctionCallIntent, MessageThread, NoCoverageData
 from app.log import log_exception
 from app.search.search_manage import SearchManager
 
 # from app.api.python.validation import PythonValidator
-from app.task import Task
+from app.task import SweDocker, SweTask, Task
 
 
 class ProjectApiManager:
@@ -271,7 +272,22 @@ class ProjectApiManager:
             if log_file is not None:
                 shutil.move(log_file, pjoin(self.output_dir, "run_developer_tests.log"))
 
-        ranked_ranges_abs = sbfl.collate_results(ranked_lines, test_file_names)
+        ranked_ranges_abs_raw = sbfl.collate_results(ranked_lines, test_file_names)
+
+        if isinstance(self.task, SweTask):
+            ranked_ranges_abs = []
+            for x in ranked_ranges_abs_raw:
+                filename, *_ = x
+                container_repo_dir = asyncio.run(
+                    SweDocker.get_container_project_path(self.task)
+                )
+                rebased_filename = pjoin(
+                    self.task.project_path, relpath(filename, container_repo_dir)
+                )
+                ranked_ranges_abs.append((rebased_filename, *x[1:]))
+        else:
+            ranked_ranges_abs = ranked_ranges_abs_raw
+
         ranked_methods_abs = sbfl.map_collated_results_to_methods(ranked_ranges_abs)
 
         def relativize_filename(tup: tuple) -> tuple:

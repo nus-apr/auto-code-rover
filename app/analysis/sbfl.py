@@ -10,6 +10,7 @@ This file mainly analyzes the coverage data for SBFL analysis.
 """
 
 import ast
+import asyncio
 import math
 import os
 import re
@@ -27,13 +28,8 @@ from coverage.sqldata import CoverageData
 
 import app.utils as apputils
 from app import globals, log
-from app.data_structures import MethodId
-from app.task import SweTask, Task
-
-
-class NoCoverageData(RuntimeError):
-    def __init__(self, testing_log_file: str):
-        self.testing_log_file = testing_log_file
+from app.data_structures import MethodId, NoCoverageData
+from app.task import SweDocker, SweTask, Task
 
 
 def canonicalize_testname_sympy_bin_test(testname: str) -> tuple[str, str]:
@@ -254,7 +250,11 @@ def run(task: Task) -> tuple[list[str], list[tuple[str, int, float]], str]:
 class PythonSbfl:
     @classmethod
     def run(cls, task: SweTask) -> tuple[list[str], list[tuple[str, int, float]], str]:
-        cov_file, log_file = cls._run_python_developer_test_suite(task)
+        cov_file, log_file = asyncio.run(
+            SweDocker.run_regression_docker(
+                task, SweTask.NOOP_PROGRAM_PATCH, task.test_patch
+            )
+        )
 
         pass_tests_names = []
         fail_tests_names = []

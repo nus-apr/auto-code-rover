@@ -63,6 +63,7 @@ class RawSweTask(RawTask):
             test_cmd=setup_info["test_cmd"],
             commit=task_info["base_commit"],
             repo_name=task_info["repo"],
+            repo_version=task_info["version"],
             # modifications to the test suite for this task instance,
             test_patch=task_info["test_patch"],
             testcases_passing=task_info["PASS_TO_PASS"],

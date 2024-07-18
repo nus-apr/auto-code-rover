@@ -154,3 +154,8 @@ class MessageThread:
         with open(file_path) as f:
             messages = json.load(f)
         return cls(messages)
+
+
+class NoCoverageData(RuntimeError):
+    def __init__(self, testing_log_file: str):
+        self.testing_log_file = testing_log_file
