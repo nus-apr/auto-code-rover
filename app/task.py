@@ -12,10 +12,12 @@ from dataclasses import dataclass
 from os import PathLike, chmod, scandir
 from os.path import join
 from os.path import join as pjoin
+from pathlib import Path
 from subprocess import PIPE
 from tempfile import mkdtemp, mkstemp
 
 from icecream import ic
+from swebench.metrics.constants import TestStatus
 from swebench.metrics.getters import APPLY_PATCH_PASS
 from swebench.metrics.log_parsers import MAP_REPO_TO_PARSER
 from swebench_docker.constants import MAP_REPO_TO_TEST_FRAMEWORK, MAP_VERSION_TO_INSTALL
@@ -198,28 +200,23 @@ class SweTask(Task):
             os.remove(test_patch_path)
 
     def validate(self, patch_file: str) -> tuple[bool, str, str]:
-
-        # (1) apply the patch to source code
-        with app_utils.cd(self.project_path):
-            apply_cmd = ["git", "apply", patch_file]
-            cp = app_utils.run_command(apply_cmd, capture_output=False, text=True)
-            if cp.returncode != 0:
-                # patch application failed
-                raise RuntimeError(f"Error applying patch: {cp.stderr}")
-
-        # (2) run the modified program against the test suite
-        log_and_print("[Validation] Applied patch. Going to run test suite.")
-
-        _, log_file = mkstemp(suffix=".log", prefix="pyval-", text=True)
-        tests_passed, msg = self._run_test_suite_for_correctness(log_file)
-
-        # (3) revert the patch to source code
-        with app_utils.cd(self.project_path):
-            app_utils.repo_clean_changes()
-
-        log_and_print(
-            f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}."
+        _, log_file = asyncio.run(
+            SweDocker.run_regression_docker(
+                self, patch_file, self.test_patch, collect_coverage=False
+            )
         )
+
+        log_content = Path(log_file).read_text()
+        results = SweDocker.parse_eval_log(self.repo_name, log_content)
+        tests_passed = all(
+            result == TestStatus.PASSED.value for result in results.values()
+        )
+
+        if tests_passed:
+            msg = ""
+        else:
+            msg = "Some tests have failed."
+
         return tests_passed, msg, log_file
 
     def _run_test_suite_for_correctness(self, log_file: str) -> tuple[bool, str]:
