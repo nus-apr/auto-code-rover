@@ -176,8 +176,12 @@ def start_conversation_round_stratified(
                 msg_thread.add_user(collated_tool_response)
 
                 if globals.disable_patch_generation:
-                    logger.debug("Gathered enough information. Skipping patch generation due to feature flag.")
-                    Path(output_dir, "fix_locations.json").write_text(json.dumps(buggy_locations, indent=4))
+                    logger.debug(
+                        "Gathered enough information. Skipping patch generation due to feature flag."
+                    )
+                    Path(output_dir, "fix_locations.json").write_text(
+                        json.dumps(buggy_locations, indent=4)
+                    )
                 else:
                     print_banner("PATCH GENERATION")
                     logger.debug("Gathered enough information. Invoking write_patch.")
