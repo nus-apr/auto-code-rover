@@ -26,6 +26,7 @@
 > This is a public version of the AutoCodeRover project. Check the latest results on our [website](https://autocoderover.dev/).
 
 ## 📣 Updates
+- [July 18, 2024] Added support for fix localization output mode and requirements.txt
 - [June 20, 2024] AutoCodeRover now achieves **30.67%** efficacy (pass@1) on SWE-bench-lite!
 - [June 08, 2024] Added support for Gemini, Groq (thank you [KasaiHarcore](https://github.com/KasaiHarcore) for the contribution!) and Anthropic models through AWS Bedrock (thank you [JGalego](https://github.com/JGalego) for the contribution!).
 - [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
