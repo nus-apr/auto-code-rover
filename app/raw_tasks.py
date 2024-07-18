@@ -162,7 +162,6 @@ class RawGithubTask(RawTask):
         replacements = []
 
         for code_links in code_pattern.finditer(body):
-            print("Found link!")
             repo_name = code_links.group(1)
             commit = code_links.group(2)
             file_path = code_links.group(3)
