@@ -186,11 +186,20 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         default=False,
         help="Do not print most messages to stdout.",
     )
+
+    def model_parser(name: str):
+        if not isinstance(name, str):
+            raise TypeError(f"Invalid model name: {name}")
+        if name in common.MODEL_HUB.keys():
+            return name
+        if name.startswith("litellm-generic-"):
+            return name
+        raise TypeError(f"Invalid model name: {name}")
+
     parser.add_argument(
         "--model",
-        type=str,
+        type=model_parser,
         default="gpt-3.5-turbo-0125",
-        choices=list(common.MODEL_HUB.keys()),
         help="The model to use. Currently only OpenAI models are supported.",
     )
     parser.add_argument(
