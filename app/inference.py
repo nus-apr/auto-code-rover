@@ -265,7 +265,7 @@ def start_conversation_round_stratified(
             Path(output_dir, "fix_locations.json").write_text(
                 json.dumps(all_locs, indent=4)
             )
-            try_generate_locs = True  # all_locs != []
+            try_generate_locs = all_locs != []
             log_msg = "Try outputing some locations still."
 
         logger.info(f"Too many rounds. {log_msg}")
