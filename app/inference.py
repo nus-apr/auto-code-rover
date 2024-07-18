@@ -93,7 +93,15 @@ def start_conversation_round_stratified(
     msg_thread.add_user(prompt)
 
     round_no = start_round_no
-    for round_no in range(start_round_no, globals.conv_round_limit + 1):
+
+    round_count = range(start_round_no, globals.conv_round_limit + 1)
+
+    if globals.disable_patch_generation:
+        round_count = range(
+            start_round_no, start_round_no + globals.context_generation_limit + 1
+        )
+
+    for round_no in round_count:
         api_manager.start_new_tool_call_layer()
 
         conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
@@ -167,13 +175,17 @@ def start_conversation_round_stratified(
             ):
                 msg_thread.add_user(collated_tool_response)
 
-                print_banner("PATCH GENERATION")
-                logger.debug("Gathered enough information. Invoking write_patch.")
-                print_acr(
-                    collated_tool_response,
-                    "patch generation round 1",
-                    print_callback=print_callback,
-                )
+                if globals.disable_patch_generation:
+                    logger.debug("Gathered enough information. Skipping patch generation due to feature flag.")
+                    Path(output_dir, "fix_locations.json").write_text(json.dumps(buggy_locations, indent=4))
+                else:
+                    print_banner("PATCH GENERATION")
+                    logger.debug("Gathered enough information. Invoking write_patch.")
+                    print_acr(
+                        collated_tool_response,
+                        "patch generation round 1",
+                        print_callback=print_callback,
+                    )
                 break
 
             msg = "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
@@ -242,12 +254,13 @@ def start_conversation_round_stratified(
 
     round_no += 1
 
-    api_manager.start_new_tool_call_layer()
+    if not globals.disable_patch_generation:
+        api_manager.start_new_tool_call_layer()
 
-    write_patch_intent = FunctionCallIntent("write_patch", {}, None)
-    api_manager.dispatch_intent(
-        write_patch_intent, msg_thread, print_callback=print_callback
-    )
+        write_patch_intent = FunctionCallIntent("write_patch", {}, None)
+        api_manager.dispatch_intent(
+            write_patch_intent, msg_thread, print_callback=print_callback
+        )
 
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
     msg_thread.save_to_file(conversation_file)
