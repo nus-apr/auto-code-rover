@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from os.path import join as pjoin
 from pathlib import Path
 
-import requests
+import httpx
 
 from app import utils as app_utils
 from app.log import log_and_print
@@ -160,7 +160,7 @@ class RawGithubTask(RawTask):
         _, owner, repo, _, issue_number = issue_url.rsplit("/", 4)
 
         api_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-        response = requests.get(api_url)
+        response = httpx.get(api_url)
 
         if response.status_code != 200:
             raise RuntimeError(
