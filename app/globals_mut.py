@@ -1,5 +1,5 @@
 """
-A global store, for values that cna be mutated in multiprocessing, along with their related values.
+A global store, for values that can be mutated in multiprocessing, along with their related values.
 """
 
 import multiprocessing
