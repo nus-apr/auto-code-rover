@@ -151,8 +151,8 @@ def run_agent(
         cmd += "--enable-angelic "
     if enable_perfect_angelic:
         cmd += "--enable-perfect-angelic "
-    if not print_more:
-        cmd += "--no-print "
+    # if not print_more:
+    #     cmd += "--no-print "
 
     print(f"Running agent workflow with cmd: {cmd}")
     with cd(root_dir):
