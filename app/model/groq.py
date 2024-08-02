@@ -15,7 +15,7 @@ from app.log import log_and_print
 from app.model import common
 from app.model.common import Model
 
-litellm.set_verbose = True
+# litellm.set_verbose = True
 
 
 class GroqModel(Model):

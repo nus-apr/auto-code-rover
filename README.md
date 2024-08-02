@@ -26,6 +26,7 @@
 > This is a public version of the AutoCodeRover project. Check the latest results on our [website](https://autocoderover.dev/).
 
 ## 📣 Updates
+- [July 18, 2024] Added support for fix localization output mode and requirements.txt
 - [June 20, 2024] AutoCodeRover now achieves **30.67%** efficacy (pass@1) on SWE-bench-lite!
 - [June 08, 2024] Added support for Gemini, Groq (thank you [KasaiHarcore](https://github.com/KasaiHarcore) for the contribution!) and Anthropic models through AWS Bedrock (thank you [JGalego](https://github.com/JGalego) for the contribution!).
 - [April 29, 2024] Added support for Claude and Llama models. Find the list of supported models [here](#using-a-different-model)! Support for more models coming soon.
@@ -285,7 +286,8 @@ The current list of supported models:
 |                | gpt-3.5-turbo-16k-0613 | --model gpt-3.5-turbo-16k-0613 |
 |                | gpt-3.5-turbo-0613     | --model gpt-3.5-turbo-0613 |
 |                | gpt-4-0613             | --model gpt-4-0613 |
-| Anthropic      | Claude 3 Opus          | --model claude-3-opus-20240229 |
+| Anthropic      | Claude 3.5 Sonnet      | --model claude-3-5-sonnet-20240620 |
+|                | Claude 3 Opus          | --model claude-3-opus-20240229 |
 |                | Claude 3 Sonnet        | --model claude-3-sonnet-20240229 |
 |                | Claude 3 Haiku         | --model claude-3-haiku-20240307 |
 | Meta           | Llama 3 70B            | --model llama3:70b |

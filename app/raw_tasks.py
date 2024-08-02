@@ -1,11 +1,12 @@
 import json
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from os.path import join as pjoin
 from pathlib import Path
 
-import requests
+import httpx
 
 from app import utils as app_utils
 from app.log import log_and_print
@@ -147,9 +148,36 @@ class RawGithubTask(RawTask):
 
         title, body, created_at = retrieved_issue
 
+        body = self.process_links(body)
+
         problem_statement = f"{title}\n{body}"
 
         return problem_statement, created_at
+
+    @classmethod
+    def process_links(cls, body: str):
+        code_pattern = re.compile(
+            r"https://github.com/(.*?)/blob/(.*)/(.*)#L(\d+)-L(\d+)"
+        )
+        replacements = []
+
+        for code_links in code_pattern.finditer(body):
+            repo_name = code_links.group(1)
+            commit = code_links.group(2)
+            file_path = code_links.group(3)
+            start_line = int(code_links.group(4))
+            end_line = int(code_links.group(5))
+
+            file_contents = httpx.get(
+                f"https://raw.githubusercontent.com/{repo_name}/{commit}/{file_path}"
+            ).text.splitlines()
+            fragment = "\n".join(file_contents[start_line - 1 : end_line])
+
+            replacements.append((code_links.group(0), f"\n```{fragment }```\n"))
+
+        for code_link, replacement in replacements:
+            body = body.replace(code_link, code_link + replacement)
+        return body
 
     @classmethod
     def fetch_github_issue(cls, issue_url: str) -> tuple[str, str, str]:
@@ -160,7 +188,7 @@ class RawGithubTask(RawTask):
         _, owner, repo, _, issue_number = issue_url.rsplit("/", 4)
 
         api_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-        response = requests.get(api_url)
+        response = httpx.get(api_url)
 
         if response.status_code != 200:
             raise RuntimeError(

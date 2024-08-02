@@ -29,3 +29,9 @@ only_save_sbfl_result: bool = False
 
 # timeout for test cmd execution, currently set to 5 min
 test_exec_timeout: int = 300
+
+# A special mode to only collect fix locations and exit
+disable_patch_generation: bool = False
+
+# Used with disable_patch_generation - constrains or extends the amount of context retrieval rounds
+context_generation_limit: int = -1

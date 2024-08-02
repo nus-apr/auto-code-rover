@@ -12,7 +12,7 @@ from loguru import logger
 from app import log
 from app.analysis import sbfl
 from app.analysis.sbfl import NoCoverageData
-from app.api import agent_proxy, agent_write_patch
+from app.api import agent_proxy, agent_write_locations, agent_write_patch
 from app.data_structures import FunctionCallIntent, MessageThread
 from app.log import log_exception
 from app.search.search_manage import SearchManager
@@ -193,7 +193,7 @@ class ProjectApiManager:
             Also a summary that should be communicated to the model.
         """
         if (intent.func_name not in self.api_functions) and (
-            intent.func_name != "get_class_full_snippet"
+            intent.func_name not in ["get_class_full_snippet", "propose_locs"]
         ):
             error = f"Unknown function name {intent.func_name}."
             summary = "You called a tool that does not exist. Please only use the tools provided."
@@ -202,7 +202,7 @@ class ProjectApiManager:
         try:
             # ready to call a function
             self.curr_tool = intent.func_name
-            if intent.func_name in ["write_patch"]:
+            if intent.func_name in ["write_patch", "propose_locs"]:
                 # these two functions require the message thread
                 call_res = func_obj(message_thread, print_callback=print_callback)
             else:
@@ -452,6 +452,28 @@ class ProjectApiManager:
         )
         summary = "The tool returned the patch written by another agent."
         # The return status of write_patch does not really matter, so we just use True here
+        return tool_output, summary, True
+
+    def propose_locs(
+        self,
+        message_thread: MessageThread,
+        print_callback: Callable[[dict], None] | None = None,
+    ) -> tuple[str, str, bool]:
+        """Propose locations for fixing the bug.
+
+        Based on the current context, ask another agent to propose locations for fixing the bug.
+
+        The tool returns a list of locations that are likely to be related to the issue.
+        """
+        tool_output = agent_write_locations.run_with_retries(
+            message_thread,
+            self.output_dir,
+            self.task,
+            # self.validator,
+            print_callback=print_callback,
+        )
+        summary = "The tool returned the locations proposed by another agent."
+        # The return status of propose_locs does not really matter, so we just use True here
         return tool_output, summary, True
 
     def proxy_apis(self, text: str) -> tuple[str | None, str, list[MessageThread]]:

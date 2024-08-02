@@ -93,7 +93,16 @@ def start_conversation_round_stratified(
     msg_thread.add_user(prompt)
 
     round_no = start_round_no
-    for round_no in range(start_round_no, globals.conv_round_limit + 1):
+
+    round_count = range(start_round_no, globals.conv_round_limit + 1)
+
+    try_generate_locs = False
+    if globals.disable_patch_generation:
+        round_count = range(
+            start_round_no, start_round_no + globals.context_generation_limit + 1
+        )
+
+    for round_no in round_count:
         api_manager.start_new_tool_call_layer()
 
         conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
@@ -144,6 +153,9 @@ def start_conversation_round_stratified(
             for location in buggy_locations:
                 s = ", ".join(f"{k}: `{v}`" for k, v in location.items())
                 formatted.extend([f"\n- {s}"])
+            Path(output_dir, f"fix_locations_{round_no}.json").write_text(
+                json.dumps(buggy_locations, indent=4)
+            )
 
         print_acr(
             "\n".join(formatted),
@@ -167,13 +179,18 @@ def start_conversation_round_stratified(
             ):
                 msg_thread.add_user(collated_tool_response)
 
-                print_banner("PATCH GENERATION")
-                logger.debug("Gathered enough information. Invoking write_patch.")
-                print_acr(
-                    collated_tool_response,
-                    "patch generation round 1",
-                    print_callback=print_callback,
-                )
+                if globals.disable_patch_generation:
+                    logger.debug(
+                        "Gathered enough information. Skipping patch generation due to feature flag."
+                    )
+                else:
+                    print_banner("PATCH GENERATION")
+                    logger.debug("Gathered enough information. Invoking write_patch.")
+                    print_acr(
+                        collated_tool_response,
+                        "patch generation round 1",
+                        print_callback=print_callback,
+                    )
                 break
 
             msg = "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
@@ -238,21 +255,38 @@ def start_conversation_round_stratified(
                 print_callback=print_callback,
             )
     else:
-        logger.info("Too many rounds. Try writing patch anyway.")
+        log_msg = "Try writing patch anyway."
+        # TODO can be improved more
+        if globals.disable_patch_generation:
+            all_locs = []
+            for fix_location_file in Path(output_dir).glob("*fix_locations_*.json"):
+                all_locs += json.loads(Path(fix_location_file).read_text())
+            all_locs = list(set(map(json.dumps, all_locs)))
+            Path(output_dir, "fix_locations.json").write_text(
+                json.dumps(all_locs, indent=4)
+            )
+            try_generate_locs = all_locs != []
+            log_msg = "Try outputing some locations still."
+
+        logger.info(f"Too many rounds. {log_msg}")
 
     round_no += 1
 
-    api_manager.start_new_tool_call_layer()
+    if not globals.disable_patch_generation:
+        intent = FunctionCallIntent("write_patch", {}, None)
+    elif try_generate_locs:
+        intent = FunctionCallIntent("propose_locs", {}, None)
+    else:
+        intent = None
 
-    write_patch_intent = FunctionCallIntent("write_patch", {}, None)
-    api_manager.dispatch_intent(
-        write_patch_intent, msg_thread, print_callback=print_callback
-    )
+    if intent:
+        api_manager.start_new_tool_call_layer()
+        api_manager.dispatch_intent(intent, msg_thread, print_callback=print_callback)
+        logger.info(f"Invoked {intent.func_name}.")
 
+    logger.info("Ending workflow.")
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
     msg_thread.save_to_file(conversation_file)
-
-    logger.info("Invoked write_patch. Ending workflow.")
 
     return True
 

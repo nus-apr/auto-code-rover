@@ -5,6 +5,7 @@ from os import get_terminal_size
 from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 
 
@@ -142,13 +143,46 @@ def print_patch_generation(
         )
 
 
+def print_fix_loc_generation(
+    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
+) -> None:
+    if not print_stdout:
+        return
+
+    msg = replace_html_tags(msg)
+    markdown = Markdown(msg)
+
+    name = "Fix Location Generation"
+    if desc:
+        title = f"{name} ({desc})"
+    else:
+        title = name
+
+    panel = Panel(
+        markdown, title=title, title_align="left", border_style="green", width=WIDTH
+    )
+    console.print(panel)
+    if print_callback:
+        print_callback(
+            {
+                "title": f"{name} ({desc})",
+                "message": msg,
+                "category": "fix_loc_generation",
+            }
+        )
+
+
 def print_issue(content: str) -> None:
     if not print_stdout:
         return
 
     title = "Issue description"
     panel = Panel(
-        content, title=title, title_align="left", border_style="red", width=WIDTH
+        escape(content),
+        title=title,
+        title_align="left",
+        border_style="red",
+        width=WIDTH,
     )
     console.print(panel)
 

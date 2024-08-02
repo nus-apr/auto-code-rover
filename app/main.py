@@ -88,6 +88,8 @@ def main(args, subparser_dest_attr_name: str = "command"):
     globals.enable_angelic = args.enable_angelic
     globals.enable_perfect_angelic = args.enable_perfect_angelic
     globals.only_save_sbfl_result = args.save_sbfl_result
+    globals.disable_patch_generation = args.output_fix_locs
+    globals.context_generation_limit = args.output_fix_limit
 
     subcommand = getattr(args, subparser_dest_attr_name)
     if subcommand == "swe-bench":
@@ -184,11 +186,20 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         default=False,
         help="Do not print most messages to stdout.",
     )
+
+    def model_parser(name: str):
+        if not isinstance(name, str):
+            raise TypeError(f"Invalid model name: {name}")
+        if name in common.MODEL_HUB.keys():
+            return name
+        if name.startswith("litellm-generic-"):
+            return name
+        raise TypeError(f"Invalid model name: {name}")
+
     parser.add_argument(
         "--model",
-        type=str,
+        type=model_parser,
         default="gpt-3.5-turbo-0125",
-        choices=list(common.MODEL_HUB.keys()),
         help="The model to use. Currently only OpenAI models are supported.",
     )
     parser.add_argument(
@@ -241,6 +252,20 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         type=str,
         default=1,
         help="Number of processes to run the tasks in parallel.",
+    )
+    parser.add_argument(
+        "--output-fix-locs",
+        action="store_true",
+        required=False,
+        default=False,
+        help="Output fix locations to file and do not repair.",
+    )
+    parser.add_argument(
+        "--output-fix-limit",
+        type=int,
+        required=False,
+        default=10,
+        help="Limit output of content retrieval rounds",
     )
 
 
@@ -438,18 +463,25 @@ def run_raw_task(
 
     log.log_and_always_print(run_status_message)
 
-    final_patch_path = get_final_patch_path(task_output_dir)
-    if final_patch_path is not None:
+    if globals.disable_patch_generation:
         log.log_and_always_print(
-            f"Please find the generated patch at: {final_patch_path}"
+            f"Patch generation is disabled. Please find fix locations at: {task_output_dir}/fix_locations.json"
         )
-        if isinstance(task, RawSweTask):
-            log.log_and_always_print(
-                "[SWE-bench mode] Note that the patch may be move to other paths in SWE-bench mode. "
-                "Please check the SWE-bench input file containing generated patches for all tasks."
-            )
     else:
-        log.log_and_always_print("No patch generated. You can try running ACR again.")
+        final_patch_path = get_final_patch_path(task_output_dir)
+        if final_patch_path is not None:
+            log.log_and_always_print(
+                f"Please find the generated patch at: {final_patch_path}"
+            )
+            if isinstance(task, RawSweTask):
+                log.log_and_always_print(
+                    "[SWE-bench mode] Note that the patch may be move to other paths in SWE-bench mode. "
+                    "Please check the SWE-bench input file containing generated patches for all tasks."
+                )
+        else:
+            log.log_and_always_print(
+                "No patch generated. You can try running ACR again."
+            )
 
     return run_ok
 
