@@ -196,19 +196,18 @@ def set_model(model_name: str):
         print(f"Invalid model name: {model_name}")
         sys.exit(1)
     if model_name.startswith("litellm-generic-"):
-        real_model_name = model_name.removeprefix("litellm-generic-")
         prompt_tokens = 5
         completion_tokens = 10
         prompt_tokens_cost_usd_dollar, completion_tokens_cost_usd_dollar = (
             cost_per_token(
-                model=real_model_name,
+                model="gpt-3.5-turbo",
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
             )
         )
         litellm.set_verbose = True
         SELECTED_MODEL = LiteLLMGeneric(
-            real_model_name,
+            model_name.removeprefix("litellm-generic-"),
             prompt_tokens_cost_usd_dollar,
             completion_tokens_cost_usd_dollar,
         )
