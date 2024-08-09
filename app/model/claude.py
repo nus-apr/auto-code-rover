@@ -34,11 +34,13 @@ class AnthropicModel(Model):
         name: str,
         cost_per_input: float,
         cost_per_output: float,
+        max_output_token: int = 4096,
         parallel_tool_call: bool = False,
     ):
         if self._initialized:
             return
         super().__init__(name, cost_per_input, cost_per_output, parallel_tool_call)
+        self.max_output_token = max_output_token
         self._initialized = True
 
     def setup(self) -> None:
@@ -72,9 +74,13 @@ class AnthropicModel(Model):
         top_p=1,
         tools=None,
         response_format: Literal["text", "json_object"] = "text",
+        temperature: float | None = None,
         **kwargs,
     ):
         # FIXME: ignore tools field since we don't use tools now
+        if temperature is None:
+            temperature = common.MODEL_TEMP
+
         try:
             # antropic models - prefilling response with { increase the success rate
             # of producing json output
@@ -85,8 +91,8 @@ class AnthropicModel(Model):
             response = litellm.completion(
                 model=self.name,
                 messages=messages,
-                temperature=common.MODEL_TEMP,
-                max_tokens=1024,
+                temperature=temperature,
+                max_tokens=self.max_output_token,
                 top_p=top_p,
                 stream=False,
             )
@@ -122,7 +128,7 @@ class Claude3Opus(AnthropicModel):
         super().__init__(
             "claude-3-opus-20240229", 0.000015, 0.000075, parallel_tool_call=True
         )
-        self.note = "Most powerful model from Antropic"
+        self.note = "Most powerful model among Claude 3"
 
 
 class Claude3Sonnet(AnthropicModel):
@@ -144,6 +150,10 @@ class Claude3Haiku(AnthropicModel):
 class Claude3_5Sonnet(AnthropicModel):
     def __init__(self):
         super().__init__(
-            "claude-3-5-sonnet-20240620", 0.000003, 0.000015, parallel_tool_call=True
+            "claude-3-5-sonnet-20240620",
+            0.000003,
+            0.000015,
+            max_output_token=8192,
+            parallel_tool_call=True,
         )
         self.note = "Most intelligent model from Antropic"

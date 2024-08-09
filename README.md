@@ -155,12 +155,12 @@ and generate patch:
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
+PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4o-2024-05-13 --model-temperature 0.2 --task-id <task id> --clone-link <link for cloning the project> --commit-hash <any version that has the issue> --issue-link <link to issue page>
 ```
 Here is an example command for running ACR on an issue from the langchain GitHub issue tracker:
 
 ```
-PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4-0125-preview --model-temperature 0.2 --task-id langchain-20453 --clone-link https://github.com/langchain-ai/langchain.git --commit-hash cb6e5e5 --issue-link https://github.com/langchain-ai/langchain/issues/20453
+PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir setup --model gpt-4o-2024-05-13 --model-temperature 0.2 --task-id langchain-20453 --clone-link https://github.com/langchain-ai/langchain.git --commit-hash cb6e5e5 --issue-link https://github.com/langchain-ai/langchain/issues/20453
 ```
 
 The `<task id>` can be any string used to identify this issue.
@@ -189,7 +189,7 @@ and run the following commands:
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py local-issue --output-dir output --model gpt-4-0125-preview --model-temperature 0.2 --task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
+PYTHONPATH=. python app/main.py local-issue --output-dir output --model gpt-4o-2024-05-13 --model-temperature 0.2 --task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
 ```
 
 If patch generation is successful, the path to the generated patch will be printed in the end.
@@ -243,7 +243,7 @@ Before running the task (`django__django-11133` here), make sure it has been set
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py swe-bench --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
 The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
@@ -255,7 +255,7 @@ First, put the id's of all tasks to run in a file, one per line. Suppose this fi
 ```
 cd /opt/auto-code-rover
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py swe-bench --model gpt-4-0125-preview --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).
@@ -278,7 +278,9 @@ The current list of supported models:
 
 |  | Model | AutoCodeRover cmd line argument |
 |:--------------:|---------------|--------------|
-| OpenAI         | gpt-4-turbo-2024-04-09 | --model gpt-4-turbo-2024-04-09 |
+| OpenAI         | gpt-4o-2024-08-06      | --model gpt-4o-2024-08-06 |
+|                | gpt-4o-2024-05-13      | --model gpt-4o-2024-05-13 |
+|                | gpt-4-turbo-2024-04-09 | --model gpt-4-turbo-2024-04-09 |
 |                | gpt-4-0125-preview     | --model gpt-4-0125-preview |
 |                | gpt-4-1106-preview     | --model gpt-4-1106-preview |
 |                | gpt-3.5-turbo-0125     | --model gpt-3.5-turbo-0125 |

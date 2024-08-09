@@ -92,12 +92,13 @@ class RawGithubTask(RawTask):
         self,
         task_id: str,
         clone_link: str,
-        commit_hash: str,
+        commit_hash: str | None,
         issue_link: str,
         setup_dir: str,
     ):
         self._task_id = task_id
         self.clone_link = clone_link
+        # if commit_hash is None, assume using the HEAD of default branch
         self.commit_hash = commit_hash
         self.issue_link = issue_link
         self.setup_dir = setup_dir
@@ -118,6 +119,10 @@ class RawGithubTask(RawTask):
             shutil.rmtree(clone_path)
         app_utils.clone_repo(self.clone_link, str(clone_path.parent), clone_path.name)
         log_and_print(f"Cloned source code to {clone_path}.")
+        if self.commit_hash is None:
+            # let's get the current commit hash
+            with app_utils.cd(clone_path):
+                self.commit_hash = app_utils.get_current_commit_hash()
 
     def dump_meta_data(self, output_dir: str):
         meta = {

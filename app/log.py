@@ -10,7 +10,10 @@ from rich.panel import Panel
 
 
 def terminal_width():
-    return get_terminal_size().columns
+    try:
+        return get_terminal_size().columns
+    except OSError:
+        return 80
 
 
 WIDTH = min(120, terminal_width() - 10)
