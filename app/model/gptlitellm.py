@@ -92,6 +92,7 @@ class OpenaiLiteLLMModel(Model):
                 max_tokens=1024,
                 response_format={"type": response_format},
                 top_p=top_p,
+                base_url=os.getenv("OPENAI_API_BASE_URL", None),
                 stream=False,
             )
             assert isinstance(response, ModelResponse)
