@@ -48,6 +48,7 @@ def register_all_models() -> None:
     # ZZ: register all vllm models here
     common.register_model(vllm_models.Llama3_70B_vllm())
     common.register_model(vllm_models.DeepseekCoderV2_16B_vllm())
+    common.register_model(vllm_models.DeepseekCoderV2_API())
 
     # register default model as selected
     common.SELECTED_MODEL = gpt.Gpt35_Turbo0125()

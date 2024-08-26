@@ -72,7 +72,7 @@ class OpenaiModel(Model):
 
     def check_api_key(self) -> str:
         # ZZ: for models served by vllm local server, there are no api key required by default 
-        key = os.getenv("OPENAI_KEY", "placeholder")
+        key = os.getenv("VLLM_API_KEY", "placeholder")
         if not key:
             print("Please set the OPENAI_KEY env var")
             sys.exit(1)
@@ -184,16 +184,23 @@ class OpenaiModel(Model):
 class Llama3_70B_vllm(OpenaiModel):
     def __init__(self):
         super().__init__(
-            "/dataset-vlm/ywli/Models/LLM/llama-3/Meta-Llama-3-70B-Instruct", 0., 0., parallel_tool_call=True
+            "Llama-3.1-70B-Instruct", 0., 0., parallel_tool_call=True
         )
-        self.note = "Meta-Llama-3-70B-Instruct served by local vllm server. Cost per input/output assumed to be zero."
+        self.note = "Meta-Llama-3.1-70B-Instruct served by local vllm server. Cost per input/output assumed to be zero."
 
 
 
 class DeepseekCoderV2_16B_vllm(OpenaiModel):
     def __init__(self):
         super().__init__(
-            "/dataset/pretrained-models/DeepSeek-Coder-V2-Lite-Instruct", 0., 0., parallel_tool_call=True
+            "DeepSeek-Coder-V2-Lite-Instruct", 0., 0., parallel_tool_call=True
         )
         self.note = "DeepSeek-Coder-V2-Lite-Instruct served by local vllm server. Cost per input/output assumed to be zero."
 
+
+class DeepseekCoderV2_API(OpenaiModel):
+    def __init__(self):
+        super().__init__(
+            "deepseek-coder", 0., 0., parallel_tool_call=True
+        )
+        self.note = "DeepSeek-Coder-API served in openai style. Cost per input/output assumed to be zero."

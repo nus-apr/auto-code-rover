@@ -5,8 +5,21 @@ import re
 from dataclasses import dataclass
 from os.path import join as pjoin
 
-from app import utils as apputils
 
+def to_relative_path(file_path: str, project_root: str) -> str:
+    """Convert an absolute path to a path relative to the project root.
+
+    Args:
+        - file_path (str): The absolute path.
+        - project_root (str): Absolute path of the project root dir.
+
+    Returns:
+        The relative path.
+    """
+    if pathlib.Path(file_path).is_absolute():
+        return str(pathlib.Path(file_path).relative_to(project_root))
+    else:
+        return file_path
 
 @dataclass
 class SearchResult:
@@ -19,7 +32,7 @@ class SearchResult:
 
     def to_tagged_upto_file(self, project_root: str):
         """Convert the search result to a tagged string, upto file path."""
-        rel_path = apputils.to_relative_path(self.file_path, project_root)
+        rel_path = to_relative_path(self.file_path, project_root)
         file_part = f"<file>{rel_path}</file>"
         return file_part
 
@@ -56,7 +69,7 @@ class SearchResult:
                 res[r.file_path] += 1
         res_str = ""
         for file_path, count in res.items():
-            rel_path = apputils.to_relative_path(file_path, project_root)
+            rel_path = to_relative_path(file_path, project_root)
             file_part = f"<file>{rel_path}</file>"
             res_str += f"- {file_part} ({count} matches)\n"
         return res_str
@@ -75,7 +88,7 @@ class SearchResult:
                 res[r.file_path][func_str] += 1
         res_str = ""
         for file_path, funcs in res.items():
-            rel_path = apputils.to_relative_path(file_path, project_root)
+            rel_path = to_relative_path(file_path, project_root)
             file_part = f"<file>{rel_path}</file>"
             for func, count in funcs.items():
                 if func == "Not in a function":
