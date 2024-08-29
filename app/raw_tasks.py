@@ -64,6 +64,7 @@ class RawSweTask(RawTask):
             commit=task_info["base_commit"],
             repo_name=task_info["repo"],
             # modifications to the test suite for this task instance,
+            fix_patch=task_info["patch"],
             test_patch=task_info["test_patch"],
             testcases_passing=task_info["PASS_TO_PASS"],
             testcases_failing=task_info["FAIL_TO_PASS"],

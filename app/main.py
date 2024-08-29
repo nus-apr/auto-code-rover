@@ -515,6 +515,8 @@ def do_inference(
                 api_manager.output_dir,
                 api_manager,
                 python_task.get_issue_statement(),
+                python_task.test_patch, # ZZ: add test patch here
+                python_task.fix_patch,
                 print_callback,
             )
 

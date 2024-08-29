@@ -61,6 +61,7 @@ class SweTask(Task):
     pre_install_cmds: list[str]
     install_cmd: str
     test_cmd: str
+    fix_patch: str
     test_patch: str
     testcases_passing: list[str]
     testcases_failing: list[str]

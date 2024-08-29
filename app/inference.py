@@ -25,13 +25,33 @@ from app.utils import parse_function_invocation
 
 # FIXME: the system prompt should be different for stratified/state machine.
 SYSTEM_PROMPT = """You are a software developer maintaining a large project.
-You are working on an issue submitted to your project.
+You are examining an issue submitted to your project and its test patch and fix patch.
 The issue contains a description marked between <issue> and </issue>.
-Your task is to invoke a few search API calls to gather buggy information, then write patches to solve the issues.
+The test patch is some newly created unit test functions that check against the broken code. It will be wrapped between <test_patch> and </test_patch>.
+Your task is to invoke a few search API calls on top of the test patch to gather the trace that reproduce the problem. 
+Once you have a clear understanding on what is going on, you will be provided with the fix patch and explain why the patch resolve the problem.
 """
 
+def prepare_contrast_prompt(fix_patch: str) -> str:
+    """
+    once the context collection is finished, provide fix_patch to the model and ask it to explain what is going on.
+    """
+    # Do we need special format for the explanation ?
+    contrast_prompt = f"""Given the context collection is finished, let's analyse how the ground truth fix patch modified the codebase.
+    Note that the fix patch passed the test patch so you can ensure that the correctness of the fix patch is guaranteed.
+    
+    <fix_patch>
+    {fix_patch}
+    </fix_patch>
+    
+    Please answer the following questions in your analysis:
+    Fix Location: [Analyse the location of the modification within the whole reproduction code chain here. Explain the functionalities of the code components modified within the whole execution.] 
+    Behavior Contrast: [Contrast the code behavior before and after the fix patch and analyse why it fixes the issue]
+    Conclusion: [Briefly summarize the rationale behind the fix patch here]
+    """
+    return contrast_prompt
 
-def prepare_issue_prompt(problem_stmt: str) -> str:
+def prepare_issue_prompt(problem_stmt: str, test_patch: str) -> str:
     """
     Given the raw problem statement, sanitize it and prepare the issue prompt.
     Args:
@@ -48,7 +68,7 @@ def prepare_issue_prompt(problem_stmt: str) -> str:
     content_lines = [x for x in content_lines if x != ""]
     problem_stripped = "\n".join(content_lines)
     # add tags
-    result = "<issue>" + problem_stripped + "\n</issue>"
+    result = "<issue>\n" + problem_stripped + "\n</issue>" + "\n\n<test_patch>\n" + test_patch + "\n</test_patch>"
     return result
 
 
@@ -72,6 +92,7 @@ def start_conversation_round_stratified(
     output_dir: str,
     msg_thread: MessageThread,
     api_manager: ProjectApiManager,
+    fix_patch: str,
     start_round_no: int = 0,
     print_callback: Callable[[dict], None] | None = None,
 ) -> bool:
@@ -79,8 +100,10 @@ def start_conversation_round_stratified(
     This version uses json data to process API calls, instead of using the OpenAI function calling.
     Advantage is that multiple API calls can be made in a single round.
     """
+    # ZZ: TODO: Be clear that the search is limited on the current working issue only 
     prompt = (
-        "Based on the files, classes, methods, and code statements from the issue related to the bug, you can use the following search APIs to get more context of the project."
+        "Based on the test patch from the issue related to the bug, you can use the following search APIs to collect context about the related code components that cause the error in the issue."
+        "However, note that the search scope is limited to the issue codebase. Do not use the search tools for codebases imported or outside the issue codebase."
         "\n- search_class(class_name: str): Search for a class in the codebase"
         "\n- search_method_in_file(method_name: str, file_path: str): Search for a method in a given file"
         "\n- search_method_in_class(method_name: str, class_name: str): Search for a method in a given class"
@@ -88,7 +111,7 @@ def start_conversation_round_stratified(
         "\n- search_code(code_str: str): Search for a code snippet in the entire codebase"
         "\n- search_code_in_file(code_str: str, file_path: str): Search for a code snippet in a given file file"
         "\n\nNote that you can use multiple search APIs in one round."
-        "\n\nNow analyze the issue and select necessary APIs to get more context of the project. Each API call must have concrete arguments as inputs."
+        "\n\nNow analyze the test patch and select necessary APIs to construct the trace that reproduce the problem. Each API call must have concrete arguments as inputs. You do not need to search for all contexts in one shot."
     )
     msg_thread.add_user(prompt)
 
@@ -120,14 +143,18 @@ def start_conversation_round_stratified(
         res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
         msg_thread.add_model(res_text, tools=[])
         print_retrieval(res_text, f"round {round_no}", print_callback=print_callback)
+        if res_text.strip() == "Context collection finished.":
+            context_collection_finished = True
+            selected_apis = """{"API_calls": [], "finished": "true"}"""
+        else:
+            context_collection_finished = False
+            selected_apis, _, proxy_threads = api_manager.proxy_apis(res_text)
+            proxy_log = Path(output_dir, f"agent_proxy_{round_no}.json")
+            proxy_messages = [thread.to_msg() for thread in proxy_threads]
+            proxy_log.write_text(json.dumps(proxy_messages, indent=4))
 
-        selected_apis, _, proxy_threads = api_manager.proxy_apis(res_text)
-
-        proxy_log = Path(output_dir, f"agent_proxy_{round_no}.json")
-        proxy_messages = [thread.to_msg() for thread in proxy_threads]
-        proxy_log.write_text(json.dumps(proxy_messages, indent=4))
-
-        if selected_apis is None:
+        if selected_apis is None and not context_collection_finished:
+            # ZZ: TODO add error message ?
             msg = "The search API calls seem not valid. Please check the arguments you give carefully and try again."
             msg_thread.add_user(msg)
             print_acr(
@@ -140,67 +167,30 @@ def start_conversation_round_stratified(
         selected_apis_json = json.loads(selected_apis)
 
         json_api_calls = selected_apis_json.get("API_calls", [])
-        buggy_locations = selected_apis_json.get("bug_locations", [])
-
         formatted = []
         if json_api_calls:
             formatted.append("API calls:")
             for call in json_api_calls:
                 formatted.extend([f"\n- `{call}`"])
-
-        if buggy_locations:
-            formatted.append("\n\nBug locations")
-            for location in buggy_locations:
-                s = ", ".join(f"{k}: `{v}`" for k, v in location.items())
-                formatted.extend([f"\n- {s}"])
-            Path(output_dir, f"fix_locations_{round_no}.json").write_text(
-                json.dumps(buggy_locations, indent=4)
-            )
-
-        print_acr(
-            "\n".join(formatted),
-            "Agent-selected API calls",
-            print_callback=print_callback,
-        )
-
-        # collected enough information to write patch
-        if buggy_locations and (not json_api_calls):
-            collated_tool_response = "Here is the code in buggy locations:\n\n"
-            # provide the buggy locations to the model
-            for bug_location in buggy_locations:
-                tool_output, *_ = search_for_bug_location(
-                    api_manager, msg_thread, bug_location
-                )
-                collated_tool_response += f"\n\n{tool_output}\n"
-
-            if (
-                "Unknown function" not in collated_tool_response
-                and "Could not" not in collated_tool_response
-            ):
-                msg_thread.add_user(collated_tool_response)
-
-                if globals.disable_patch_generation:
-                    logger.debug(
-                        "Gathered enough information. Skipping patch generation due to feature flag."
-                    )
-                else:
-                    print_banner("PATCH GENERATION")
-                    logger.debug("Gathered enough information. Invoking write_patch.")
-                    print_acr(
-                        collated_tool_response,
-                        "patch generation round 1",
-                        print_callback=print_callback,
-                    )
-                break
-
-            msg = "The buggy locations is not precise. You may need to check whether the arguments are correct and search more information."
-            msg_thread.add_user(msg)
             print_acr(
-                msg,
-                f"context retrieval round {round_no}",
+                "\n".join(formatted),
+                "Agent-selected API calls",
                 print_callback=print_callback,
             )
-            continue
+
+        # collected enough information to write patch
+        if context_collection_finished and (not json_api_calls):
+            # ZZ: TODO add fix patch contrast logic here
+            # construct prompt => call => parse
+            contrast_prompt = prepare_contrast_prompt(fix_patch)
+            msg_thread.add_user(contrast_prompt)
+            print_acr(
+                contrast_prompt, f"Fix Patch Contrast", print_callback=print_callback
+            )
+            res_text, *_ = common.SELECTED_MODEL.call(msg_thread.to_msg())
+            msg_thread.add_model(res_text, tools=[])
+            print_retrieval(res_text, f"Fix Patch Contrast Response", print_callback=print_callback)
+            break
 
         # prepare response from tools
         collated_tool_response = ""
@@ -229,7 +219,7 @@ def start_conversation_round_stratified(
             print_callback=print_callback,
         )
 
-        msg = "Let's analyze collected context first"
+        msg = "Let's summarize the collected trace of context first"
         msg_thread.add_user(msg)
         print_acr(
             msg, f"context retrieval round {round_no}", print_callback=print_callback
@@ -242,8 +232,8 @@ def start_conversation_round_stratified(
         if round_no < globals.conv_round_limit:
             msg = (
                 "Based on your analysis, answer below questions:"
-                "\n- do we need more context: construct search API calls to get more context of the project. (leave it empty if you don't need more context)"
-                "\n- where are bug locations: buggy files and methods. (leave it empty if you don't have enough information)"
+                "\n- do we need more context: construct search API calls to get the rest context of the project from the test patch."
+                "\n If we have gathered all context of the components that relates to the bug, simply respond `Context collection finished.` only."
             )
             if isinstance(common.SELECTED_MODEL, ollama.OllamaModel):
                 # llama models tend to always output search APIs and buggy locations.
@@ -270,19 +260,6 @@ def start_conversation_round_stratified(
 
         logger.info(f"Too many rounds. {log_msg}")
 
-    round_no += 1
-
-    if not globals.disable_patch_generation:
-        intent = FunctionCallIntent("write_patch", {}, None)
-    elif try_generate_locs:
-        intent = FunctionCallIntent("propose_locs", {}, None)
-    else:
-        intent = None
-
-    if intent:
-        api_manager.start_new_tool_call_layer()
-        api_manager.dispatch_intent(intent, msg_thread, print_callback=print_callback)
-        logger.info(f"Invoked {intent.func_name}.")
 
     logger.info("Ending workflow.")
     conversation_file = pjoin(output_dir, f"conversation_round_{round_no}.json")
@@ -443,6 +420,8 @@ def run_one_task(
     output_dir: str,
     api_manager: ProjectApiManager,
     problem_stmt: str,
+    test_patch: str,
+    fix_patch: str, 
     print_callback: Callable[[dict], None] | None = None,
 ) -> bool:
     """
@@ -453,7 +432,6 @@ def run_one_task(
         problem_stmt (str): The original problem statement submitted to the task issue.
     """
     print_banner("Starting AutoCodeRover on the following issue")
-    print_issue(problem_stmt)
     msg_thread = MessageThread()
 
     system_prompt = SYSTEM_PROMPT
@@ -462,8 +440,10 @@ def run_one_task(
         system_prompt += " In your response, DO NOT make more than one tool call."
 
     msg_thread.add_system(system_prompt)
-    original_prompt = prepare_issue_prompt(problem_stmt)
+    # ZZ: add test_patch info here
+    original_prompt = prepare_issue_prompt(problem_stmt, test_patch)
     msg_thread.add_user(original_prompt)
+    print_issue(original_prompt)
 
     # Add another user message about fault localization
     if globals.enable_sbfl:
@@ -475,7 +455,7 @@ def run_one_task(
 
     if globals.enable_layered:
         return start_conversation_round_stratified(
-            output_dir, msg_thread, api_manager, print_callback=print_callback
+            output_dir, msg_thread, api_manager, fix_patch, print_callback=print_callback
         )
     else:
         return start_conversation_round_state_machine(
