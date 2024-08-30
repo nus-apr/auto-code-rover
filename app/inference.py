@@ -93,6 +93,7 @@ def start_conversation_round_stratified(
     msg_thread: MessageThread,
     api_manager: ProjectApiManager,
     fix_patch: str,
+    repo_name: str,
     start_round_no: int = 0,
     print_callback: Callable[[dict], None] | None = None,
 ) -> bool:
@@ -101,9 +102,11 @@ def start_conversation_round_stratified(
     Advantage is that multiple API calls can be made in a single round.
     """
     # ZZ: TODO: Be clear that the search is limited on the current working issue only 
+    # ZZ: TODO: should introduce repo name here, check if the repo name need normalization or not here .. 
     prompt = (
         "Based on the test patch from the issue related to the bug, you can use the following search APIs to collect context about the related code components that cause the error in the issue."
         "However, note that the search scope is limited to the issue codebase. Do not use the search tools for codebases imported or outside the issue codebase."
+        f"Do not use local file_path the user described in the issue description for search, use the path that start from the issue codebase {repo_name} instead."
         "\n- search_class(class_name: str): Search for a class in the codebase"
         "\n- search_method_in_file(method_name: str, file_path: str): Search for a method in a given file"
         "\n- search_method_in_class(method_name: str, class_name: str): Search for a method in a given class"
@@ -422,6 +425,7 @@ def run_one_task(
     problem_stmt: str,
     test_patch: str,
     fix_patch: str, 
+    repo_name: str,
     print_callback: Callable[[dict], None] | None = None,
 ) -> bool:
     """
@@ -455,7 +459,7 @@ def run_one_task(
 
     if globals.enable_layered:
         return start_conversation_round_stratified(
-            output_dir, msg_thread, api_manager, fix_patch, print_callback=print_callback
+            output_dir, msg_thread, api_manager, fix_patch, repo_name, print_callback=print_callback
         )
     else:
         return start_conversation_round_state_machine(
