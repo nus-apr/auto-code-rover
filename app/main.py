@@ -533,17 +533,21 @@ def do_inference(
 
             end_time = datetime.now()
 
-            dump_cost(start_time, end_time, task_output_dir)
+            dump_cost(start_time, end_time, task_output_dir, python_task.project_path)
     finally:
         python_task.reset_project()
 
     return run_ok
 
 
-def dump_cost(start_time: datetime, end_time: datetime, task_output_dir: str):
+def dump_cost(
+    start_time: datetime, end_time: datetime, task_output_dir: str, project_path: str
+):
+    with apputils.cd(project_path):
+        commit_hash = apputils.get_current_commit_hash()
     model_stats = common.SELECTED_MODEL.get_overall_exec_stats()
     stats = {
-        "commit": apputils.get_current_commit_hash(),
+        "commit": commit_hash,
         "start_epoch": start_time.timestamp(),
         "end_epoch": end_time.timestamp(),
         "elapsed_seconds": (end_time - start_time).total_seconds(),
