@@ -95,6 +95,7 @@ class RawGithubTask(RawTask):
         commit_hash: str | None,
         issue_link: str,
         setup_dir: str,
+        use_comments: bool = False,
     ):
         self._task_id = task_id
         self.clone_link = clone_link
@@ -102,6 +103,7 @@ class RawGithubTask(RawTask):
         self.commit_hash = commit_hash
         self.issue_link = issue_link
         self.setup_dir = setup_dir
+        self.use_comments = use_comments
         self.clone_path = pjoin(self.setup_dir, self.task_id)
         self.problem_statement, self.created_at = self.fetch_issue()
         self.clone_repo()
@@ -144,7 +146,7 @@ class RawGithubTask(RawTask):
         if "github.com" not in self.issue_link:
             raise NotImplementedError("Only GitHub issues are supported for now.")
 
-        retrieved_issue = self.fetch_github_issue(self.issue_link)
+        retrieved_issue = self.fetch_github_issue(self.issue_link, self.use_comments)
 
         if retrieved_issue is None:
             raise RuntimeError(
@@ -185,7 +187,9 @@ class RawGithubTask(RawTask):
         return body
 
     @classmethod
-    def fetch_github_issue(cls, issue_url: str) -> tuple[str, str, str]:
+    def fetch_github_issue(
+        cls, issue_url: str, use_comments: bool = False
+    ) -> tuple[str, str, str]:
         """Extract owner, repo, and issue number from the URL"""
 
         # Example issue URL: https://github.com/owner/repo/issues/123
@@ -193,17 +197,40 @@ class RawGithubTask(RawTask):
         _, owner, repo, _, issue_number = issue_url.rsplit("/", 4)
 
         api_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-        response = httpx.get(api_url)
+        comments_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
 
-        if response.status_code != 200:
+        issue_response = httpx.get(api_url)
+
+        if issue_response.status_code != 200:
             raise RuntimeError(
-                f"Failed to fetch issue information: {response.status_code}"
+                f"Failed to fetch issue information: {issue_response.status_code}"
             )
 
-        issue_info = response.json()
+        issue_info = issue_response.json()
 
         title = issue_info["title"]
         body = issue_info["body"]
+
+        if use_comments:
+            comments_response = httpx.get(comments_url)
+            if comments_response.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to fetch comments information: {comments_response.status_code}"
+                )
+
+            comments_info = comments_response.json()
+            for comment in comments_info:
+                if (
+                    "user" not in comment
+                    or comment["user"]["type"] == "Bot"
+                    or comment["user"]["login"] == "acr-bot"
+                ):
+                    continue
+
+                body += (
+                    f"\nUser: {comment['user']['login']}\nComment: {comment['body']}"
+                )
+
         created_at = issue_info["created_at"]
 
         return title, body, created_at

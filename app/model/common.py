@@ -206,7 +206,7 @@ def set_model(model_name: str):
                 completion_tokens=completion_tokens,
             )
         )
-        litellm.set_verbose = True
+        # litellm.set_verbose = True
         SELECTED_MODEL = LiteLLMGeneric(
             real_model_name,
             prompt_tokens_cost_usd_dollar,

@@ -106,7 +106,12 @@ def main(args, subparser_dest_attr_name: str = "command"):
             setup_dir = abspath(setup_dir)
 
         task = RawGithubTask(
-            args.task_id, args.clone_link, args.commit_hash, args.issue_link, setup_dir
+            args.task_id,
+            args.clone_link,
+            args.commit_hash,
+            args.issue_link,
+            setup_dir,
+            args.use_comments,
         )
         groups = {"github": [task]}
         run_task_groups(groups, num_processes)
@@ -159,6 +164,12 @@ def set_github_parser_args(parser: ArgumentParser) -> None:
         "--commit-hash",
         type=str,
         help="The commit hash to checkout. If not specified, the latest commit on default branch will be used.",
+    )
+    parser.add_argument(
+        "--use-comments",
+        action="store_true",
+        default=False,
+        help="Include the comments of the issue.",
     )
     parser.add_argument("--issue-link", type=str, help="The link to the issue.")
     parser.add_argument(
