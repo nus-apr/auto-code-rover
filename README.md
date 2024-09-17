@@ -72,13 +72,21 @@ AutoCodeRover has two unique features:
 
 For referring to our work, please cite and mention:
 ```
-@misc{zhang2024autocoderover,
-      title={AutoCodeRover: Autonomous Program Improvement},
-      author={Yuntong Zhang and Haifeng Ruan and Zhiyu Fan and Abhik Roychoudhury},
-      year={2024},
-      eprint={2404.05427},
-      archivePrefix={arXiv},
-      primaryClass={cs.SE}
+@inproceedings{zhang2024autocoderover,
+    author = {Zhang, Yuntong and Ruan, Haifeng and Fan, Zhiyu and Roychoudhury, Abhik},
+    title = {AutoCodeRover: Autonomous Program Improvement},
+    year = {2024},
+    isbn = {9798400706127},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/3650212.3680384},
+    doi = {10.1145/3650212.3680384},
+    booktitle = {Proceedings of the 33rd ACM SIGSOFT International Symposium on Software Testing and Analysis},
+    pages = {1592–1604},
+    numpages = {13},
+    keywords = {automatic program repair, autonomous software engineering, autonomous software improvement, large language model},
+    location = {Vienna, Austria},
+    series = {ISSTA 2024}
 }
 ```
 
