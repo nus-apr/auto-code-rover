@@ -29,6 +29,7 @@ docker run -it yuntongzhang/auto-code-rover:experiment
 Activate the conda environment in it.
 
 ```
+source activate base
 conda activate auto-code-rover
 ```
 
@@ -55,9 +56,12 @@ the experiment run using `gpt-4-0125-preview` on SWE-bench-lite.
 python scripts/run.py conf/vanilla-lite.conf
 ```
 
-This command runs auto-code-rover on the 300 instances in SWE-bench-lite, and runs the SWE-bench
-evaluation on the generated patches. The final results of the experiment will be at
-`/opt/auto-code-rover/experiment/vanilla-lite/final_report.json`.
+This command runs auto-code-rover on the 300 instances in SWE-bench-lite, and consolidates all the generated
+patches in a single file named `predictions_for_swebench.json`. For evaluating the correctness of the generated
+patch, please copy this file out and evaluate it with either:
+
+1. The [Containerized Evaluation Harness](https://github.com/princeton-nlp/SWE-bench/tree/main/docs/20240627_docker) by the SWE-bench team.
+2. The [Moatless EvalTools](https://github.com/aorwall/SWE-bench-docker).
 
 
 ### Running experiments multiple times
@@ -90,7 +94,6 @@ Here are a few useful fields in the conf file:
 - id: determines the name of the experiment output folder
 - experiment_dir: where output will be stored
 - setup_result_dir: must point to the directory where SWE-bench setup writes its results
-- eval_log_dir: where the SWE-bench evaluation log is written to
 
 - model: the model to be used by auto-code-rover
 - temperature: model temperature
