@@ -170,7 +170,7 @@ class OpenaiModel(Model):
                     tools=tools,  # type: ignore
                     tool_choice=cast(ChatCompletionToolChoiceOptionParam, tool_choice),
                     temperature=temperature,
-                    response_format=ResponseFormat(type=response_format),
+                    response_format=cast(ResponseFormat, {"type": response_format}),
                     max_tokens=self.max_output_token,
                     top_p=top_p,
                     stream=False,
@@ -181,7 +181,7 @@ class OpenaiModel(Model):
                     messages=messages,  # type: ignore
                     tools=tools,  # type: ignore
                     temperature=temperature,
-                    response_format=ResponseFormat(type=response_format),
+                    response_format=cast(ResponseFormat, {"type": response_format}),
                     max_tokens=self.max_output_token,
                     top_p=top_p,
                     stream=False,
