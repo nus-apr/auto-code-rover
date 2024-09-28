@@ -9,7 +9,6 @@ import json
 import os
 import shutil
 import subprocess
-from datetime import datetime
 from glob import glob
 from os.path import dirname as pdirname
 from os.path import join as pjoin
@@ -109,7 +108,6 @@ def run_agent(
     model: str,
     temperature: float,
     enbale_sbfl: bool,
-    enable_layered: bool,
     enable_validation: bool,
     enable_angelic: bool,
     enable_perfect_angelic: bool,
@@ -132,7 +130,7 @@ def run_agent(
     added_env = {"PYTHONPATH": root_dir}
     modified_env = {**os.environ, **added_env}
 
-    cmd = "python app/main.py "
+    cmd = "python app/main.py swe-bench "
     cmd += f"--setup-map {setup_map_json} "
     cmd += f"--tasks-map {tasks_map_json} "
     cmd += f"--output-dir {expr_dir} "
@@ -143,8 +141,6 @@ def run_agent(
     cmd += f"--num-processes {num_processes} "
     if enbale_sbfl:
         cmd += "--enable-sbfl "
-    if enable_layered:
-        cmd += "--enable-layered "
     if enable_validation:
         cmd += "--enable-validation "
     if enable_angelic:
@@ -272,7 +268,7 @@ def generate_report(
     return final_report_path
 
 
-def generate_stats(expr_dir: str, eval_start_epoch: float, eval_end_epoch: float):
+def generate_stats(expr_dir: str):
     cost_files = glob(pjoin(expr_dir, "**", "*__*", "cost.json"))
     cost_data = [json.loads(Path(file).read_text()) for file in cost_files]
 
@@ -307,14 +303,6 @@ def generate_stats(expr_dir: str, eval_start_epoch: float, eval_end_epoch: float
         mean(x["elapsed_seconds"] for x in cost_data), 1
     )
 
-    stats["eval_start_epoch"] = eval_start_epoch
-    stats["eval_end_epoch"] = eval_end_epoch
-    eval_elapsed = eval_end_epoch - eval_start_epoch
-    stats["eval_elapsed_mins"] = round(eval_elapsed / 60, 2)
-    stats["eval_avg_elapsed_secs"] = round(eval_elapsed / len(cost_data), 1)
-
-    stats["total_elapsed_mins"] = round((inference_elapsed + eval_elapsed) / 60, 2)
-
     with open(pjoin(expr_dir, "stats.json"), "w") as f:
         json.dump(stats, f, indent=4)
 
@@ -324,10 +312,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("conf_file", help="Configuration file")
     parser.add_argument(
-        "--eval-only",
+        "--with-eval",
         action="store_true",
         default=False,
-        help="Only do SWE-bench evaluation",
+        help="Additionally perform SWE-bench evaluation (deprecated)",
     )
     parser.add_argument(
         "-f",
@@ -363,15 +351,14 @@ def main():
     config_dict = config["DEFAULT"]
     expr_id = config_dict["id"]
     overall_expr_dir = config_dict["experiment_dir"]
-    swe_bench_dir = config_dict["swe_bench_dir"]
     setup_result_dir = config_dict["setup_result_dir"]
-    eval_log_dir = config_dict["eval_log_dir"]
+    swe_bench_dir = config_dict.get("swe_bench_dir", fallback="")
+    eval_log_dir = config_dict.get("eval_log_dir", fallback="")
 
     model = config_dict["model"]
     temperature = float(config_dict["temperature"])
     selected_tasks_file = config_dict["selected_tasks_file"]
     enable_sbfl = config.getboolean("DEFAULT", "enable_sbfl", fallback=False)
-    enable_layered = config.getboolean("DEFAULT", "enable_layered", fallback=False)
     enable_validation = config.getboolean(
         "DEFAULT", "enable_validation", fallback=False
     )
@@ -381,52 +368,47 @@ def main():
     )
     conv_round_limit = config.getint("DEFAULT", "conv_round_limit", fallback=15)
 
-    # with_sbfl = config.getboolean("DEFAULT", "with_sbfl", fallback=False)
     print_more = config.getboolean("DEFAULT", "print", fallback=False)
     num_processes = int(config_dict["num_processes"])
 
     expr_dir = pjoin(overall_expr_dir, expr_id)
     task_list_file_path = pjoin(expr_dir, os.path.basename(selected_tasks_file))
-    if not args.eval_only:
-        create_fresh_dir(expr_dir)
+
+    create_fresh_dir(expr_dir)
+
     shutil.copy(selected_tasks_file, expr_dir)
 
     script_dir = pdirname(os.path.realpath(__file__))
     root_dir = pdirname(script_dir)  # root of this repo
 
-    if args.eval_only:
-        swe_input_file = pjoin(expr_dir, "predictions_for_swebench.json")
-    else:
-        swe_input_file = run_agent(
-            root_dir,
-            setup_result_dir,
-            expr_dir,
-            task_list_file_path,
-            model,
-            temperature,
-            enable_sbfl,
-            enable_layered,
-            enable_validation,
-            enable_angelic,
-            enable_perfect_angelic,
-            print_more,
-            conv_round_limit,
-            num_processes,
+    swe_input_file = run_agent(
+        root_dir,
+        setup_result_dir,
+        expr_dir,
+        task_list_file_path,
+        model,
+        temperature,
+        enable_sbfl,
+        enable_validation,
+        enable_angelic,
+        enable_perfect_angelic,
+        print_more,
+        conv_round_limit,
+        num_processes,
+    )
+
+    if args.with_eval:
+        expr_eval_log_dir = run_swe_bench_eval(
+            expr_id, swe_bench_dir, swe_input_file, eval_log_dir
         )
 
-    eval_start_time = datetime.now()
-    expr_eval_log_dir = run_swe_bench_eval(
-        expr_id, swe_bench_dir, swe_input_file, eval_log_dir
-    )
-    eval_end_time = datetime.now()
+        final_report_path = generate_report(
+            expr_dir, swe_bench_dir, swe_input_file, expr_eval_log_dir, model
+        )
 
-    final_report_path = generate_report(
-        expr_dir, swe_bench_dir, swe_input_file, expr_eval_log_dir, model
-    )
+    generate_stats(expr_dir)
 
-    generate_stats(expr_dir, eval_start_time.timestamp(), eval_end_time.timestamp())
-
-    print(f"Experiment {expr_id} done. Final report is at {final_report_path}.")
+    print(f"Experiment {expr_id} done. SWE-bench eval input file is at {swe_input_file}.")
 
     if running_combined:
         create_separate_reports(expr_dir, final_report_path)
