@@ -20,7 +20,7 @@ from app.task import Task
 SYSTEM_PROMPT = """You are a software developer maintaining a large project.
 You are working on an issue submitted to your project.
 The issue contains a description marked between <issue> and </issue>.
-You ultimate goal is to write a list of locations that you can give to another devloper.
+You ultimate goal is to write a list of locations that you can give to another developer.
 """
 
 
