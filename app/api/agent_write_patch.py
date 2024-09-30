@@ -202,7 +202,7 @@ def run_with_retries(
             elif globals.enable_angelic:
                 raise NotImplementedError("Angelic debugging has not been integrated")
             else:
-                result_msg = "Extracted a patch. Since validation is disabled, you should validation the patch later on. Ending the workflow."
+                result_msg = "Extracted a patch. Since validation is disabled, you should validate the patch later on. Ending the workflow."
                 new_thread.add_user(result_msg)  # just for logging
                 print_acr(
                     result_msg,
