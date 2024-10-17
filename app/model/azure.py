@@ -8,7 +8,7 @@ import sys
 from typing import Literal, cast
 
 from loguru import logger
-from openai import NOT_GIVEN, BadRequestError, OpenAI
+from openai import NOT_GIVEN, AzureOpenAI, BadRequestError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
@@ -29,7 +29,7 @@ from app.model import common
 from app.model.common import Model
 
 
-class OpenaiModel(Model):
+class AzureOpenaiModel(Model):
     """
     Base class for creating Singleton instances of OpenAI models.
     We use native API from OpenAI instead of LiteLLM.
@@ -59,7 +59,7 @@ class OpenaiModel(Model):
         # because output token limit consumes part of the context window
         self.max_output_token = max_output_token
         # client for making request
-        self.client: OpenAI | None = None
+        self.client: AzureOpenAI | None = None
         self._initialized = True
 
     def setup(self) -> None:
@@ -68,14 +68,24 @@ class OpenaiModel(Model):
         """
         if self.client is None:
             key = self.check_api_key()
-            self.client = OpenAI(api_key=key)
+            endpoint = self.check_endpoint_url()
+            self.client = AzureOpenAI(
+                api_key=key, azure_endpoint=endpoint, api_version="2024-05-01-preview"
+            )
 
     def check_api_key(self) -> str:
-        key = os.getenv("OPENAI_KEY")
+        key = os.getenv("AZURE_OPENAI_API_KEY")
         if not key:
-            print("Please set the OPENAI_KEY env var")
+            print("Please set the AZURE_OPENAI_KEY env var")
             sys.exit(1)
         return key
+
+    def check_endpoint_url(self) -> str:
+        endpoint = os.getenv("ENDPOINT_URL")
+        if not endpoint:
+            print("Please set the ENDPOINT_URL env var")
+            sys.exit(1)
+        return endpoint
 
     def extract_resp_content(
         self, chat_completion_message: ChatCompletionMessage
@@ -160,50 +170,35 @@ class OpenaiModel(Model):
 
         assert self.client is not None
         try:
+            is_o1 = self.name.split("/")[1].startswith("o1")
             if tools is not None and len(tools) == 1:
                 # there is only one tool => force the model to use it
                 tool_name = tools[0]["function"]["name"]
                 tool_choice = {"type": "function", "function": {"name": tool_name}}
                 response: ChatCompletion = self.client.chat.completions.create(
-                    model=self.name,
+                    model=self.name.split("/")[1],
                     messages=messages,  # type: ignore
                     tools=tools,  # type: ignore
                     tool_choice=cast(ChatCompletionToolChoiceOptionParam, tool_choice),
-                    temperature=(
-                        temperature if self.name.startswith("o1") else NOT_GIVEN
-                    ),
+                    temperature=(temperature if is_o1 else NOT_GIVEN),
                     response_format=cast(ResponseFormat, {"type": response_format}),
-                    max_tokens=(
-                        self.max_output_token
-                        if not self.name.startswith("o1")
-                        else NOT_GIVEN
-                    ),
+                    max_tokens=(self.max_output_token if is_o1 else NOT_GIVEN),
                     max_completion_tokens=(
-                        self.max_output_token
-                        if self.name.startswith("o1")
-                        else NOT_GIVEN
+                        self.max_output_token if is_o1 else NOT_GIVEN
                     ),
                     top_p=top_p,
                     stream=False,
                 )
             else:
                 response: ChatCompletion = self.client.chat.completions.create(
-                    model=self.name,
+                    model=self.name.split("/")[1],
                     messages=messages,  # type: ignore
                     tools=tools if tools is not None else NOT_GIVEN,  # type: ignore
-                    temperature=(
-                        temperature if self.name.startswith("o1") else NOT_GIVEN
-                    ),
+                    temperature=(temperature if is_o1 else NOT_GIVEN),
                     response_format=cast(ResponseFormat, {"type": response_format}),
-                    max_tokens=(
-                        self.max_output_token
-                        if not self.name.startswith("o1")
-                        else NOT_GIVEN
-                    ),
+                    max_tokens=(self.max_output_token if not is_o1 else NOT_GIVEN),
                     max_completion_tokens=(
-                        self.max_output_token
-                        if self.name.startswith("o1")
-                        else NOT_GIVEN
+                        self.max_output_token if is_o1 else NOT_GIVEN
                     ),
                     top_p=top_p,
                     stream=False,
@@ -240,9 +235,11 @@ class OpenaiModel(Model):
             raise e
 
 
-class Gpt_o1mini(OpenaiModel):
+class AzureGpt_o1mini(AzureOpenaiModel):
     def __init__(self):
-        super().__init__("o1-mini", 8192, 0.000003, 0.000012, parallel_tool_call=True)
+        super().__init__(
+            "azure/o1-mini", 8192, 0.000003, 0.000012, parallel_tool_call=True
+        )
         self.note = "Mini version of state of the art. Up to Oct 2023."
 
     # FIXME: the returned type contains OpenAI specific Types, which should be avoided
@@ -276,81 +273,29 @@ class Gpt_o1mini(OpenaiModel):
         )
 
 
-class Gpt4o_20240806(OpenaiModel):
+class AzureGpt4o(AzureOpenaiModel):
     def __init__(self):
         super().__init__(
-            "gpt-4o-2024-08-06", 16384, 0.0000025, 0.000010, parallel_tool_call=True
-        )
-        self.note = "Multimodal model. Up to Apr 2023."
-
-
-class Gpt4o_20240513(OpenaiModel):
-    def __init__(self):
-        super().__init__(
-            "gpt-4o-2024-05-13", 4096, 0.000005, 0.000015, parallel_tool_call=True
+            "azure/gpt-4o", 4096, 0.000005, 0.000015, parallel_tool_call=True
         )
         self.note = "Multimodal model. Up to Oct 2023."
 
 
-class Gpt4_Turbo20240409(OpenaiModel):
+class AzureGpt35_Turbo(AzureOpenaiModel):
     def __init__(self):
         super().__init__(
-            "gpt-4-turbo-2024-04-09", 4096, 0.00001, 0.00003, parallel_tool_call=True
-        )
-        self.note = "Turbo with vision. Up to Dec 2023."
-
-
-class Gpt4_0125Preview(OpenaiModel):
-    def __init__(self):
-        super().__init__(
-            "gpt-4-0125-preview", 4096, 0.00001, 0.00003, parallel_tool_call=True
-        )
-        self.note = "Turbo. Up to Dec 2023."
-
-
-class Gpt4_1106Preview(OpenaiModel):
-    def __init__(self):
-        super().__init__(
-            "gpt-4-1106-preview", 4096, 0.00001, 0.00003, parallel_tool_call=True
-        )
-        self.note = "Turbo. Up to Apr 2023."
-
-
-class Gpt35_Turbo0125(OpenaiModel):
-    # cheapest gpt model
-    def __init__(self):
-        super().__init__(
-            "gpt-3.5-turbo-0125", 1024, 0.0000005, 0.0000015, parallel_tool_call=True
+            "azure/gpt-35-turbo", 1024, 0.000001, 0.000002, parallel_tool_call=True
         )
         self.note = "Turbo. Up to Sep 2021."
 
 
-class Gpt35_Turbo1106(OpenaiModel):
+class AzureGpt35_Turbo16k(AzureOpenaiModel):
     def __init__(self):
-        super().__init__(
-            "gpt-3.5-turbo-1106", 1024, 0.000001, 0.000002, parallel_tool_call=True
-        )
-        self.note = "Turbo. Up to Sep 2021."
-
-
-class Gpt35_Turbo16k_0613(OpenaiModel):
-    def __init__(self):
-        super().__init__("gpt-3.5-turbo-16k-0613", 1024, 0.000003, 0.000004)
+        super().__init__("azure/gpt-35-turbo-16k", 1024, 0.000003, 0.000004)
         self.note = "Turbo. Deprecated. Up to Sep 2021."
 
 
-class Gpt35_Turbo0613(OpenaiModel):
+class AzureGpt4(AzureOpenaiModel):
     def __init__(self):
-        super().__init__("gpt-3.5-turbo-0613", 512, 0.0000015, 0.000002)
-        self.note = "Turbo. Deprecated. Only 4k window. Up to Sep 2021."
-
-
-class Gpt4_0613(OpenaiModel):
-    def __init__(self):
-        super().__init__("gpt-4-0613", 512, 0.00003, 0.00006)
+        super().__init__("azure/gpt-4", 512, 0.00003, 0.00006)
         self.note = "Not turbo. Up to Sep 2021."
-
-
-class Gpt4o_mini_20240718(OpenaiModel):
-    def __init__(self):
-        super().__init__("gpt-4o-mini-2024-07-18", 4096, 0.00000015, 0.0000006)

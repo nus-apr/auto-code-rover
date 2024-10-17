@@ -1,4 +1,14 @@
-from app.model import bedrock, claude, common, gemini, gpt, gptlitellm, groq, ollama
+from app.model import (
+    azure,
+    bedrock,
+    claude,
+    common,
+    gemini,
+    gpt,
+    gptlitellm,
+    groq,
+    ollama,
+)
 
 
 def register_all_models() -> None:
@@ -16,6 +26,7 @@ def register_all_models() -> None:
     common.register_model(gpt.Gpt35_Turbo16k_0613())
     common.register_model(gpt.Gpt35_Turbo0613())
     common.register_model(gpt.Gpt4_0613())
+    common.register_model(gpt.Gpt_o1mini())
 
     common.register_model(claude.Claude3Opus())
     common.register_model(claude.Claude3Sonnet())
@@ -43,6 +54,12 @@ def register_all_models() -> None:
     common.register_model(gptlitellm.Gpt35_Turbo16k_0613LiteLLM())
     common.register_model(gptlitellm.Gpt35_Turbo0613LiteLLM())
     common.register_model(gptlitellm.Gpt4_0613LiteLLM())
+
+    common.register_model(azure.AzureGpt4())
+    common.register_model(azure.AzureGpt4o())
+    common.register_model(azure.AzureGpt35_Turbo())
+    common.register_model(azure.AzureGpt35_Turbo16k())
+    common.register_model(azure.AzureGpt_o1mini())
 
     common.register_model(gemini.GeminiPro())
     common.register_model(gemini.Gemini15Pro())
