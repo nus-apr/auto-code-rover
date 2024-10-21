@@ -14,7 +14,7 @@ from app.search.search_manage import SearchManager
 from app.utils import parse_function_invocation
 
 PROXY_PROMPT = """
-You are a helpful assistant that retreive API calls and bug locations from a text into json format.
+You are a helpful assistant that retrieve API calls and bug locations from a text into json format.
 The text will consist of two parts:
 1. do we need more context?
 2. where are bug locations?
