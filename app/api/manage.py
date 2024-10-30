@@ -190,7 +190,7 @@ class ProjectApiManager:
                 since some tools require it.
         Returns:
             The result of the action.
-            Also a summary that should be communicated to the model.
+            Also, a summary that should be communicated to the model.
         """
         if (intent.func_name not in self.api_functions) and (
             intent.func_name not in ["get_class_full_snippet", "propose_locs"]
