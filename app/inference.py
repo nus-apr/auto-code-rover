@@ -128,7 +128,7 @@ def start_conversation_round_stratified(
         proxy_log.write_text(json.dumps(proxy_messages, indent=4))
 
         if selected_apis is None:
-            msg = "The search API calls seem not valid. Please check the arguments you give carefully and try again."
+            msg = "The search API calls seem invalid. Please check the arguments you give carefully and try again."
             msg_thread.add_user(msg)
             print_acr(
                 msg,
