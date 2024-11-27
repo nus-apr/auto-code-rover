@@ -127,29 +127,23 @@ Build and start the docker image:
 
 ```
 docker build -f Dockerfile -t acr .
-docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" -p 3000:3000 -p 5000:5000 acr
+docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
 ```
 
-Alternatively, you can use `Dockerfile.scratch` which supports arm64 (Apple silicon) and ppc in addition to amd64.
-`Dockerfile.scratch` will build both SWE-bench (from https://github.com/yuntongzhang/SWE-bench.git) and ACR.
+### Setup: local mode
 
-```
-docker build -f Dockerfile.scratch -t acr .
-```
+Alternatively, you can have a local copy of AutoCodeRover and manage python dependencies with `environment.yml`.
+This is the recommended setup for running SWE-bench experiments with AutoCodeRover.
+With a working conda installation, do `conda env create -f environment.yml`.
+Similarly, set `OPENAI_KEY` or `ANTHROPIC_API_KEY` in your shell before running AutoCodeRover.
 
-There are build args for customizing the build in `Dockerfile.scratch` like this:
+## Running AutoCodeRover
 
-```
-docker build --build-arg GIT_EMAIL=your@email.com --build-arg GIT_NAME=your_id \
-       --build-arg SWE_BENCH_REPO=https://github.com/your_id/SWE-bench.git \
-       -f Dockerfile.scratch -t acr .
-```
-
-After setting up, we can run ACR in three modes:
+You can run AutoCodeRover in three modes:
 
 1. GitHub issue mode: Run ACR on a live GitHub issue by providing a link to the issue page.
 2. Local issue mode: Run ACR on a local repository and a file containing the issue description.
-3. SWE-bench mode: Run ACR on SWE-bench task instances.
+3. SWE-bench mode: Run ACR on SWE-bench task instances. (local setup of ACR recommend.)
 
 ### [GitHub issue mode] Set up and run on new GitHub issues
 
@@ -175,18 +169,7 @@ PYTHONPATH=. python app/main.py github-issue --output-dir output --setup-dir set
 
 The `<task id>` can be any string used to identify this issue.
 
-If patch generation is successful, the path to the generated patch will be printed in the end.
-
-Web UI is also provided for visualization of the issue fixing process.
-In the docker shell, run the following command:
-
-```bash
-cd /opt/auto-code-rover/demo_vis/
-bash run.sh
-```
-
-then open the url `localhost:3000` in the web explorer.
-
+If patch generation is successful, the path to the generated patch will be written to a file named `selected_patch.json` in the output directory.
 
 ### [Local issue mode] Set up and run on local repositories and local issues
 
@@ -202,8 +185,7 @@ conda activate auto-code-rover
 PYTHONPATH=. python app/main.py local-issue --output-dir output --model gpt-4o-2024-05-13 --model-temperature 0.2 --task-id <task id> --local-repo <path to the local project repository> --issue-file <path to the file containing issue description>
 ```
 
-If patch generation is successful, the path to the generated patch will be printed in the end.
-
+If patch generation is successful, the path to the generated patch will be written to a file named `selected_patch.json` in the output directory.
 
 ### [SWE-bench mode] Set up and run on SWE-bench tasks
 
@@ -211,12 +193,16 @@ This mode is for running ACR on existing issue tasks contained in SWE-bench.
 
 #### Set up
 
-In the docker container, we need to first set up the tasks to run in SWE-bench (e.g., `django__django-11133`). The list of all tasks can be found in [`conf/swe_lite_tasks.txt`](conf/swe_lite_tasks.txt).
+For SWE-bench mode, we recommend setting up ACR on a host machine, instead of running it in docker mode.
 
-The tasks need to be put in a file, one per line:
+Firstly, set up the SWE-bench task instances locally.
+
+1. Clone [this SWE-bench fork](https://github.com/yuntongzhang/SWE-bench) and follow the [installation instruction](https://github.com/yuntongzhang/SWE-bench?tab=readme-ov-file#to-install) to install dependencies.
+
+2. Put the tasks to be run into a file, one per line:
 
 ```
-cd /opt/SWE-bench
+cd <SWE-bench-path>
 echo django__django-11133 > tasks.txt
 ```
 
@@ -227,9 +213,10 @@ echo django__django-16041 > tasks.txt
 ```
 
 Then, set up these tasks by running:
+3. Set up these tasks in the file by running:
 
 ```
-cd /opt/SWE-bench
+cd <SWE-bench-path>
 conda activate swe-bench
 python harness/run_setup.py --log_dir logs --testbed testbed --result_dir setup_result --subset_file tasks.txt
 ```
@@ -244,40 +231,42 @@ tasks_map is saved to setup_result/tasks_map.json
 The `testbed` directory will now contain the cloned source code of the target project.
 A conda environment will also be created for this task instance.
 
-_If you want to set up multiple tasks together, put their ids in `tasks.txt` and follow the same steps._
+_If you want to set up multiple tasks together, put multiple ids in `tasks.txt` and follow the same steps._
 
 #### Run a single task in SWE-bench
 
 Before running the task (`django__django-11133` here), make sure it has been set up as mentioned [above](#set-up-one-or-more-tasks-in-swe-bench).
 
 ```
-cd /opt/auto-code-rover
+cd <AutoCodeRover-path>
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task django__django-11133
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map <SWE-bench-path>/setup_result/setup_map.json --tasks-map <SWE-bench-path>/setup_result/tasks_map.json --output-dir output --task django__django-11133
 ```
 
-The output of the run can then be found in `output/`. For example, the patch generated for `django__django-11133` can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/extracted_patch_1.diff` (the date-time field in the directory name will be different depending on when the experiment was run).
+The output for a run (e.g. for `django__django-11133`) can be found at a location like this: `output/applicable_patch/django__django-11133_yyyy-MM-dd_HH-mm-ss/` (the date-time field in the directory name will be different depending on when the experiment was run).
+
+Path to the final generated patch is written in a file named `selected_patch.json` in the output directory.
 
 #### Run multiple tasks in SWE-bench
 
 First, put the id's of all tasks to run in a file, one per line. Suppose this file is `tasks.txt`, the tasks can be run with
 
 ```
-cd /opt/auto-code-rover
+cd <AutoCodeRover-path>
 conda activate auto-code-rover
-PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map ../SWE-bench/setup_result/setup_map.json --tasks-map ../SWE-bench/setup_result/tasks_map.json --output-dir output --task-list-file /opt/SWE-bench/tasks.txt
+PYTHONPATH=. python app/main.py swe-bench --model gpt-4o-2024-05-13 --setup-map <SWE-bench-path>/setup_result/setup_map.json --tasks-map <SWE-bench-path>/setup_result/tasks_map.json --output-dir output --task-list-file <SWE-bench-path>/tasks.txt
 ```
 
 **NOTE**: make sure that the tasks in `tasks.txt` have all been set up in SWE-bench. See the steps [above](#set-up-one-or-more-tasks-in-swe-bench).
 
 #### Using a config file
 
-Alternatively, a config file can be used to specify all parameters and tasks to run. See `conf/vanilla-lite.conf` for an example.
+Alternatively, a config file can be used to specify all parameters and tasks to run. See `conf/example.conf` for an example.
 Also see [EXPERIMENT.md](EXPERIMENT.md) for the details of the items in a conf file.
 A config file can be used by:
 
 ```
-python scripts/run.py conf/vanilla-lite.conf
+python scripts/run.py conf/example.conf
 ```
 
 ### Using a different model
@@ -324,7 +313,7 @@ The current list of supported models:
 > 3. If your setup is ollama in host + ACR in its container, we recommend installing [Docker Desktop](https://docs.docker.com/desktop/) on the host, in addition to the [Docker Engine](https://docs.docker.com/engine/).
 >     - Docker Desktop contains Docker Engine, and also has a virtual machine which makes it easier to access the host ports from within a container. With Docker Desktop, this setup will work without additional effort.
 >     - When the docker installation is only Docker Engine, you may need to add either `--net=host` or `--add-host host.docker.internal=host-gateway` to the `docker run` command when starting the ACR container, so that ACR can communicate with the ollama server on the host machine.
-
+> If you encounter any issue in the tool or experiment, you can contact us via email at info@autocoderover.dev, or through our [discord server](https://discord.com/invite/ScXsdE49JY).
 
 ## Experiment Replication
 
