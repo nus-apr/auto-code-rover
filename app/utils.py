@@ -2,13 +2,17 @@ import ast
 import contextlib
 import glob
 import os
+import shutil
 import subprocess
+from collections.abc import Callable
+from functools import wraps
+from os import PathLike
 from os.path import dirname as pdirname
 from os.path import join as pjoin
 from pathlib import Path
 from subprocess import CalledProcessError
 
-from app.log import log_and_print
+from app.log import log_and_print, log_exception
 
 
 @contextlib.contextmanager
@@ -76,7 +80,13 @@ def repo_commit_current_changes():
     Use case: for storing the changes made in pre_install and test_patch in a commit.
     """
     add_all_cmd = ["git", "add", "."]
-    commit_cmd = ["git", "commit", "-m", "Temporary commit for storing changes"]
+    commit_cmd = [
+        "git",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "Temporary commit for storing changes",
+    ]
     run_command(add_all_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     run_command(commit_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -156,7 +166,9 @@ def repo_reset_and_clean_checkout(commit_hash: str) -> None:
     submodule_unbind_cmd = ["git", "submodule", "deinit", "-f", "."]
     submodule_init_cmd = ["git", "submodule", "update", "--init"]
     run_command(
-        submodule_unbind_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        submodule_unbind_cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     run_command(
         submodule_init_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -202,6 +214,18 @@ def create_dir_if_not_exists(dir_path: str):
     """
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
+
+
+def create_fresh_dir(dir_path: str | PathLike):
+    """
+    Create a dir from fresh.
+    If there is existing dir with the same name, remove it.
+    Args:
+        dir_path (str): Path to the directory.
+    """
+    if os.path.exists(dir_path):
+        shutil.rmtree(dir_path)
+    os.makedirs(dir_path)
 
 
 def to_relative_path(file_path: str, project_root: str) -> str:
@@ -300,13 +324,38 @@ def parse_function_invocation(
                 log_and_print(
                     f"Refactored invocation argument parsing gives different result on "
                     f"{invocation_str!r}: old result is {arguments!r}, new result "
-                    f" is {new_arguments!r}"
+                    f" is {new_arguments!r}",
                 )
         except Exception as e:
             log_and_print(
-                f"Refactored invocation argument parsing failed on {invocation_str!r}: {e!s}"
+                f"Refactored invocation argument parsing failed on {invocation_str!r}: {e!s}",
             )
     except Exception as e:
         raise ValueError(f"Invalid function invocation: {invocation_str}") from e
 
     return function_name, arguments
+
+
+def catch_all_and_log(func: Callable) -> Callable:
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            log_exception(e)
+            err = str(e)
+            # TODO: this string is there for legacy reasons
+            summary = "The tool returned error message."
+            return err, summary, False
+
+    return wrapper
+
+
+def coroutine(func):
+    @wraps(func)
+    def primer(*args, **kwargs):
+        gen = func(*args, **kwargs)
+        next(gen)
+        return gen
+
+    return primer

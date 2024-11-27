@@ -269,8 +269,14 @@ def get_eval_report(
             p2p_failure.append(test_case)
 
     results = {
-        FAIL_TO_PASS: {"success": f2p_success, "failure": f2p_failure},
-        PASS_TO_PASS: {"success": p2p_success, "failure": p2p_failure},
+        FAIL_TO_PASS: {
+            "success": f2p_success,
+            "failure": f2p_failure,
+        },
+        PASS_TO_PASS: {
+            "success": p2p_success,
+            "failure": p2p_failure,
+        },
     }
 
     f2f_success = []
@@ -294,8 +300,14 @@ def get_eval_report(
 
     results.update(
         {
-            FAIL_TO_FAIL: {"success": f2f_success, "failure": f2f_failure},
-            PASS_TO_FAIL: {"success": p2f_success, "failure": p2f_failure},
+            FAIL_TO_FAIL: {
+                "success": f2f_success,
+                "failure": f2f_failure,
+            },
+            PASS_TO_FAIL: {
+                "success": p2f_success,
+                "failure": p2f_failure,
+            },
         }
     )
     return results

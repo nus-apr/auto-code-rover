@@ -3,20 +3,24 @@ The main driver.
 """
 
 import json
+import logging
 import shutil
 from argparse import ArgumentParser
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+from glob import glob
 from itertools import chain
+from os import PathLike
 from os.path import abspath
 from os.path import join as pjoin
+from pathlib import Path
 
 from loguru import logger
 
-from app import globals, globals_mut, inference, log
+from app import config, inference, log, result_analysis, task_counter
 from app import utils as apputils
-from app.api.manage import ProjectApiManager
+from app.manage import ProjectApiManager
 from app.model import common
 from app.model.register import register_all_models
 from app.post_process import (
@@ -26,13 +30,14 @@ from app.post_process import (
     reextract_organize_and_form_inputs,
 )
 from app.raw_tasks import RawGithubTask, RawLocalTask, RawSweTask, RawTask
-from app.task import Task
+from app.task import SweTask, Task
 
 
-def get_args(
-    from_command_line_str: str = None, subparser_dest_attr_name: str = "command"
-):
+def main():
+    register_all_models()
     parser = ArgumentParser()
+
+    subparser_dest_attr_name = "command"
     subparsers = parser.add_subparsers(dest=subparser_dest_attr_name)
 
     swe_parser = subparsers.add_parser(
@@ -41,7 +46,8 @@ def get_args(
     set_swe_parser_args(swe_parser)
 
     github_parser = subparsers.add_parser(
-        "github-issue", help="Run an online github issue"
+        "github-issue",
+        help="Run an online github issue",
     )
     set_github_parser_args(github_parser)
 
@@ -51,7 +57,8 @@ def get_args(
     extract_patches_parser = subparsers.add_parser(
         "extract-patches", help="Only extract patches from the raw results dir"
     )
-    extract_patches_parser.add_argument("experiment-dir", type=str)
+    extract_patches_parser.add_argument("experiment_dir", type=str)
+    add_task_related_args(extract_patches_parser)
 
     re_extract_patches_parser = subparsers.add_parser(
         "re-extract-patches",
@@ -60,43 +67,52 @@ def get_args(
             " are moved out of their categories first"
         ),
     )
-    re_extract_patches_parser.add_argument("experiment-dir", type=str)
+    re_extract_patches_parser.add_argument("experiment_dir", type=str)
+    add_task_related_args(re_extract_patches_parser)
 
-    if not from_command_line_str:
-        return parser.parse_args()
-    return parser.parse_args(from_command_line_str.split())
-
-
-def main(args, subparser_dest_attr_name: str = "command"):
+    args = parser.parse_args()
 
     ## common options
-    globals.output_dir = args.output_dir
-    if globals.output_dir is not None:
-        globals.output_dir = abspath(globals.output_dir)
+    config.output_dir = args.output_dir
+    if config.output_dir is not None:
+        config.output_dir = abspath(config.output_dir)
     num_processes: int = int(args.num_processes)
     # set whether brief or verbose log
     print_stdout: bool = not args.no_print
     log.print_stdout = print_stdout
+
     # model related
-    common.set_model(args.model)
+    config.models = list(chain.from_iterable(args.model))
+    if not config.models:
+        config.models.append("gpt-3.5-turbo-0125")
+    common.set_model(config.models[0])
+
     # FIXME: make temperature part of the Model class
     common.MODEL_TEMP = args.model_temperature
+
     # acr related
-    globals.conv_round_limit = args.conv_round_limit
-    globals.enable_layered = args.enable_layered
-    globals.enable_sbfl = args.enable_sbfl
-    globals.enable_validation = args.enable_validation
-    globals.enable_angelic = args.enable_angelic
-    globals.enable_perfect_angelic = args.enable_perfect_angelic
-    globals.only_save_sbfl_result = args.save_sbfl_result
-    globals.disable_patch_generation = args.output_fix_locs
-    globals.context_generation_limit = args.output_fix_limit
+    config.conv_round_limit = args.conv_round_limit
+    config.enable_sbfl = args.enable_sbfl
+    config.enable_validation = args.enable_validation
+    config.enable_angelic = args.enable_angelic
+    config.enable_perfect_angelic = args.enable_perfect_angelic
+    config.only_save_sbfl_result = args.save_sbfl_result
+    config.only_reproduce = args.reproduce
 
     subcommand = getattr(args, subparser_dest_attr_name)
     if subcommand == "swe-bench":
+        if args.result_analysis:
+            # do analysis and exit
+            result_analysis.analyze(config.output_dir)
+            exit(0)
+
         tasks = make_swe_tasks(
             args.task, args.task_list_file, args.setup_map, args.tasks_map
         )
+
+        config.only_eval_reproducer = args.eval_reproducer
+
+        config.reproduce_and_review = args.reproduce_and_review
 
         groups = group_swe_tasks_by_env(tasks)
         run_task_groups(groups, num_processes, organize_output=True)
@@ -111,7 +127,6 @@ def main(args, subparser_dest_attr_name: str = "command"):
             args.commit_hash,
             args.issue_link,
             setup_dir,
-            args.use_comments,
         )
         groups = {"github": [task]}
         run_task_groups(groups, num_processes)
@@ -122,7 +137,11 @@ def main(args, subparser_dest_attr_name: str = "command"):
         issue_file = args.issue_file
         if issue_file is not None:
             issue_file = abspath(issue_file)
-        task = RawLocalTask(args.task_id, local_repo, issue_file)
+        task = RawLocalTask(
+            args.task_id,
+            local_repo,
+            issue_file,
+        )
         groups = {"local": [task]}
         run_task_groups(groups, num_processes)
     elif subcommand == "extract-patches":
@@ -150,27 +169,39 @@ def set_swe_parser_args(parser: ArgumentParser) -> None:
         help="Path to the file that contains all tasks ids to be run.",
     )
     parser.add_argument("--task", type=str, help="Task id to be run.")
+    parser.add_argument(
+        "--eval-reproducer",
+        action="store_true",
+        default=False,
+        help="Only check if reproducer.py is a correct test",
+    )
+    parser.add_argument(
+        "--reproduce-and-review",
+        action="store_true",
+        default=True,
+        help="Experimental: for swe-bench tasks, reproduce and review the generated patch",
+    )
+    parser.add_argument(
+        "--result-analysis",
+        action="store_true",
+        default=False,
+        help="Perform some analysis on the experiment result and exit.",
+    )
 
 
 def set_github_parser_args(parser: ArgumentParser) -> None:
     add_task_related_args(parser)
     parser.add_argument(
-        "--task-id", type=str, help="Assign an id to the current fresh issue task."
-    )
-    parser.add_argument(
-        "--clone-link", type=str, help="The link to the repository to clone."
-    )
-    parser.add_argument(
-        "--commit-hash",
+        "--task-id",
         type=str,
-        help="The commit hash to checkout. If not specified, the latest commit on default branch will be used.",
+        help="Assign an id to the current fresh issue task.",
     )
     parser.add_argument(
-        "--use-comments",
-        action="store_true",
-        default=False,
-        help="Include the comments of the issue.",
+        "--clone-link",
+        type=str,
+        help="The link to the repository to clone.",
     )
+    parser.add_argument("--commit-hash", type=str, help="The commit hash to checkout.")
     parser.add_argument("--issue-link", type=str, help="The link to the issue.")
     parser.add_argument(
         "--setup-dir",
@@ -202,20 +233,12 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         default=False,
         help="Do not print most messages to stdout.",
     )
-
-    def model_parser(name: str):
-        if not isinstance(name, str):
-            raise TypeError(f"Invalid model name: {name}")
-        if name in common.MODEL_HUB.keys():
-            return name
-        if name.startswith("litellm-generic-"):
-            return name
-        raise TypeError(f"Invalid model name: {name}")
-
     parser.add_argument(
         "--model",
-        type=model_parser,
-        default="gpt-3.5-turbo-0125",
+        type=str,
+        choices=list(common.MODEL_HUB.keys()),
+        nargs="+",
+        action="append",
         help="The model to use. Currently only OpenAI models are supported.",
     )
     parser.add_argument(
@@ -264,24 +287,16 @@ def add_task_related_args(parser: ArgumentParser) -> None:
         help="Special mode to only save SBFL results for future runs.",
     )
     parser.add_argument(
+        "--reproduce",
+        action="store_true",
+        default=False,
+        help="Special mode to only generate reproducer tests",
+    )
+    parser.add_argument(
         "--num-processes",
         type=str,
         default=1,
         help="Number of processes to run the tasks in parallel.",
-    )
-    parser.add_argument(
-        "--output-fix-locs",
-        action="store_true",
-        required=False,
-        default=False,
-        help="Output fix locations to file and do not repair.",
-    )
-    parser.add_argument(
-        "--output-fix-limit",
-        type=int,
-        required=False,
-        default=10,
-        help="Limit output of content retrieval rounds",
     )
 
 
@@ -364,7 +379,7 @@ def run_task_groups(
     all_tasks = list(chain.from_iterable(task_groups.values()))
     num_tasks = len(all_tasks)
 
-    globals_mut.init_total_num_tasks(num_tasks)
+    task_counter.init_total_num_tasks(num_tasks)
 
     # print some info about task
     log.print_with_time(f"Total number of tasks: {num_tasks}")
@@ -381,14 +396,14 @@ def run_task_groups(
     else:
         run_task_groups_parallel(task_groups, num_processes)
 
-    if globals.only_save_sbfl_result:
+    if config.only_save_sbfl_result:
         log.print_with_time("Only saving SBFL results. Exiting.")
         return
 
     if organize_output:
         # post-process completed experiments to get input file to SWE-bench
         log.print_with_time("Post-processing completed experiment results.")
-        swe_input_file = organize_and_form_input(globals.output_dir)
+        swe_input_file = organize_and_form_input(config.output_dir)
         log.print_with_time(f"SWE-Bench input file created: {swe_input_file}")
 
 
@@ -398,14 +413,17 @@ def run_tasks_serial(tasks: list[RawTask]) -> None:
 
 
 def run_task_groups_parallel(
-    task_groups: Mapping[str, Sequence[RawTask]], num_processes: int
+    task_groups: Mapping[str, Sequence[RawTask]],
+    num_processes: int,
 ):
     num_task_groups = len(task_groups)
-    globals_mut.init_total_num_task_groups(num_task_groups)
+    task_counter.init_total_num_task_groups(num_task_groups)
     num_processes = min(num_processes, num_task_groups)
 
     task_group_ids_items = sorted(
-        task_groups.items(), key=lambda x: len(x[1]), reverse=True
+        task_groups.items(),
+        key=lambda x: len(x[1]),
+        reverse=True,
     )
     log.print_with_time(f"Sorted task groups: {[x[0] for x in task_group_ids_items]}")
     try:
@@ -430,10 +448,10 @@ def run_task_group(task_group_id: str, task_group_items: list[RawTask]) -> None:
     for task in task_group_items:
         # within a group, the runs are always sequential
         run_task_in_subprocess(task)
-        log.print_with_time(globals_mut.incre_task_return_msg())
+        log.print_with_time(task_counter.incre_task_return_msg())
 
     log.print_with_time(
-        f"{globals_mut.incre_task_group_return_msg()} Finished task group {task_group_id}."
+        f"{task_counter.incre_task_group_return_msg()} Finished task group {task_group_id}."
     )
 
 
@@ -442,9 +460,7 @@ def run_task_in_subprocess(task: RawTask) -> None:
         executor.submit(run_raw_task, task)
 
 
-def run_raw_task(
-    task: RawTask, print_callback: Callable[[dict], None] | None = None
-) -> bool:
+def run_raw_task(task: RawTask) -> bool:
     """
     High-level entry for running one task.
 
@@ -454,20 +470,26 @@ def run_raw_task(
     Returns:
         Whether the task completed successfully.
     """
-    task_id = task.task_id
+    if config.only_eval_reproducer:
+        assert isinstance(task, RawSweTask)
+        evaluate_swe_issue_reproducers(task)
+        return True
 
+    task_id = task.task_id
     start_time_s = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    task_output_dir = pjoin(globals.output_dir, f"{task_id}_{start_time_s}")
+    task_output_dir = pjoin(config.output_dir, f"{task_id}_{start_time_s}")
     apputils.create_dir_if_not_exists(task_output_dir)
 
     task.dump_meta_data(task_output_dir)
 
-    log.log_and_always_print(f"============= Running task {task_id} =============")
+    log.log_and_always_print(
+        f"============= Running task {task_id} =============",
+    )
 
     run_ok = False
 
     try:
-        run_ok = do_inference(task.to_task(), task_output_dir, print_callback)
+        run_ok = do_inference(task.to_task(), task_output_dir)
 
         if run_ok:
             run_status_message = f"Task {task_id} completed successfully."
@@ -479,44 +501,66 @@ def run_raw_task(
 
     log.log_and_always_print(run_status_message)
 
-    if globals.disable_patch_generation:
+    final_patch_path = get_final_patch_path(task_output_dir)
+    if final_patch_path is not None:
         log.log_and_always_print(
-            f"Patch generation is disabled. Please find fix locations at: {task_output_dir}/fix_locations.json"
+            f"Please find the generated patch at: {final_patch_path}"
         )
+        if isinstance(task, RawSweTask):
+            log.log_and_always_print(
+                "[SWE-bench mode] Note that the patch may be move to other paths in SWE-bench mode. "
+                "Please check the SWE-bench input file containing generated patches for all tasks."
+            )
     else:
-        output_patch_path = pjoin(task_output_dir, "final_patch.diff")
-        final_patch_path = get_final_patch_path(task_output_dir)
-        if final_patch_path is not None:
-            # cppy the final patch to the fixed path
-            shutil.copy2(final_patch_path, output_patch_path)
-
-            log.log_and_always_print(
-                f"Please find the generated patch at: {output_patch_path}"
-            )
-
-            if isinstance(task, RawSweTask):
-                log.log_and_always_print(
-                    "[SWE-bench mode] Note that the patch may be move to other paths in SWE-bench mode. "
-                    "Please check the SWE-bench input file containing generated patches for all tasks."
-                )
-        else:
-            log.log_and_always_print(
-                "No patch generated. You can try running ACR again."
-            )
+        log.log_and_always_print("No patch generated. You can try running ACR again.")
 
     return run_ok
 
 
-def do_inference(
-    python_task: Task,
-    task_output_dir: str,
-    print_callback: Callable[[dict], None] | None = None,
-) -> bool:
+def evaluate_swe_issue_reproducers(raw_task: RawSweTask) -> None:
+    swe_task = raw_task.to_task()
+    swe_task.setup_project()
 
+    reproducer_files = glob(
+        pjoin(
+            config.output_dir, "**", f"*{swe_task.task_id}*", "**", "reproducer_*.py"
+        ),
+        recursive=True,
+    )
+    for reproducer_file in reproducer_files:
+        evaluate_swe_issue_reproducer(swe_task, reproducer_file)
+
+
+def evaluate_swe_issue_reproducer(
+    task: SweTask, reproducer_file: str | PathLike
+) -> None:
+    reproducer_file = Path(reproducer_file)
+
+    individual_expr_dir = reproducer_file.parent
+
+    developer_patch_file = individual_expr_dir.joinpath("developer_patch.diff")
+    if not developer_patch_file.exists():
+        individual_expr_dir = individual_expr_dir.parent
+        developer_patch_file = individual_expr_dir.joinpath("developer_patch.diff")
+    assert developer_patch_file.exists()
+
+    report_dir = individual_expr_dir.joinpath(
+        "reproducer-eval",
+        *reproducer_file.relative_to(individual_expr_dir).with_suffix("").parts,
+    )
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    task.evaluate_reproducer(reproducer_file, developer_patch_file, report_dir)
+
+
+def do_inference(python_task: Task, task_output_dir: str) -> bool:
     apputils.create_dir_if_not_exists(task_output_dir)
 
+    log_file_name = "info.log"
+
     logger.add(
-        pjoin(task_output_dir, "info.log"),
+        pjoin(task_output_dir, log_file_name),
         level="DEBUG",
         format=(
             "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level>"
@@ -526,25 +570,57 @@ def do_inference(
 
     start_time = datetime.now()
 
-    api_manager = ProjectApiManager(python_task, task_output_dir)
+    python_task.setup_project()
 
     try:
-        if globals.only_save_sbfl_result:
+        if config.only_save_sbfl_result:
+            api_manager = ProjectApiManager(python_task, task_output_dir)
             _, _, run_ok = api_manager.fault_localization()
-        else:
-            run_ok = inference.run_one_task(
-                api_manager.output_dir,
-                api_manager,
-                python_task.get_issue_statement(),
-                print_callback,
-            )
 
-            api_manager.dump_tool_call_sequence_to_file()
-            api_manager.dump_tool_call_layers_to_file()
+        elif config.only_reproduce:
+            api_manager = ProjectApiManager(python_task, task_output_dir)
+            _, _, run_ok = api_manager.reproduce()
+
+        else:
+            # normal mode - actually running the task
+
+            try:
+                run_ok = inference.run_one_task(
+                    python_task, task_output_dir, config.models
+                )
+
+            except common.ClaudeContentPolicyViolation:
+                log.log_and_always_print(
+                    "Content policy violation. Retry with backup model."
+                )
+
+                # retry with backup model
+                python_task.setup_project()
+
+                # remove everything other than the info.log file, and
+                # also some meta data file dumped by RawTask
+                log.log_and_always_print(
+                    "Removing all files except info.log and meta files."
+                )
+
+                for f in Path(task_output_dir).iterdir():
+                    if f.is_file() and f.name not in [
+                        log_file_name,
+                        "meta.json",
+                        "problem_statement.txt",
+                        "developer_patch.diff",
+                    ]:
+                        f.unlink()
+                    if f.is_dir():
+                        shutil.rmtree(str(f))
+
+                run_ok = inference.run_one_task(
+                    python_task, task_output_dir, config.backup_model
+                )
 
             end_time = datetime.now()
 
-            dump_cost(start_time, end_time, task_output_dir, python_task.project_path)
+            dump_cost(start_time, end_time, task_output_dir)
     finally:
         python_task.reset_project()
 
@@ -552,13 +628,13 @@ def do_inference(
 
 
 def dump_cost(
-    start_time: datetime, end_time: datetime, task_output_dir: str, project_path: str
+    start_time: datetime,
+    end_time: datetime,
+    task_output_dir: str,
 ):
-    with apputils.cd(project_path):
-        commit_hash = apputils.get_current_commit_hash()
     model_stats = common.SELECTED_MODEL.get_overall_exec_stats()
     stats = {
-        "commit": commit_hash,
+        "commit": apputils.get_current_commit_hash(),
         "start_epoch": start_time.timestamp(),
         "end_epoch": end_time.timestamp(),
         "elapsed_seconds": (end_time - start_time).total_seconds(),
@@ -570,7 +646,6 @@ def dump_cost(
 
 
 if __name__ == "__main__":
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger.remove()
-    register_all_models()
-    args = get_args()
-    main(args)
+    main()

@@ -10,11 +10,11 @@ from loguru import logger
 from app.data_structures import MessageThread
 from app.model import common
 from app.post_process import ExtractStatus, is_valid_json
-from app.search.search_manage import SearchManager
+from app.search.search_backend import SearchBackend
 from app.utils import parse_function_invocation
 
 PROXY_PROMPT = """
-You are a helpful assistant that retrieve API calls and bug locations from a text into json format.
+You are a helpful assistant that retreive API calls and bug locations from a text into json format.
 The text will consist of two parts:
 1. do we need more context?
 2. where are bug locations?
@@ -28,6 +28,7 @@ search_class_in_file(self, class_name, file_name: str)
 search_class(class_name: str)
 search_code_in_file(code_str: str, file_path: str)
 search_code(code_str: str)
+get_code_around_line(file_path: str, line_number: int, window_size: int)
 
 Provide your answer in JSON structure like this, you should ignore the argument placeholders in api calls.
 For example, search_code(code_str="str") should be search_code("str")
@@ -36,10 +37,8 @@ Make sure each API call is written as a valid python expression.
 
 {
     "API_calls": ["api_call_1(args)", "api_call_2(args)", ...],
-    "bug_locations":[{"file": "path/to/file", "class": "class_name", "method": "method_name"}, {"file": "path/to/file", "class": "class_name", "method": "method_name"} ... ]
+    "bug_locations":[{"file": "path/to/file", "class": "class_name", "method": "method_name", "intended_behavior", "This code should ..."}, {"file": "path/to/file", "class": "class_name", "method": "method_name", "intended_behavior": "..."} ... ]
 }
-
-NOTE: a bug location should at least have a "class" or "method".
 """
 
 
@@ -47,7 +46,9 @@ def run_with_retries(text: str, retries=5) -> tuple[str | None, list[MessageThre
     msg_threads = []
     for idx in range(1, retries + 1):
         logger.debug(
-            "Trying to select search APIs in json. Try {} of {}.", idx, retries
+            "Trying to convert API calls/bug locations into json. Try {} of {}.",
+            idx,
+            retries,
         )
 
         res_text, new_thread = run(text)
@@ -64,7 +65,7 @@ def run_with_retries(text: str, retries=5) -> tuple[str | None, list[MessageThre
             logger.debug(f"{diagnosis}. Will retry.")
             continue
 
-        logger.debug("Extracted a valid json")
+        logger.debug("Extracted a valid json.")
         return res_text, msg_threads
     return None, msg_threads
 
@@ -96,9 +97,12 @@ def is_valid_response(data: Any) -> tuple[bool, str]:
             return False, "Both API_calls and bug_locations are empty"
 
         for loc in bug_locations:
-            if loc.get("class") or loc.get("method"):
+            if loc.get("class") or loc.get("method") or loc.get("file"):
                 continue
-            return False, "Bug location not detailed enough"
+            return (
+                False,
+                "Bug location not detailed enough. Each location must contain at least a class or a method or a file.",
+            )
     else:
         for api_call in data["API_calls"]:
             if not isinstance(api_call, str):
@@ -109,9 +113,14 @@ def is_valid_response(data: Any) -> tuple[bool, str]:
             except Exception:
                 return False, "Every API call must be of form api_call(arg1, ..., argn)"
 
-            function = getattr(SearchManager, func_name, None)
+            function = getattr(SearchBackend, func_name, None)
             if function is None:
                 return False, f"the API call '{api_call}' calls a non-existent function"
+
+            # getfullargspec returns a wrapped function when the function defined
+            # has a decorator. We unwrap it here.
+            while "__wrapped__" in function.__dict__:
+                function = function.__wrapped__
 
             arg_spec = inspect.getfullargspec(function)
             arg_names = arg_spec.args[1:]  # first parameter is self

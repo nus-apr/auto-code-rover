@@ -1,89 +1,20 @@
 import ast
 import glob
-import pathlib
 import re
-from dataclasses import dataclass
 from os.path import join as pjoin
+from pathlib import Path
 
-from app import utils as apputils
 
+def is_test_file(file_path: str) -> bool:
+    """Check if a file is a test file.
 
-@dataclass
-class SearchResult:
-    """Dataclass to hold search results."""
-
-    file_path: str  # this is absolute path
-    class_name: str | None
-    func_name: str | None
-    code: str
-
-    def to_tagged_upto_file(self, project_root: str):
-        """Convert the search result to a tagged string, upto file path."""
-        rel_path = apputils.to_relative_path(self.file_path, project_root)
-        file_part = f"<file>{rel_path}</file>"
-        return file_part
-
-    def to_tagged_upto_class(self, project_root: str):
-        """Convert the search result to a tagged string, upto class."""
-        prefix = self.to_tagged_upto_file(project_root)
-        class_part = (
-            f"<class>{self.class_name}</class>" if self.class_name is not None else ""
-        )
-        return f"{prefix}\n{class_part}"
-
-    def to_tagged_upto_func(self, project_root: str):
-        """Convert the search result to a tagged string, upto function."""
-        prefix = self.to_tagged_upto_class(project_root)
-        func_part = (
-            f" <func>{self.func_name}</func>" if self.func_name is not None else ""
-        )
-        return f"{prefix}{func_part}"
-
-    def to_tagged_str(self, project_root: str):
-        """Convert the search result to a tagged string."""
-        prefix = self.to_tagged_upto_func(project_root)
-        code_part = f"<code>\n{self.code}\n</code>"
-        return f"{prefix}\n{code_part}"
-
-    @staticmethod
-    def collapse_to_file_level(lst, project_root: str) -> str:
-        """Collapse search results to file level."""
-        res = dict()  # file -> count
-        for r in lst:
-            if r.file_path not in res:
-                res[r.file_path] = 1
-            else:
-                res[r.file_path] += 1
-        res_str = ""
-        for file_path, count in res.items():
-            rel_path = apputils.to_relative_path(file_path, project_root)
-            file_part = f"<file>{rel_path}</file>"
-            res_str += f"- {file_part} ({count} matches)\n"
-        return res_str
-
-    @staticmethod
-    def collapse_to_method_level(lst, project_root: str) -> str:
-        """Collapse search results to method level."""
-        res = dict()  # file -> dict(method -> count)
-        for r in lst:
-            if r.file_path not in res:
-                res[r.file_path] = dict()
-            func_str = r.func_name if r.func_name is not None else "Not in a function"
-            if func_str not in res[r.file_path]:
-                res[r.file_path][func_str] = 1
-            else:
-                res[r.file_path][func_str] += 1
-        res_str = ""
-        for file_path, funcs in res.items():
-            rel_path = apputils.to_relative_path(file_path, project_root)
-            file_part = f"<file>{rel_path}</file>"
-            for func, count in funcs.items():
-                if func == "Not in a function":
-                    func_part = func
-                else:
-                    func_part = f" <func>{func}</func>"
-                res_str += f"- {file_part}{func_part} ({count} matches)\n"
-        return res_str
+    This is a simple heuristic to check if a file is a test file.
+    """
+    return (
+        "test" in Path(file_path).parts
+        or "tests" in Path(file_path).parts
+        or file_path.endswith("_test.py")
+    )
 
 
 def find_python_files(dir_path: str) -> list[str]:
@@ -101,116 +32,93 @@ def find_python_files(dir_path: str) -> list[str]:
     res = []
     for file in py_files:
         rel_path = file[len(dir_path) + 1 :]
-        if rel_path.startswith("build"):
-            continue
-        if rel_path.startswith("doc"):
-            # discovered this issue in 'pytest-dev__pytest'
-            continue
-        if rel_path.startswith("requests/packages"):
-            # to walkaround issue in 'psf__requests'
-            continue
-        if (
-            rel_path.startswith("tests/regrtest_data")
-            or rel_path.startswith("tests/input")
-            or rel_path.startswith("tests/functional")
-        ):
-            # to walkaround issue in 'pylint-dev__pylint'
-            continue
-        if rel_path.startswith("tests/roots") or rel_path.startswith(
-            "sphinx/templates/latex"
-        ):
-            # to walkaround issue in 'sphinx-doc__sphinx'
-            continue
-        if rel_path.startswith("tests/test_runner_apps/tagged/") or rel_path.startswith(
-            "django/conf/app_template/"
-        ):
-            # to walkaround issue in 'django__django'
+        if is_test_file(rel_path):
             continue
         res.append(file)
     return res
 
 
-def parse_python_file(file_full_path: str) -> tuple[list, dict, list] | None:
+def parse_class_def_args(source: str, node: ast.ClassDef) -> list[str]:
+    # TODO this is simple enough to cover a lot of cases but can be improvied
+    super_classes = []
+    for base in node.bases:
+        if isinstance(base, ast.Name):
+            if base.id in ["type", "object"]:
+                continue
+            super_classes.append(ast.get_source_segment(source, base))
+        if (
+            isinstance(base, ast.Call)
+            and ast.get_source_segment(source, base.func) == "type"
+        ):
+            super_classes.append(ast.get_source_segment(source, base.args[0]))
+    return super_classes
+
+
+def parse_python_file(
+    file_full_path: str,
+) -> (
+    tuple[
+        list[tuple[str, int, int]],
+        dict[str, list[tuple[str, int, int]]],
+        list[tuple[str, int, int]],
+        dict[tuple[str, int, int], list[str]],
+    ]
+    | None
+):
     """
     Main method to parse AST and build search index.
     Handles complication where python ast module cannot parse a file.
     """
     try:
-        file_content = pathlib.Path(file_full_path).read_text()
+        file_content = Path(file_full_path).read_text()
         tree = ast.parse(file_content)
     except Exception:
         # failed to read/parse one file, we should ignore it
         return None
 
     # (1) get all classes defined in the file
-    classes = []
+    classes: list[tuple[str, int, int]] = []
     # (2) for each class in the file, get all functions defined in the class.
-    class_to_funcs = {}
+    class_to_funcs: dict[str, list[tuple[str, int, int]]] = {}
     # (3) get top-level functions in the file (exclues functions defined in classes)
-    top_level_funcs = []
+    top_level_funcs: list[tuple[str, int, int]] = []
+    # (4) get class relations
+    class_relation_map: dict[tuple[str, int, int], list[str]] = {}
 
-    function_nodes_in_class = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
             ## class part (1): collect class info
             class_name = node.name
             start_lineno = node.lineno
             end_lineno = node.end_lineno
+            assert end_lineno is not None, "class should have end_lineno in AST."
             # line numbers are 1-based
             classes.append((class_name, start_lineno, end_lineno))
+            class_relation_map[(class_name, start_lineno, end_lineno)] = (
+                parse_class_def_args(file_content, node)
+            )
 
             ## class part (2): collect function info inside this class
-            class_funcs = []
-            for n in ast.walk(node):
-                if isinstance(n, ast.FunctionDef):
-                    class_funcs.append((n.name, n.lineno, n.end_lineno))
-                    function_nodes_in_class.append(n)
+            class_funcs = [
+                (n.name, n.lineno, n.end_lineno)
+                for n in ast.walk(node)
+                if isinstance(n, ast.FunctionDef) and n.end_lineno is not None
+            ]
             class_to_funcs[class_name] = class_funcs
 
-        # top-level functions, excluding functions defined in classes
-        elif isinstance(node, ast.FunctionDef) and node not in function_nodes_in_class:
+        elif isinstance(node, ast.FunctionDef):
             function_name = node.name
             start_lineno = node.lineno
             end_lineno = node.end_lineno
+            assert end_lineno is not None, "function should have end_lineno in AST."
             # line numbers are 1-based
             top_level_funcs.append((function_name, start_lineno, end_lineno))
 
-    return classes, class_to_funcs, top_level_funcs
-
-
-def get_func_snippet_in_class(
-    file_full_path: str, class_name: str, func_name: str, include_lineno=False
-) -> str | None:
-    """Get actual function source code in class.
-
-    All source code of the function is returned.
-    Assumption: the class and function exist.
-    """
-    with open(file_full_path) as f:
-        file_content = f.read()
-
-    tree = ast.parse(file_content)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
-            for n in ast.walk(node):
-                if isinstance(n, ast.FunctionDef) and n.name == func_name:
-                    start_lineno = n.lineno
-                    end_lineno = n.end_lineno
-                    assert end_lineno is not None, "end_lineno is None"
-                    if include_lineno:
-                        return get_code_snippets_with_lineno(
-                            file_full_path, start_lineno, end_lineno
-                        )
-                    else:
-                        return get_code_snippets(
-                            file_full_path, start_lineno, end_lineno
-                        )
-    # In this file, cannot find either the class, or a function within the class
-    return None
+    return classes, class_to_funcs, top_level_funcs, class_relation_map
 
 
 def get_code_region_containing_code(
-    file_full_path: str, code_str: str
+    file_full_path: str, code_str: str, with_lineno=True
 ) -> list[tuple[int, str]]:
     """In a file, get the region of code that contains a specific string.
 
@@ -233,18 +141,24 @@ def get_code_region_containing_code(
     pattern = re.compile(re.escape(code_str))
     # each occurrence is a tuple of (line_no, code_snippet) (1-based line number)
     occurrences: list[tuple[int, str]] = []
-    file_content_lines = file_content.splitlines()
     for match in pattern.finditer(file_content):
         matched_start_pos = match.start()
         # first, find the line number of the matched start position (0-based)
         matched_line_no = file_content.count("\n", 0, matched_start_pos)
+
+        file_content_lines = file_content.splitlines()
 
         window_start_index = max(0, matched_line_no - context_size)
         window_end_index = min(
             len(file_content_lines), matched_line_no + context_size + 1
         )
 
-        context = "\n".join(file_content_lines[window_start_index:window_end_index])
+        if with_lineno:
+            context = ""
+            for i in range(window_start_index, window_end_index):
+                context += f"{i+1} {file_content_lines[i]}\n"
+        else:
+            context = "\n".join(file_content_lines[window_start_index:window_end_index])
         occurrences.append((matched_line_no, context))
 
     return occurrences
@@ -285,30 +199,9 @@ def get_func_snippet_with_code_in_file(file_full_path: str, code_str: str) -> li
     return all_snippets
 
 
-def get_code_snippets_with_lineno(file_full_path: str, start: int, end: int) -> str:
-    """Get the code snippet in the range in the file.
-
-    The code snippet should come with line number at the beginning for each line.
-
-    TODO: When there are too many lines, return only parts of the output.
-          For class, this should only involve the signatures.
-          For functions, maybe do slicing with dependency analysis?
-
-    Args:
-        file_path (str): Path to the file.
-        start (int): Start line number. (1-based)
-        end (int): End line number. (1-based)
-    """
-    with open(file_full_path) as f:
-        file_content = f.readlines()
-
-    snippet = ""
-    for i in range(start - 1, end):
-        snippet += f"{i+1} {file_content[i]}"
-    return snippet
-
-
-def get_code_snippets(file_full_path: str, start: int, end: int) -> str:
+def get_code_snippets(
+    file_full_path: str, start: int, end: int, with_lineno=True
+) -> str:
     """Get the code snippet in the range in the file, without line numbers.
 
     Args:
@@ -320,7 +213,10 @@ def get_code_snippets(file_full_path: str, start: int, end: int) -> str:
         file_content = f.readlines()
     snippet = ""
     for i in range(start - 1, end):
-        snippet += file_content[i]
+        if with_lineno:
+            snippet += f"{i+1} {file_content[i]}"
+        else:
+            snippet += file_content[i]
     return snippet
 
 
@@ -422,3 +318,32 @@ def get_class_signature(file_full_path: str, class_name: str) -> str:
                 continue
             result += line_content
         return result
+
+
+def get_code_region_around_line(
+    file_full_path: str, line_no: int, window_size: int = 10, with_lineno=True
+) -> str | None:
+    """Get the code region around a specific line number in a file.
+
+    Args:
+        file_full_path (str): Path to the file. (absolute path)
+        line_no (int): The line number to search around. (1-based)
+    Returns:
+        str: The code snippet around the line number.
+    """
+    with open(file_full_path) as f:
+        file_content = f.readlines()
+
+    if line_no < 1 or line_no > len(file_content):
+        return None
+
+    # start and end should also be 1-based valid line numbers
+    start = max(1, line_no - window_size)
+    end = min(len(file_content), line_no + window_size)
+    snippet = ""
+    for i in range(start, end):
+        if with_lineno:
+            snippet += f"{i} {file_content[i - 1]}"
+        else:
+            snippet += file_content[i]
+    return snippet

@@ -9,11 +9,10 @@ from typing import Literal
 import litellm
 from litellm.utils import Choices, Message, ModelResponse
 from openai import BadRequestError
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from app.log import log_and_print
 from app.model import common
-from app.model.common import Model
+from app.model.common import ClaudeContentPolicyViolation, Model
 
 
 class AnthropicModel(Model):
@@ -67,7 +66,6 @@ class AnthropicModel(Model):
         else:
             return content
 
-    @retry(wait=wait_random_exponential(min=30, max=600), stop=stop_after_attempt(3))
     def call(
         self,
         messages: list[dict],
@@ -82,11 +80,11 @@ class AnthropicModel(Model):
             temperature = common.MODEL_TEMP
 
         try:
-            # antropic models - prefilling response with { increase the success rate
-            # of producing json output
-            prefill_content = "{"
-            if response_format == "json_object":  # prefill
-                messages.append({"role": "assistant", "content": prefill_content})
+
+            if response_format == "json_object":
+                last_content = messages[-1]["content"]
+                last_content += "\nYour response should start with { and end with }. DO NOT write anything else other than the json."
+                messages[-1]["content"] = last_content
 
             response = litellm.completion(
                 model=self.name,
@@ -96,6 +94,7 @@ class AnthropicModel(Model):
                 top_p=top_p,
                 stream=False,
             )
+
             assert isinstance(response, ModelResponse)
             resp_usage = response.usage
             assert resp_usage is not None
@@ -111,11 +110,13 @@ class AnthropicModel(Model):
             assert isinstance(first_resp_choice, Choices)
             resp_msg: Message = first_resp_choice.message
             content = self.extract_resp_content(resp_msg)
-            if response_format == "json_object":
-                # prepend the prefilled character
-                if not content.startswith(prefill_content):
-                    content = prefill_content + content
+
             return content, cost, input_tokens, output_tokens
+
+        except litellm.exceptions.ContentPolicyViolationError:
+            # claude sometimes send this error when writing patch
+            log_and_print("Encountered claude content policy violation.")
+            raise ClaudeContentPolicyViolation
 
         except BadRequestError as e:
             if e.code == "context_length_exceeded":
@@ -150,10 +151,6 @@ class Claude3Haiku(AnthropicModel):
 class Claude3_5Sonnet(AnthropicModel):
     def __init__(self):
         super().__init__(
-            "claude-3-5-sonnet-20240620",
-            0.000003,
-            0.000015,
-            max_output_token=8192,
-            parallel_tool_call=True,
+            "claude-3-5-sonnet-20240620", 0.000003, 0.000015, parallel_tool_call=True
         )
         self.note = "Most intelligent model from Antropic"

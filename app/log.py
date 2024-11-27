@@ -1,11 +1,9 @@
 import time
-from collections.abc import Callable
 from os import get_terminal_size
 
 from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.markup import escape
 from rich.panel import Panel
 
 
@@ -62,9 +60,7 @@ def replace_html_tags(content: str):
     return content
 
 
-def print_acr(
-    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
-) -> None:
+def print_acr(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
@@ -78,19 +74,16 @@ def print_acr(
         title = name
 
     panel = Panel(
-        markdown, title=title, title_align="left", border_style="magenta", width=WIDTH
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="magenta",
+        width=WIDTH,
     )
     console.print(panel)
 
-    if print_callback:
-        print_callback(
-            {"title": f"{name} ({desc})", "message": msg, "category": "auto_code_rover"}
-        )
 
-
-def print_retrieval(
-    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
-) -> None:
+def print_retrieval(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
@@ -104,22 +97,16 @@ def print_retrieval(
         title = name
 
     panel = Panel(
-        markdown, title=title, title_align="left", border_style="blue", width=WIDTH
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="blue",
+        width=WIDTH,
     )
     console.print(panel)
-    if print_callback:
-        print_callback(
-            {
-                "title": f"{name} ({desc})",
-                "message": msg,
-                "category": "context_retrieval_agent",
-            }
-        )
 
 
-def print_patch_generation(
-    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
-) -> None:
+def print_patch_generation(msg: str, desc="") -> None:
     if not print_stdout:
         return
 
@@ -133,46 +120,13 @@ def print_patch_generation(
         title = name
 
     panel = Panel(
-        markdown, title=title, title_align="left", border_style="yellow", width=WIDTH
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="yellow",
+        width=WIDTH,
     )
     console.print(panel)
-    if print_callback:
-        print_callback(
-            {
-                "title": f"{name} ({desc})",
-                "message": msg,
-                "category": "patch_generation",
-            }
-        )
-
-
-def print_fix_loc_generation(
-    msg: str, desc="", print_callback: Callable[[dict], None] | None = None
-) -> None:
-    if not print_stdout:
-        return
-
-    msg = replace_html_tags(msg)
-    markdown = Markdown(msg)
-
-    name = "Fix Location Generation"
-    if desc:
-        title = f"{name} ({desc})"
-    else:
-        title = name
-
-    panel = Panel(
-        markdown, title=title, title_align="left", border_style="green", width=WIDTH
-    )
-    console.print(panel)
-    if print_callback:
-        print_callback(
-            {
-                "title": f"{name} ({desc})",
-                "message": msg,
-                "category": "fix_loc_generation",
-            }
-        )
 
 
 def print_issue(content: str) -> None:
@@ -181,10 +135,75 @@ def print_issue(content: str) -> None:
 
     title = "Issue description"
     panel = Panel(
-        escape(content),
+        content,
         title=title,
         title_align="left",
         border_style="red",
+    )
+    console.print(panel)
+
+
+def print_reproducer(msg: str, desc="") -> None:
+    if not print_stdout:
+        return
+
+    markdown = Markdown(msg)
+
+    name = "Reproducer Test Generation"
+    if desc:
+        title = f"{name} ({desc})"
+    else:
+        title = name
+
+    panel = Panel(
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="green",
+        width=WIDTH,
+    )
+    console.print(panel)
+
+
+def print_exec_reproducer(msg: str, desc="") -> None:
+    if not print_stdout:
+        return
+
+    markdown = Markdown(msg)
+
+    name = "Reproducer Execution Result"
+    if desc:
+        title = f"{name} ({desc})"
+    else:
+        title = name
+
+    panel = Panel(
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="blue",
+        width=WIDTH,
+    )
+    console.print(panel)
+
+
+def print_review(msg: str, desc="") -> None:
+    if not print_stdout:
+        return
+
+    markdown = Markdown(msg)
+
+    name = "Review"
+    if desc:
+        title = f"{name} ({desc})"
+    else:
+        title = name
+
+    panel = Panel(
+        markdown,
+        title=title,
+        title_align="left",
+        border_style="purple",
         width=WIDTH,
     )
     console.print(panel)

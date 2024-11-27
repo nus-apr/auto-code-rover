@@ -1,12 +1,17 @@
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from os import PathLike
+from pathlib import Path
 from pprint import pformat
 
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import (
     Function as OpenaiFunction,
 )
+
+from app import utils as apputils
+from app.search import search_utils
 
 
 @dataclass
@@ -88,7 +93,7 @@ class MessageThread:
         self.messages.append(m)
 
     def add_model(
-        self, message: str | None, tools: list[ChatCompletionMessageToolCall]
+        self, message: str | None, tools: list[ChatCompletionMessageToolCall] = []
     ):
         # let's serialize tools into json first
         json_tools = []
@@ -123,14 +128,13 @@ class MessageThread:
     def __str__(self):
         return pformat(self.messages, width=160, sort_dicts=False)
 
-    def save_to_file(self, file_path: str):
+    def save_to_file(self, file_path: str | PathLike):
         """
         Save the current state of the message thread to a file.
         Args:
             file_path (str): The path to the file.
         """
-        with open(file_path, "w") as f:
-            json.dump(self.messages, f, indent=4)
+        Path(file_path).write_text(json.dumps(self.messages, indent=4))
 
     def get_round_number(self) -> int:
         """
@@ -154,3 +158,200 @@ class MessageThread:
         with open(file_path) as f:
             messages = json.load(f)
         return cls(messages)
+
+
+class ReproResult:
+    # TODO: add exit code
+    reproduced: bool
+    stdout: str
+    stderr: str
+    returncode: int
+
+    def __init__(self, stdout: str, stderr: str, returncode: int) -> None:
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+        self.reproduced = returncode != 0 and "AssertionError" in stderr
+
+    def __str__(self) -> str:
+        return "\n".join(
+            [
+                f"Reproduced: {self.reproduced}",
+                "",
+                "Stdout:",
+                self.stdout,
+                "",
+                "Stderr:",
+                self.stderr,
+            ]
+        )
+
+
+@dataclass
+class SearchResult:
+    """Dataclass to hold search results."""
+
+    # this is absolute path
+    file_path: str
+    # line numbers are 1-based
+    start: int | None
+    end: int | None
+    class_name: str | None
+    func_name: str | None
+    code: str
+
+    def to_tagged_upto_file(self, project_root: str):
+        """Convert the search result to a tagged string, upto file path."""
+        rel_path = apputils.to_relative_path(self.file_path, project_root)
+        file_part = f"<file>{rel_path}</file>"
+        return file_part
+
+    def to_tagged_upto_class(self, project_root: str):
+        """Convert the search result to a tagged string, upto class."""
+        prefix = self.to_tagged_upto_file(project_root)
+        class_part = (
+            f"<class>{self.class_name}</class>" if self.class_name is not None else ""
+        )
+        return f"{prefix}\n{class_part}"
+
+    def to_tagged_upto_func(self, project_root: str):
+        """Convert the search result to a tagged string, upto function."""
+        prefix = self.to_tagged_upto_class(project_root)
+        func_part = (
+            f" <func>{self.func_name}</func>" if self.func_name is not None else ""
+        )
+        return f"{prefix}{func_part}"
+
+    def to_tagged_str(self, project_root: str):
+        """Convert the search result to a tagged string."""
+        prefix = self.to_tagged_upto_func(project_root)
+        code_part = f"<code>\n{self.code}\n</code>"
+        return f"{prefix}\n{code_part}"
+
+    @staticmethod
+    def collapse_to_file_level(lst, project_root: str) -> str:
+        """Collapse search results to file level."""
+        res = dict()  # file -> count
+        for r in lst:
+            if r.file_path not in res:
+                res[r.file_path] = 1
+            else:
+                res[r.file_path] += 1
+        res_str = ""
+        for file_path, count in res.items():
+            rel_path = apputils.to_relative_path(file_path, project_root)
+            file_part = f"<file>{rel_path}</file>"
+            res_str += f"- {file_part} ({count} matches)\n"
+        return res_str
+
+    @staticmethod
+    def collapse_to_method_level(lst, project_root: str) -> str:
+        """Collapse search results to method level."""
+        res = dict()  # file -> dict(method -> count)
+        for r in lst:
+            if r.file_path not in res:
+                res[r.file_path] = dict()
+            func_str = r.func_name if r.func_name is not None else "Not in a function"
+            if func_str not in res[r.file_path]:
+                res[r.file_path][func_str] = 1
+            else:
+                res[r.file_path][func_str] += 1
+        res_str = ""
+        for file_path, funcs in res.items():
+            rel_path = apputils.to_relative_path(file_path, project_root)
+            file_part = f"<file>{rel_path}</file>"
+            for func, count in funcs.items():
+                if func == "Not in a function":
+                    func_part = func
+                else:
+                    func_part = f" <func>{func}</func>"
+                res_str += f"- {file_part}{func_part} ({count} matches)\n"
+        return res_str
+
+
+class BugLocation:
+    rel_file_path: str
+    abs_file_path: str
+    # line numbers are 1-based
+    start: int | None
+    end: int | None
+
+    class_name: str | None
+    # NOTE: from patch generation onwards, call this method_name
+    method_name: str | None
+
+    code: str
+
+    intended_behavior: str
+
+    def __init__(
+        self, search_res: SearchResult, project_path: str, intended_bebavior: str
+    ):
+        assert search_res.start is not None
+        assert search_res.end is not None
+
+        # turn a search result into bug location
+        self.abs_file_path = search_res.file_path
+        self.rel_file_path = apputils.to_relative_path(
+            search_res.file_path, project_path
+        )
+
+        self.start = search_res.start
+        self.end = search_res.end
+
+        self.class_name = search_res.class_name
+        self.method_name = search_res.func_name
+
+        self.intended_behavior = intended_bebavior
+
+        # we know the line numbers are reliable, so just get the actual
+        # code here again to be safe
+        self.code = search_utils.get_code_snippets(
+            self.abs_file_path, self.start, self.end
+        )
+
+    def to_dict(self):
+        return {
+            "rel_file_path": self.rel_file_path,
+            "abs_file_path": self.abs_file_path,
+            "start": self.start,
+            "end": self.end,
+            "class_name": self.class_name,
+            "method_name": self.method_name,
+            "code": self.code,
+            "intended_behavior": self.intended_behavior,
+        }
+
+    def __eq__(self, other):
+        return (
+            self.rel_file_path == other.rel_file_path
+            and self.start == other.start
+            and self.end == other.end
+        )
+
+    def __hash__(self):
+        return hash((self.rel_file_path, self.start, self.end))
+
+    def __str__(self):
+        return (
+            f"<file>{self.rel_file_path}</file>\n"
+            f"<class>{self.class_name}</class>\n"
+            f"<method>{self.method_name}</method>\n"
+            f"<code>\n{self.code}\n</code>"
+            f"<intended_behavior>{self.intended_behavior}</intended_behavior>"
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
+    def to_str_for_model(self):
+        return self.__str__()
+
+    @classmethod
+    def multiple_locs_to_str_for_model(cls, locs: list["BugLocation"]):
+        res = ""
+        for idx, loc in enumerate(locs):
+            actual_idx = idx + 1
+            res += f"Location #{actual_idx}:\n"
+            res += loc.to_str_for_model() + "\n\n"
+        return res

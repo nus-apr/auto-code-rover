@@ -22,6 +22,10 @@ thread_cost.process_input_tokens = 0
 thread_cost.process_output_tokens = 0
 
 
+class ClaudeContentPolicyViolation(RuntimeError):
+    pass
+
+
 class Model(ABC):
     def __init__(
         self,
@@ -57,7 +61,7 @@ class Model(ABC):
         output_cost = self.cost_per_output * output_tokens
         cost = input_cost + output_cost
         log_and_cprint(
-            f"Model API request cost info: "
+            f"Model ({self.name}) API request cost info: "
             f"input_tokens={input_tokens}, output_tokens={output_tokens}, cost={cost:.6f}",
             style="yellow",
         )

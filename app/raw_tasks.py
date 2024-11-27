@@ -1,12 +1,11 @@
 import json
 import os
-import re
 import shutil
 from abc import ABC, abstractmethod
 from os.path import join as pjoin
 from pathlib import Path
 
-import httpx
+import requests
 
 from app import utils as app_utils
 from app.log import log_and_print
@@ -34,8 +33,7 @@ class RawSweTask(RawTask):
     """
 
     def __init__(self, task_id: str, setup_info: dict, task_info: dict):
-        # a counter str, format "1/150", which means first task out of 150
-        # id from the benchmark
+        # the instance id from SWE-bench
         self._task_id = task_id
         # setup_info (Dict): keys: ['repo_path', 'env_name', 'pre_install', 'install','test_cmd']
         self.setup_info = setup_info
@@ -63,6 +61,7 @@ class RawSweTask(RawTask):
             test_cmd=setup_info["test_cmd"],
             commit=task_info["base_commit"],
             repo_name=task_info["repo"],
+            repo_version=task_info["version"],
             # modifications to the test suite for this task instance,
             test_patch=task_info["test_patch"],
             testcases_passing=task_info["PASS_TO_PASS"],
@@ -95,15 +94,12 @@ class RawGithubTask(RawTask):
         commit_hash: str | None,
         issue_link: str,
         setup_dir: str,
-        use_comments: bool = False,
     ):
         self._task_id = task_id
         self.clone_link = clone_link
-        # if commit_hash is None, assume using the HEAD of default branch
         self.commit_hash = commit_hash
         self.issue_link = issue_link
         self.setup_dir = setup_dir
-        self.use_comments = use_comments
         self.clone_path = pjoin(self.setup_dir, self.task_id)
         self.problem_statement, self.created_at = self.fetch_issue()
         self.clone_repo()
@@ -134,7 +130,9 @@ class RawGithubTask(RawTask):
                 "problem_statement": self.problem_statement,
                 "instance_id": self.task_id,
             },
-            "setup_info": {"repo_path": self.clone_path},
+            "setup_info": {
+                "repo_path": self.clone_path,
+            },
         }
 
         meta_file = pjoin(output_dir, "meta.json")
@@ -146,7 +144,7 @@ class RawGithubTask(RawTask):
         if "github.com" not in self.issue_link:
             raise NotImplementedError("Only GitHub issues are supported for now.")
 
-        retrieved_issue = self.fetch_github_issue(self.issue_link, self.use_comments)
+        retrieved_issue = self.fetch_github_issue(self.issue_link)
 
         if retrieved_issue is None:
             raise RuntimeError(
@@ -155,41 +153,12 @@ class RawGithubTask(RawTask):
 
         title, body, created_at = retrieved_issue
 
-        body = self.process_links(body)
-
         problem_statement = f"{title}\n{body}"
 
         return problem_statement, created_at
 
     @classmethod
-    def process_links(cls, body: str):
-        code_pattern = re.compile(
-            r"https://github.com/(.*?)/blob/(.*)/(.*)#L(\d+)-L(\d+)"
-        )
-        replacements = []
-
-        for code_links in code_pattern.finditer(body):
-            repo_name = code_links.group(1)
-            commit = code_links.group(2)
-            file_path = code_links.group(3)
-            start_line = int(code_links.group(4))
-            end_line = int(code_links.group(5))
-
-            file_contents = httpx.get(
-                f"https://raw.githubusercontent.com/{repo_name}/{commit}/{file_path}"
-            ).text.splitlines()
-            fragment = "\n".join(file_contents[start_line - 1 : end_line])
-
-            replacements.append((code_links.group(0), f"\n```{fragment }```\n"))
-
-        for code_link, replacement in replacements:
-            body = body.replace(code_link, code_link + replacement)
-        return body
-
-    @classmethod
-    def fetch_github_issue(
-        cls, issue_url: str, use_comments: bool = False
-    ) -> tuple[str, str, str]:
+    def fetch_github_issue(cls, issue_url: str) -> tuple[str, str, str]:
         """Extract owner, repo, and issue number from the URL"""
 
         # Example issue URL: https://github.com/owner/repo/issues/123
@@ -197,40 +166,17 @@ class RawGithubTask(RawTask):
         _, owner, repo, _, issue_number = issue_url.rsplit("/", 4)
 
         api_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-        comments_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+        response = requests.get(api_url)
 
-        issue_response = httpx.get(api_url)
-
-        if issue_response.status_code != 200:
+        if response.status_code != 200:
             raise RuntimeError(
-                f"Failed to fetch issue information: {issue_response.status_code}"
+                f"Failed to fetch issue information: {response.status_code}"
             )
 
-        issue_info = issue_response.json()
+        issue_info = response.json()
 
         title = issue_info["title"]
         body = issue_info["body"]
-
-        if use_comments:
-            comments_response = httpx.get(comments_url)
-            if comments_response.status_code != 200:
-                raise RuntimeError(
-                    f"Failed to fetch comments information: {comments_response.status_code}"
-                )
-
-            comments_info = comments_response.json()
-            for comment in comments_info:
-                if (
-                    "user" not in comment
-                    or comment["user"]["type"] == "Bot"
-                    or comment["user"]["login"] == "acr-bot"
-                ):
-                    continue
-
-                body += (
-                    f"\nUser: {comment['user']['login']}\nComment: {comment['body']}"
-                )
-
         created_at = issue_info["created_at"]
 
         return title, body, created_at
@@ -279,7 +225,9 @@ class RawLocalTask(RawTask):
                 "problem_statement": self.problem_statement,
                 "instance_id": self.task_id,
             },
-            "setup_info": {"repo_path": self.local_repo},
+            "setup_info": {
+                "repo_path": self.local_repo,
+            },
         }
 
         meta_file = pjoin(output_dir, "meta.json")

@@ -160,12 +160,14 @@ def make_history(dir):
                 )
             if content.startswith("Based on the files"):
                 content = """Based on the files, classes, methods, code statements from the issue that related to the bug, you can use below search APIs to get more context of the project.
-            
+
 
         - search_class(class_name: str): Search for a class in the codebase.
 
+        - search_class_in_file(self, class_name, file_name: str): Search for a class in a given file.
+
         - search_method_in_file(method_name: str, file_path: str): Search for a method in a given file.
-        
+
         - search_method_in_class(method_name: str, class_name: str): Search for a method in a given class.
 
         - search_method(method_name: str): Search for a method in the entire codebase.

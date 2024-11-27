@@ -26,7 +26,7 @@ from tempfile import mkstemp
 from coverage.sqldata import CoverageData
 
 import app.utils as apputils
-from app import globals, log
+from app import config, log
 from app.data_structures import MethodId
 from app.task import SweTask, Task
 
@@ -254,7 +254,8 @@ def run(task: Task) -> tuple[list[str], list[tuple[str, int, float]], str]:
 class PythonSbfl:
     @classmethod
     def run(cls, task: SweTask) -> tuple[list[str], list[tuple[str, int, float]], str]:
-        cov_file, log_file = cls._run_python_developer_test_suite(task)
+        with task.apply_patch(task.test_patch):
+            cov_file, log_file = cls._run_python_developer_test_suite(task)
 
         pass_tests_names = []
         fail_tests_names = []
@@ -368,18 +369,20 @@ class PythonSbfl:
                     stdout=PIPE,
                     stderr=STDOUT,
                     text=True,
-                    timeout=globals.test_exec_timeout,
+                    timeout=config.test_exec_timeout,
                 )
                 Path(log_file).write_text(cp.stdout)
             except TimeoutExpired:
-                log.log_and_print("Timeout expired while running the test suite.")
+                log.log_and_print(
+                    "Timeout expired while running the test suite.",
+                )
                 return "", log_file
 
             # (3) check whether the coverage file is there
             cov_file = pjoin(execution_dir, ".coverage")
             if not os.path.exists(cov_file):
                 log.log_and_print(
-                    "Coverage file is not produced after running the test suite."
+                    "Coverage file is not produced after running the test suite.",
                 )
                 return "", log_file
             return cov_file, log_file
@@ -443,12 +446,14 @@ class PythonSbfl:
                     stdout=PIPE,
                     stderr=STDOUT,
                     text=True,
-                    timeout=globals.test_exec_timeout,
+                    timeout=config.test_exec_timeout,
                 )
                 Path(log_file).write_text(cp.stdout)
                 # Path(self.output_dir, "run_developer_tests.log").write_text(cp.stdout)
             except TimeoutExpired:
-                log.log_and_print("Timeout expired while running the test suite.")
+                log.log_and_print(
+                    "Timeout expired while running the test suite.",
+                )
                 return "", log_file
 
             # (2) check whether the coverage file is there
@@ -465,7 +470,7 @@ class PythonSbfl:
                 # now check again
                 if not os.path.exists(cov_file):
                     log.log_and_print(
-                        "Coverage file is not produced after running the test suite."
+                        "Coverage file is not produced after running the test suite.",
                     )
                     return "", log_file
             return cov_file, log_file

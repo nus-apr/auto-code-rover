@@ -62,7 +62,7 @@ class BedrockModel(Model):
                 "Missing env vars. Please refer to https://litellm.vercel.app/docs/providers/bedrock"
             )
             sys.exit(1)
-        return os.getenv(required_env_vars[-1])
+        return os.environ[required_env_vars[-1]]
 
     def extract_resp_content(self, chat_message: Message) -> str:
         """
@@ -81,8 +81,14 @@ class BedrockModel(Model):
         top_p=1,
         tools=None,
         response_format: Literal["text", "json_object"] = "text",
+        temperature: float | None = None,
         **kwargs,
     ):
+        prefill_content = ""
+
+        if temperature is None:
+            temperature = common.MODEL_TEMP
+
         try:
             if self._model_provider == "bedrock/anthropic":
                 # antropic models - prefilling response with { increase the success rate
@@ -94,7 +100,7 @@ class BedrockModel(Model):
             response = litellm.completion(
                 model=self.name,
                 messages=messages,
-                temperature=common.MODEL_TEMP,
+                temperature=temperature,
                 max_tokens=1024,
                 top_p=top_p,
                 stream=False,

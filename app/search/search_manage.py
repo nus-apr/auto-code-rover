@@ -1,480 +1,237 @@
-from collections import defaultdict, namedtuple
-from collections.abc import MutableMapping
+import inspect
+import json
+from collections.abc import Mapping
+from os.path import join as pjoin
+from pathlib import Path
 
-from app.search import search_utils
-from app.search.search_utils import SearchResult
+from loguru import logger
 
-LineRange = namedtuple("LineRange", ["start", "end"])
-
-ClassIndexType = MutableMapping[str, list[tuple[str, LineRange]]]
-ClassFuncIndexType = MutableMapping[
-    str, MutableMapping[str, list[tuple[str, LineRange]]]
-]
-FuncIndexType = MutableMapping[str, list[tuple[str, LineRange]]]
-
-RESULT_SHOW_LIMIT = 3
+from app import config
+from app.agents import agent_proxy, agent_search
+from app.data_structures import BugLocation, MessageThread
+from app.log import print_acr, print_banner
+from app.search.search_backend import SearchBackend
+from app.task import Task
+from app.utils import parse_function_invocation
 
 
 class SearchManager:
-    def __init__(self, project_path: str):
-        self.project_path = project_path
-        # list of all files ending with .py, which are likely not test files
-        # These are all ABSOLUTE paths.
-        self.parsed_files: list[str] = []
+    def __init__(self, project_path: str, output_dir: str):
+        # output dir for writing search-related things
+        self.output_dir = pjoin(output_dir, "search")
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
-        # for file name in the indexes, assume they are absolute path
-        # class name -> [(file_name, line_range)]
-        self.class_index: ClassIndexType = {}
+        # record the search APIs being used, in each layer
+        self.tool_call_layers: list[list[Mapping]] = []
 
-        # {class_name -> {func_name -> [(file_name, line_range)]}}
-        # inner dict is a list, since we can have (1) overloading func names,
-        # and (2) multiple classes with the same name, having the same method
-        self.class_func_index: ClassFuncIndexType = {}
+        self.backend: SearchBackend = SearchBackend(project_path)
 
-        # function name -> [(file_name, line_range)]
-        self.function_index: FuncIndexType = {}
-        self._build_index()
-
-    def _build_index(self):
-        """
-        With all source code of the project, build two indexes:
-            1. From class name to (source file, start line, end line)
-            2. From function name to (source file, start line, end line)
-        Since there can be two classes/functions with the same name, the mapping
-        value is a list of tuples.
-        This is for fast lookup whenever we receive a query.
-        """
-        self._update_indices(*self._build_python_index())
-
-    def _update_indices(
+    def search_iterative(
         self,
-        class_index: ClassIndexType,
-        class_func_index: ClassFuncIndexType,
-        function_index: FuncIndexType,
-        parsed_files: list[str],
-    ) -> None:
-        self.class_index.update(class_index)
-        self.class_func_index.update(class_func_index)
-        self.function_index.update(function_index)
-        self.parsed_files.extend(parsed_files)
-
-    def _build_python_index(
-        self,
-    ) -> tuple[ClassIndexType, ClassFuncIndexType, FuncIndexType, list[str]]:
-        class_index: ClassIndexType = defaultdict(list)
-        class_func_index: ClassFuncIndexType = defaultdict(lambda: defaultdict(list))
-        function_index: FuncIndexType = defaultdict(list)
-
-        py_files = search_utils.find_python_files(self.project_path)
-        # holds the parsable subset of all py files
-        parsed_py_files = []
-        for py_file in py_files:
-            file_info = search_utils.parse_python_file(py_file)
-            if file_info is None:
-                # parsing of this file failed
-                continue
-            parsed_py_files.append(py_file)
-            # extract from file info, and form search index
-            classes, class_to_funcs, top_level_funcs = file_info
-
-            # (1) build class index
-            for c, start, end in classes:
-                class_index[c].append((py_file, LineRange(start, end)))
-
-            # (2) build class-function index
-            for c, class_funcs in class_to_funcs.items():
-                for f, start, end in class_funcs:
-                    class_func_index[c][f].append((py_file, LineRange(start, end)))
-
-            # (3) build (top-level) function index
-            for f, start, end in top_level_funcs:
-                function_index[f].append((py_file, LineRange(start, end)))
-
-        return class_index, class_func_index, function_index, parsed_py_files
-
-    def file_line_to_class_and_func(
-        self, file_path: str, line_no: int
-    ) -> tuple[str | None, str | None]:
+        task: Task,
+        sbfl_result: str,
+        reproducer_result: str,
+        reproduced_test_content: str | None,
+    ) -> tuple[list[BugLocation], MessageThread]:
         """
-        Given a file path and a line number, return the class and function name.
-        If the line is not inside a class or function, return None.
-        """
-        # check whether this line is inside a class
-        for class_name in self.class_func_index:
-            func_dict = self.class_func_index[class_name]
-            for func_name, func_info in func_dict.items():
-                for file_name, (start, end) in func_info:
-                    if file_name == file_path and start <= line_no <= end:
-                        return class_name, func_name
-
-        # not in any class; check whether this line is inside a top-level function
-        for func_name in self.function_index:
-            for file_name, (start, end) in self.function_index[func_name]:
-                if file_name == file_path and start <= line_no <= end:
-                    return None, func_name
-
-        # this file-line is not recorded in any of the indexes
-        return None, None
-
-    def _search_func_in_class(
-        self, function_name: str, class_name: str
-    ) -> list[SearchResult]:
-        """
-        Search for the function name in the class.
-        Args:
-            function_name (str): Name of the function.
-            class_name (str): Name of the class.
+        Main entry point of the search manager.
         Returns:
-            The list of code snippets searched.
+            - Bug location info, which is a list of (code, intended behavior)
+            - Class context code as string, or None if there is no context
+            - The message thread that contains the search conversation.
         """
-        result: list[SearchResult] = []
-        if class_name not in self.class_func_index:
-            return result
-        if function_name not in self.class_func_index[class_name]:
-            return result
-        for fname, (start, end) in self.class_func_index[class_name][function_name]:
-            func_code = search_utils.get_code_snippets(fname, start, end)
-            res = SearchResult(fname, class_name, function_name, func_code)
-            result.append(res)
-        return result
-
-    def _search_func_in_all_classes(self, function_name: str) -> list[SearchResult]:
-        """
-        Search for the function name in all classes.
-        Args:
-            function_name (str): Name of the function.
-        Returns:
-            The list of code snippets searched.
-        """
-        result: list[SearchResult] = []
-        for class_name in self.class_index:
-            res = self._search_func_in_class(function_name, class_name)
-            result.extend(res)
-        return result
-
-    def _search_top_level_func(self, function_name: str) -> list[SearchResult]:
-        """
-        Search for top-level function name in the entire project.
-        Args:
-            function_name (str): Name of the function.
-        Returns:
-            The list of code snippets searched.
-        """
-        result: list[SearchResult] = []
-        if function_name not in self.function_index:
-            return result
-
-        for fname, (start, end) in self.function_index[function_name]:
-            func_code = search_utils.get_code_snippets(fname, start, end)
-            res = SearchResult(fname, None, function_name, func_code)
-            result.append(res)
-        return result
-
-    def _search_func_in_code_base(self, function_name: str) -> list[SearchResult]:
-        """
-        Search for this function, from both top-level and all class definitions.
-        """
-        result: list[SearchResult] = []  # list of (file_name, func_code)
-        # (1) search in top level
-        top_level_res = self._search_top_level_func(function_name)
-        class_res = self._search_func_in_all_classes(function_name)
-        result.extend(top_level_res)
-        result.extend(class_res)
-        return result
-
-    ###############################
-    ### Interfaces ################
-    ###############################
-
-    # not search API - for writing patch
-    # if we are searching for only a class when writing patch, likely we do not have enough info
-    # the result can be too long, so we just show the first two
-    def get_class_full_snippet(self, class_name: str) -> tuple[str, str, bool]:
-        summary = f"Class {class_name} did not appear in the codebase."
-        tool_result = f"Could not find class {class_name} in the codebase."
-
-        if class_name not in self.class_index:
-            return tool_result, summary, False
-        # class name -> [(file_name, start_line, end_line)]
-        search_res: list[SearchResult] = []
-        for fname, (start, end) in self.class_index[class_name]:
-            code = search_utils.get_code_snippets(fname, start, end)
-            res = SearchResult(fname, class_name, None, code)
-            search_res.append(res)
-
-        if not search_res:
-            return tool_result, summary, False
-
-        # the good path
-        # for all the searched result, append them and form the final result
-        tool_result = f"Found {len(search_res)} classes with name {class_name} in the codebase:\n\n"
-        summary = tool_result
-        if len(search_res) > 2:
-            tool_result += "Too many results, showing full code for 2 of them:\n"
-        for idx, res in enumerate(search_res[:2]):
-            res_str = res.to_tagged_str(self.project_path)
-            tool_result += f"- Search result {idx + 1}:\n```\n{res_str}\n```"
-        return tool_result, summary, True
-
-    def search_class(self, class_name: str) -> tuple[str, str, bool]:
-        # initialize them to error case
-        summary = f"Class {class_name} did not appear in the codebase."
-        tool_result = f"Could not find class {class_name} in the codebase."
-
-        if class_name not in self.class_index:
-            return tool_result, summary, False
-
-        search_res: list[SearchResult] = []
-        for fname, _ in self.class_index[class_name]:
-            # there are some classes; we return their signatures
-            code = search_utils.get_class_signature(fname, class_name)
-            res = SearchResult(fname, class_name, None, code)
-            search_res.append(res)
-
-        if not search_res:
-            # this should not happen, but just in case
-            return tool_result, summary, False
-
-        # the good path
-        # for all the searched result, append them and form the final result
-        tool_result = f"Found {len(search_res)} classes with name {class_name} in the codebase:\n\n"
-        if len(search_res) > RESULT_SHOW_LIMIT:
-            tool_result += "They appeared in the following files:\n"
-            tool_result += SearchResult.collapse_to_file_level(
-                search_res, self.project_path
-            )
-        else:
-            for idx, res in enumerate(search_res):
-                res_str = res.to_tagged_str(self.project_path)
-                tool_result += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        summary = f"The tool returned information about class `{class_name}`."
-        return tool_result, summary, True
-
-    def search_class_in_file(self, class_name, file_name: str) -> tuple[str, str, bool]:
-        # (1) check whether we can get the file
-        candidate_py_abs_paths = [f for f in self.parsed_files if f.endswith(file_name)]
-        if not candidate_py_abs_paths:
-            tool_output = f"Could not find file {file_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # (2) search for this class in the entire code base (we do filtering later)
-        if class_name not in self.class_index:
-            tool_output = f"Could not find class {class_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # (3) class is there, check whether it exists in the file specified.
-        search_res: list[SearchResult] = []
-        for fname, (start_line, end_line) in self.class_index[class_name]:
-            if fname in candidate_py_abs_paths:
-                class_code = search_utils.get_code_snippets(fname, start_line, end_line)
-                res = SearchResult(fname, class_name, None, class_code)
-                search_res.append(res)
-
-        if not search_res:
-            tool_output = f"Could not find class {class_name} in file {file_name}."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # good path; we have result, now just form a response
-        tool_output = f"Found {len(search_res)} classes with name {class_name} in file {file_name}:\n\n"
-        summary = tool_output
-        for idx, res in enumerate(search_res):
-            res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        return tool_output, summary, True
-
-    def search_method_in_file(
-        self, method_name: str, file_name: str
-    ) -> tuple[str, str, bool]:
-        # (1) check whether we can get the file
-        # supports both when file_name is relative to project root, and when
-        # it is just a short name
-        candidate_py_abs_paths = [f for f in self.parsed_files if f.endswith(file_name)]
-        # print(candidate_py_files)
-        if not candidate_py_abs_paths:
-            tool_output = f"Could not find file {file_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # (2) search for this method in the entire code base (we do filtering later)
-        search_res: list[SearchResult] = self._search_func_in_code_base(method_name)
-        if not search_res:
-            tool_output = f"The method {method_name} does not appear in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # (3) filter the search result => they need to be in one of the files!
-        filtered_res: list[SearchResult] = [
-            res for res in search_res if res.file_path in candidate_py_abs_paths
-        ]
-
-        # (4) done with search, now prepare result
-        if not filtered_res:
-            tool_output = (
-                f"There is no method with name `{method_name}` in file {file_name}."
-            )
-            summary = tool_output
-            return tool_output, summary, False
-
-        tool_output = f"Found {len(filtered_res)} methods with name `{method_name}` in file {file_name}:\n\n"
-        summary = tool_output
-
-        # when searching for a method in one file, it's rare that there are
-        # many candidates, so we do not trim the result
-        for idx, res in enumerate(filtered_res):
-            res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        return tool_output, summary, True
-
-    def search_method_in_class(
-        self, method_name: str, class_name: str
-    ) -> tuple[str, str, bool]:
-        if class_name not in self.class_index:
-            tool_output = f"Could not find class {class_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # has this class, check its methods
-        search_res: list[SearchResult] = self._search_func_in_class(
-            method_name, class_name
+        search_api_generator = agent_search.generator(
+            task.get_issue_statement(), sbfl_result, reproducer_result
         )
-        if not search_res:
-            tool_output = f"Could not find method {method_name} in class {class_name}`."
-            summary = tool_output
-            return tool_output, summary, False
+        # input to generator, should be (search_result_msg, re_search)
+        # the first item is the results of search sent from backend
+        # the second item is whether the agent should select APIs again, or proceed to analysis
+        generator_input = None
 
-        # found some methods, prepare the result
-        tool_output = f"Found {len(search_res)} methods with name {method_name} in class {class_name}:\n\n"
-        summary = tool_output
+        round_no = 0
 
-        # There can be multiple classes defined in multiple files, which contain the same method
-        # still trim the result, just in case
-        if len(search_res) > RESULT_SHOW_LIMIT:
-            tool_output += f"Too many results, showing full code for {RESULT_SHOW_LIMIT} of them, and the rest just file names:\n"
-        first_five = search_res[:RESULT_SHOW_LIMIT]
-        for idx, res in enumerate(first_five):
-            res_str = res.to_tagged_str(self.project_path)
-            tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        # for the rest, collect the file names into a set
-        if rest := search_res[RESULT_SHOW_LIMIT:]:
-            tool_output += "Other results are in these files:\n"
-            tool_output += SearchResult.collapse_to_file_level(rest, self.project_path)
-        return tool_output, summary, True
+        search_msg_thread: MessageThread | None = None  # for typing
 
-    def search_method(self, method_name: str) -> tuple[str, str, bool]:
-        """
-        Search for a method in the entire codebase.
-        """
-        search_res: list[SearchResult] = self._search_func_in_code_base(method_name)
-        if not search_res:
-            tool_output = f"Could not find method {method_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
+        # TODO: change the global number to be local, since it's only for search
+        for round_no in range(config.conv_round_limit):
+            self.start_new_tool_call_layer()
 
-        tool_output = f"Found {len(search_res)} methods with name {method_name} in the codebase:\n\n"
-        summary = tool_output
+            print_banner(f"CONTEXT RETRIEVAL ROUND {round_no}")
 
-        if len(search_res) > RESULT_SHOW_LIMIT:
-            tool_output += "They appeared in the following files:\n"
-            tool_output += SearchResult.collapse_to_file_level(
-                search_res, self.project_path
+            # invoke agent search to choose search APIs
+            agent_search_response, search_msg_thread = search_api_generator.send(
+                generator_input
             )
-        else:
-            for idx, res in enumerate(search_res):
-                res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
+            # print_retrieval(agent_search_response, f"round {round_no}")
 
-        return tool_output, summary, True
+            conversation_file = Path(self.output_dir, f"search_round_{round_no}.json")
+            # save current state before starting a new round
+            search_msg_thread.save_to_file(conversation_file)
 
-    def search_code(self, code_str: str) -> tuple[str, str, bool]:
-        # attempt to search for this code string in all py files
-        all_search_results: list[SearchResult] = []
-        for file_path in self.parsed_files:
-            searched_line_and_code: list[tuple[int, str]] = (
-                search_utils.get_code_region_containing_code(file_path, code_str)
+            # extract json API calls from the raw response.
+            selected_apis, proxy_threads = agent_proxy.run_with_retries(
+                agent_search_response
             )
-            if not searched_line_and_code:
-                continue
-            for searched in searched_line_and_code:
-                line_no, code_region = searched
-                # from line_no, check which function and class we are in
-                class_name, func_name = self.file_line_to_class_and_func(
-                    file_path, line_no
+
+            logger.debug("Agent proxy return the following json: {}", selected_apis)
+
+            proxy_msg_log = Path(self.output_dir, f"agent_proxy_{round_no}.json")
+            proxy_messages = [thread.to_msg() for thread in proxy_threads]
+            proxy_msg_log.write_text(json.dumps(proxy_messages, indent=4))
+
+            if selected_apis is None:
+                # agent search response could not be propagated to backend;
+                # ask it to retry
+                logger.debug(
+                    "Could not extract API calls from agent search response, asking search agent to re-generate response."
                 )
-                res = SearchResult(file_path, class_name, func_name, code_region)
-                all_search_results.append(res)
-
-        if not all_search_results:
-            tool_output = f"Could not find code {code_str} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # good path
-        tool_output = f"Found {len(all_search_results)} snippets containing `{code_str}` in the codebase:\n\n"
-        summary = tool_output
-
-        if len(all_search_results) > RESULT_SHOW_LIMIT:
-            tool_output += "They appeared in the following files:\n"
-            tool_output += SearchResult.collapse_to_file_level(
-                all_search_results, self.project_path
-            )
-        else:
-            for idx, res in enumerate(all_search_results):
-                res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        return tool_output, summary, True
-
-    def search_code_in_file(
-        self, code_str: str, file_name: str
-    ) -> tuple[str, str, bool]:
-        code_str = code_str.removesuffix(")")
-
-        candidate_py_files = [f for f in self.parsed_files if f.endswith(file_name)]
-        if not candidate_py_files:
-            tool_output = f"Could not find file {file_name} in the codebase."
-            summary = tool_output
-            return tool_output, summary, False
-
-        # start searching for code in the filtered files
-        all_search_results: list[SearchResult] = []
-        for file_path in candidate_py_files:
-            searched_line_and_code: list[tuple[int, str]] = (
-                search_utils.get_code_region_containing_code(file_path, code_str)
-            )
-            if not searched_line_and_code:
+                search_result_msg = "The search API calls seem not valid. Please check the arguments you give carefully and try again."
+                generator_input = (search_result_msg, True)
                 continue
-            for searched in searched_line_and_code:
-                line_no, code_region = searched
-                # from line_no, check which function and class we are in
-                class_name, func_name = self.file_line_to_class_and_func(
-                    file_path, line_no
+
+            # there are valid search APIs - parse them
+            selected_apis_json: dict = json.loads(selected_apis)
+
+            json_api_calls = selected_apis_json.get("API_calls", [])
+            buggy_locations = selected_apis_json.get("bug_locations", [])
+
+            formatted = []
+            if json_api_calls:
+                formatted.append("API calls:")
+                for call in json_api_calls:
+                    formatted.extend([f"\n- `{call}`"])
+
+            if buggy_locations:
+                formatted.append("\n\nBug locations")
+                for location in buggy_locations:
+                    s = ", ".join(f"{k}: `{v}`" for k, v in location.items())
+                    formatted.extend([f"\n- {s}"])
+
+            print_acr("\n".join(formatted), "Agent-selected API calls")
+
+            # locations are confirmed by the agent - let's see whether the bug
+            # locations are valid/precise
+            if buggy_locations and (not json_api_calls):
+                # dump the locations for debugging
+                bug_loc_file = Path(
+                    self.output_dir, "bug_locations_before_process.json"
                 )
-                res = SearchResult(file_path, class_name, func_name, code_region)
-                all_search_results.append(res)
+                bug_loc_file.write_text(json.dumps(buggy_locations, indent=4))
 
-        if not all_search_results:
-            tool_output = f"Could not find code {code_str} in file {file_name}."
-            summary = tool_output
-            return tool_output, summary, False
+                new_bug_locations: list[BugLocation] = list()
 
-        # good path
-        # There can be a lot of results, from multiple files.
-        tool_output = f"Found {len(all_search_results)} snippets with code {code_str} in file {file_name}:\n\n"
-        summary = tool_output
-        if len(all_search_results) > RESULT_SHOW_LIMIT:
-            tool_output += "They appeared in the following methods:\n"
-            tool_output += SearchResult.collapse_to_method_level(
-                all_search_results, self.project_path
+                for loc in buggy_locations:
+                    # this is the transformed bug location
+                    new_bug_locations.extend(self.backend.get_bug_loc_snippets_new(loc))
+
+                # remove duplicates in the bug locations
+                unique_bug_locations: list[BugLocation] = []
+                for loc in new_bug_locations:
+                    if loc not in unique_bug_locations:
+                        unique_bug_locations.append(loc)
+
+                if new_bug_locations:
+
+                    # some locations can be extracted, good to proceed to patch gen
+                    bug_loc_file_processed = Path(
+                        self.output_dir, "bug_locations_after_process.json"
+                    )
+
+                    json_obj = [loc.to_dict() for loc in new_bug_locations]
+                    bug_loc_file_processed.write_text(json.dumps(json_obj, indent=4))
+
+                    logger.debug(
+                        f"Bug location extracted successfully: {new_bug_locations}"
+                    )
+
+                    return new_bug_locations, search_msg_thread
+
+                # bug location is not precise enough to go into patch gen
+                # let's prepare some message to be send to agent search
+                # and go into next round
+                logger.debug(
+                    "Failed to retrieve code from all bug locations. Asking search agent to re-generate response."
+                )
+                search_result_msg = "Failed to retrieve code from all bug locations. You may need to check whether the arguments are correct or issue more search API calls."
+                generator_input = (search_result_msg, True)
+                continue
+
+            # location not confirmed by the search agent - send backend result and go to next round
+            collated_search_res_str = ""
+
+            for api_call in json_api_calls:
+                func_name, func_args = parse_function_invocation(api_call)
+                # TODO: there are currently duplicated code here and in agent_proxy.
+                func_unwrapped = getattr(self.backend, func_name)
+                while "__wrapped__" in func_unwrapped.__dict__:
+                    func_unwrapped = func_unwrapped.__wrapped__
+                arg_spec = inspect.getfullargspec(func_unwrapped)
+                arg_names = arg_spec.args[1:]  # first parameter is self
+
+                assert len(func_args) == len(
+                    arg_names
+                ), f"Number of argument is wrong in API call: {api_call}"
+
+                kwargs = dict(zip(arg_names, func_args))
+
+                function = getattr(self.backend, func_name)
+                result_str, _, call_ok = function(**kwargs)
+                collated_search_res_str += f"Result of {api_call}:\n\n"
+                collated_search_res_str += result_str + "\n\n"
+
+                # record the api calls made and the call status
+                self.add_tool_call_to_curr_layer(func_name, kwargs, call_ok)
+
+            print_acr(collated_search_res_str, f"context retrieval round {round_no}")
+            # send the results back to the search agent
+            logger.debug(
+                "Obtained search results from API invocation. Going into next retrieval round."
             )
-        else:
-            for idx, res in enumerate(all_search_results):
-                res_str = res.to_tagged_str(self.project_path)
-                tool_output += f"- Search result {idx + 1}:\n```\n{res_str}\n```\n"
-        return tool_output, summary, True
+            search_result_msg = collated_search_res_str
+            generator_input = (search_result_msg, False)
 
-    def retrieve_code_snippet(
-        self, file_path: str, start_line: int, end_line: int
-    ) -> str:
-        return search_utils.get_code_snippets(file_path, start_line, end_line)
+        # used up all the rounds, but could not return the buggy locations
+        logger.info("Too many rounds. Try writing patch anyway.")
+        assert search_msg_thread is not None
+        return [], search_msg_thread
+
+    def start_new_tool_call_layer(self):
+        self.tool_call_layers.append([])
+
+    def add_tool_call_to_curr_layer(
+        self, func_name: str, args: dict[str, str], result: bool
+    ):
+        self.tool_call_layers[-1].append(
+            {
+                "func_name": func_name,
+                "arguments": args,
+                "call_ok": result,
+            }
+        )
+
+    def dump_tool_call_layers_to_file(self):
+        """Dump the layers of tool calls to a file."""
+        tool_call_file = Path(self.output_dir, "tool_call_layers.json")
+        tool_call_file.write_text(json.dumps(self.tool_call_layers, indent=4))
+
+
+# if __name__ == "__main__":
+#     manager = SearchManager("/tmp", "/tmp/one")
+#     func_name = "search_code"
+#     func_args = {"code_str": "_separable"}
+
+#     # func_name = "search_class"
+#     # func_args = {"class_name": "ABC"}
+
+#     function = getattr(manager.backend, func_name)
+
+#     while "__wrapped__" in function.__dict__:
+#         function = function.__wrapped__
+#     arg_spec = inspect.getfullargspec(function)
+
+#     print(arg_spec)
+#     arg_names = arg_spec.args[1:]  # first parameter is self
+#     kwargs = func_args
+
+#     orig_func = getattr(manager.backend, func_name)
+#     search_result, _, call_ok = orig_func(**kwargs)

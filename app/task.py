@@ -1,14 +1,30 @@
 from __future__ import annotations
 
-import os
+import json
 import subprocess
 from abc import ABC, abstractmethod
+from collections.abc import Generator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from os.path import join as pjoin
-from tempfile import mkstemp
+from os import PathLike
+from pathlib import Path
+from shutil import copy2
+from subprocess import DEVNULL, CompletedProcess
+from tempfile import NamedTemporaryFile, TemporaryDirectory, mkstemp
+
+from loguru import logger
+
+try:
+    from swebench.metrics.constants import TestStatus
+    from swebench.metrics.getters import APPLY_PATCH_PASS
+
+    # from swebench.metrics import log_parsers
+    from swebench.metrics.log_parsers import MAP_REPO_TO_PARSER
+except ImportError:
+    pass
 
 import app.utils as apputils
-from app import globals, log
+from app import config, log
 from app import utils as app_utils
 from app.api.eval_helper import (
     ResolvedStatus,
@@ -16,7 +32,15 @@ from app.api.eval_helper import (
     get_logs_eval,
     get_resolution_status,
 )
+
+try:
+    from app.api.swe_bench_docker_validation import run_pre_existing_tests
+except ImportError:
+    pass
+
+from app.data_structures import ReproResult
 from app.log import log_and_print
+from app.utils import run_script_in_conda
 
 
 class Task(ABC):
@@ -40,13 +64,42 @@ class Task(ABC):
         raise NotImplementedError("abstract method")
 
     @abstractmethod
-    def validate(self, patch_file: str) -> tuple[bool, str, str]:
+    def validate(self, patch_content: str) -> tuple[bool, str, str, str]:
         """
         Returns:
             - Whether this patch has made the test suite pass.
             - Error message when running the test suite.
             - Path of written log file
         """
+        raise NotImplementedError
+
+    @contextmanager
+    def apply_patch(self, patch_content: str) -> Generator[None, None, None]:
+        try:
+            with NamedTemporaryFile(buffering=0, suffix=".diff") as f:
+                f.write(patch_content.encode())
+                apply_cmd = ["git", "apply", f.name]
+                subprocess.run(
+                    apply_cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.project_path,
+                    check=True,
+                )
+
+            yield
+        finally:
+            with apputils.cd(self.project_path):
+                apputils.repo_clean_changes()
+
+    # TODO: remove this
+    def clean_active_project_changes(self) -> None:
+        with apputils.cd(self.project_path):
+            apputils.repo_clean_changes()
+
+    def execute_reproducer(
+        self, test_content: str, patch_content: str | None = None
+    ) -> ReproResult:
         raise NotImplementedError
 
 
@@ -58,6 +111,7 @@ class SweTask(Task):
     commit: str
     env_name: str
     repo_name: str
+    repo_version: str
     pre_install_cmds: list[str]
     install_cmd: str
     test_cmd: str
@@ -84,15 +138,13 @@ class SweTask(Task):
 
         # Install task-specific dependencies
         do_install = (
-            globals.enable_sbfl
-            or globals.enable_validation
-            or globals.only_save_sbfl_result
+            config.enable_sbfl
+            or config.enable_validation
+            or config.only_save_sbfl_result
+            or config.reproduce_and_review
         )
         if do_install:
             self._do_install()
-
-        # apply the test modifications to this task
-        self._apply_test_patch()
 
         # commit the current changes, so that resetting later do not erase them
         with apputils.cd(task.project_path):
@@ -128,72 +180,141 @@ class SweTask(Task):
 
             # (2) install
             cp = apputils.run_string_cmd_in_conda(
-                task.install_cmd, task.env_name, capture_output=True, text=True
+                task.install_cmd,
+                task.env_name,
+                capture_output=True,
+                text=True,
             )
             if cp.returncode != 0:
                 log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {task.install_cmd} failed.")
             # (3) xmlrunner for our custom run_test; coverage required for fault localization
             other_install_cmd = (
-                "python -m pip install xmlrunner coverage pytest pytest-cov"
+                "python -m pip install xmlrunner coverage pytest pytest-cov decorator"
             )
             cp = apputils.run_string_cmd_in_conda(
-                other_install_cmd, task.env_name, capture_output=True, text=True
+                other_install_cmd,
+                task.env_name,
+                capture_output=True,
+                text=True,
             )
             if cp.returncode != 0:
                 log_and_print(cp.stderr)
                 raise RuntimeError(f"Command {other_install_cmd} failed.")
 
-    def _apply_test_patch(self) -> None:
-        """
-        Apply the patch to testcases, as supplied by the benchmark.
-        This step brings in all the new tests and testcase modifications.
-        """
-        task = self
+    def validate(self, patch_content: str) -> tuple[bool, str, str, str]:
+        with self.apply_patch(patch_content):
+            # NOTE: when doing validation with SWE-bench-docker, this apply_patch is
+            # unnecessary since there is another copy of the project code inside the container.
+            # However, we just leave it here since validation may happen on host machine as well.
+            log_and_print("[Validation] Applied patch. Going to run test suite.")
 
-        if not task.test_patch:
-            # no patches to tests are found
-            return
-        with apputils.cd(task.project_path):
-            # (1) write test_patch to a temp file
-            test_patch_path = pjoin(task.project_path, "swe_bench_tests.patch")
-            with open(test_patch_path, "w") as f:
-                f.write(task.test_patch)
-            # (2) apply these patches
-            # FIXME: check for failure here
-            apply_cmd = ["git", "apply", test_patch_path]
-            cp = apputils.run_command(apply_cmd, capture_output=True, text=True)
-            if cp.returncode != 0:
-                log_and_print(cp.stderr)
-                raise RuntimeError(f"Command {apply_cmd} failed.")
-            # (3) remove the temp file, which is not so important
-            os.remove(test_patch_path)
-
-    def validate(self, patch_file: str) -> tuple[bool, str, str]:
-        # (1) apply the patch to source code
-        with app_utils.cd(self.project_path):
-            apply_cmd = ["git", "apply", patch_file]
-            cp = app_utils.run_command(apply_cmd, capture_output=False, text=True)
-            if cp.returncode != 0:
-                # patch application failed
-                raise RuntimeError(f"Error applying patch: {cp.stderr}")
-
-        # (2) run the modified program against the test suite
-        log_and_print("[Validation] Applied patch. Going to run test suite.")
-
-        _, log_file = mkstemp(suffix=".log", prefix="pyval-", text=True)
-        tests_passed, msg = self._run_test_suite_for_correctness(log_file)
-
-        # (3) revert the patch to source code
-        with app_utils.cd(self.project_path):
-            app_utils.repo_clean_changes()
+            _, log_file = mkstemp(suffix=".log", prefix="pyval-", text=True)
+            tests_passed, msg, orig_log_file = (
+                self._run_test_suite_for_regression_docker(patch_content, log_file)
+            )
 
         log_and_print(
-            f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}."
+            f"[Validation] Finishing. Result is {tests_passed}. Message: {msg}",
         )
-        return tests_passed, msg, log_file
 
-    def _run_test_suite_for_correctness(self, log_file: str) -> tuple[bool, str]:
+        return tests_passed, msg, log_file, orig_log_file
+
+    def _run_test_suite_for_regression_docker(
+        self, patch_content: str, log_file: str
+    ) -> tuple[bool, str, str]:
+        # TODO: do not return original log file
+        noop_patch = self.make_noop_patch(self.project_path)
+        orig_status_map, orig_eval_log_content = self._run_test_suite_docker(noop_patch)
+        _, orig_log_file = mkstemp(suffix=".log", prefix="pyval-", text=True)
+        Path(orig_log_file).write_text(orig_eval_log_content)
+
+        logger.info("Start running regression tests")
+
+        status_map, eval_log_content = self._run_test_suite_docker(patch_content)
+        Path(log_file).write_text(eval_log_content)
+
+        bad_status = (TestStatus.FAILED.value, TestStatus.ERROR.value)
+        failures = {test for test, status in status_map.items() if status in bad_status}
+        orig_failures = {
+            test for test, status in orig_status_map.items() if status in bad_status
+        }
+
+        have_additional_failures = bool(failures - orig_failures)
+
+        logger.info(
+            "Regression tests {}", "failed" if have_additional_failures else "passed"
+        )
+
+        if have_additional_failures:
+            msg = "The patch caused some pre-existing tests to fail."
+        else:
+            msg = "The patch passed pre-existing tests."
+
+        return not have_additional_failures, msg, orig_log_file
+
+    @classmethod
+    def make_noop_patch(cls, project_path: str) -> str:
+        with TemporaryDirectory() as d:
+
+            def run_command(cmd: list[str]) -> None:
+                subprocess.run(cmd, cwd=d, check=True, stdout=DEVNULL, stderr=DEVNULL)
+
+            gitignore_file = Path(project_path, ".gitignore")
+            copy2(gitignore_file, d)
+
+            run_command(["git", "init"])
+
+            run_command(["git", "add", "."])
+            run_command(["git", "commit", "-m", "first commit"])
+
+            gitignore_content = gitignore_file.read_text()
+            new_gitignore_content = f"{gitignore_content}\n"
+            Path(d, ".gitignore").write_text(new_gitignore_content)
+
+            run_command(["git", "add", "."])
+            run_command(["git", "commit", "-m", "append new line to gitignore"])
+
+            cp = subprocess.run(
+                ["git", "diff", "HEAD~", "HEAD"],
+                cwd=d,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+
+            return cp.stdout
+
+    def _run_test_suite_docker(self, patch_content) -> tuple[dict, str]:
+        cache = getattr(self, "_regression_cache", {})
+
+        if patch_content in cache:
+            logger.debug("regression cache hit")
+            return cache[patch_content]
+
+        _, eval_log_content = run_pre_existing_tests(
+            self.repo_name,
+            self.repo_version,
+            self.task_id,
+            self.commit,
+            self.test_patch,
+            patch_content,
+        )
+
+        result = self.parse_eval_log(self.repo_name, eval_log_content), eval_log_content
+
+        cache[patch_content] = result
+        self._regression_cache = cache
+
+        return result
+
+    @classmethod
+    def parse_eval_log(cls, repo: str, content: str) -> dict:
+        parser = MAP_REPO_TO_PARSER[repo]
+        content = content.split(f"{APPLY_PATCH_PASS} (pred)")[-1]
+        return parser(content)
+
+    def _run_test_suite_for_correctness_lcoal(self, log_file: str) -> tuple[bool, str]:
         """
         Run the developer test suite, and record pass/fail results.
         The goal is to check correctness of a patched program, while returning
@@ -218,7 +339,7 @@ class SweTask(Task):
                 cp = app_utils.run_string_cmd_in_conda(
                     self.test_cmd,
                     self.env_name,
-                    timeout=globals.test_exec_timeout,
+                    timeout=config.test_exec_timeout,
                     capture_output=True,
                     text=True,
                 )
@@ -233,7 +354,7 @@ class SweTask(Task):
             except subprocess.TimeoutExpired:
                 with open(log_file, "a") as f:
                     f.write(
-                        f"{TESTS_TIMEOUT} after {globals.test_exec_timeout} seconds\n"
+                        f"{TESTS_TIMEOUT} after {config.test_exec_timeout} seconds\n"
                     )
             except Exception as e:
 
@@ -275,6 +396,107 @@ class SweTask(Task):
             error_message = "Some tests have failed."
             return False, error_message
 
+    def _run_reproducer(self, reproducer_file: str | PathLike) -> CompletedProcess:
+        """
+        Helper method for running reproducer.
+        """
+        return run_script_in_conda(
+            [str(reproducer_file)],
+            self.env_name,
+            cwd=self.project_path,
+            text=True,
+            capture_output=True,
+        )
+
+    def _summarize_cp(self, cp: CompletedProcess) -> dict:
+        """
+        Helper method for running reproducer.
+        """
+        return {
+            "passed": cp.returncode == 0,
+            "raised_assertion_error": "AssertionError" in cp.stderr,
+        }
+
+    def execute_reproducer(
+        self, test_content: str, patch_content: str | None = None
+    ) -> ReproResult:
+        cm = nullcontext() if patch_content is None else self.apply_patch(patch_content)
+
+        with cm:
+            with NamedTemporaryFile(
+                buffering=0, prefix="reproducer-", suffix=".py"
+            ) as f:
+                f.write(test_content.encode())
+                try:
+                    cp = run_script_in_conda(
+                        [f.name],
+                        self.env_name,
+                        cwd=self.project_path,
+                        text=True,
+                        capture_output=True,
+                        timeout=120,  # 2 min for reproducer should be enough
+                    )
+                    cp_stdout = cp.stdout
+                    cp_stderr = cp.stderr
+                    cp_returncode = cp.returncode
+                except subprocess.TimeoutExpired:
+                    cp_stdout = ""
+                    cp_stderr = "Test execution timeout."
+                    cp_returncode = -1
+
+        # stderr can be very long; truncate it so we dont exceed model limit
+        stderr_result = str(cp_stderr)
+        stderr_lines = stderr_result.splitlines()
+        if len(stderr_lines) > 100:
+            # take first 50 and last 50 lines
+            stderr_result = "\n".join(stderr_lines[:50] + ["..."] + stderr_lines[-50:])
+        return ReproResult(cp_stdout, stderr_result, cp_returncode)
+
+    def evaluate_reproducer(
+        self,
+        reproducer_file: str | PathLike,
+        developer_patch_file: str | PathLike,
+        report_dir: str | PathLike,
+    ) -> None:
+        """Run the reproducer with and without developer patch and dump reports.
+
+        Assume that the project has already been set up with setup_project().
+        """
+
+        buggy_cp = self._run_reproducer(reproducer_file)
+
+        subprocess.run(
+            ["git", "apply", developer_patch_file], cwd=self.project_path, check=True
+        )
+        try:
+            fixed_cp = self._run_reproducer(reproducer_file)
+        finally:
+            subprocess.run(
+                ["git", "apply", "-R", developer_patch_file],
+                cwd=self.project_path,
+                check=True,
+            )
+
+        Path(report_dir, "buggy.out").write_text(buggy_cp.stdout)
+        Path(report_dir, "buggy.err").write_text(buggy_cp.stderr)
+        Path(report_dir, "fixed.out").write_text(fixed_cp.stdout)
+        Path(report_dir, "fixed.err").write_text(fixed_cp.stderr)
+
+        buggy_summary = self._summarize_cp(buggy_cp)
+        fixed_summary = self._summarize_cp(fixed_cp)
+        summary = {
+            "buggy_summary": buggy_summary,
+            "fixed_summary": fixed_summary,
+            "reproduced_by_returncode": (
+                buggy_cp.returncode != 0 and fixed_cp.returncode == 0
+            ),
+            "reproduced_by_assertion_error": (
+                buggy_summary["raised_assertion_error"]
+                and not fixed_summary["raised_assertion_error"]
+            ),
+        }
+        Path(report_dir, "summary.json").write_text(json.dumps(summary, indent=4))
+
 
 @dataclass(kw_only=True)
 class PlainTask(Task):
@@ -301,5 +523,5 @@ class PlainTask(Task):
     def get_issue_statement(self) -> str:
         return self.problem_statement
 
-    def validate(self, patch_file: str) -> tuple[bool, str, str]:
+    def validate(self, patch_content: str) -> tuple[bool, str, str, str]:
         raise NotImplementedError("Cannot do validation for live issues for now")

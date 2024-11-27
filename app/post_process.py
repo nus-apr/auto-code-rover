@@ -2,6 +2,8 @@
 Post-process the output of the inference workflow.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
@@ -10,12 +12,17 @@ from collections import defaultdict
 from collections.abc import Mapping
 from enum import Enum
 from glob import glob
+from os import PathLike
 from os.path import join as pjoin
+from pathlib import Path
 from shutil import move
 
+from loguru import logger
+
 from app import utils as apputils
-from app.api.patch_utils import apply_edit, parse_edits
+from app.agents.patch_utils import apply_edit, parse_edits
 from app.model import common
+from app.search.search_utils import is_test_file
 
 
 def count_and_organize_tasks(
@@ -66,18 +73,12 @@ class ExtractStatus(str, Enum):
     NOT_VALID_JSON = "NOT_VALID_JSON"
 
     def __lt__(self, other):
-        # order from min to max
-        order = [
-            self.NO_PATCH,
-            self.RAW_PATCH_BUT_UNPARSED,
-            self.RAW_PATCH_BUT_UNMATCHED,
-            self.MATCHED_BUT_EMPTY_DIFF,
-            self.MATCHED_BUT_EMPTY_ORIGIN,
-            self.APPLICABLE_PATCH,
-        ]
-        self_index = order.index(self)
-        other_index = order.index(other)
-        return self_index < other_index
+        order = self._worst_to_best_order()
+        return order.index(self) < order.index(other)
+
+    def __gt__(self, other):
+        order = self._worst_to_best_order()
+        return order.index(self) > order.index(other)
 
     def __eq__(self, other):
         return self is other
@@ -87,6 +88,17 @@ class ExtractStatus(str, Enum):
 
     def to_dir_name(self, expr_dir: str):
         return pjoin(expr_dir, self.value.lower())
+
+    @classmethod
+    def _worst_to_best_order(cls) -> list[ExtractStatus]:
+        return [
+            cls.NO_PATCH,
+            cls.RAW_PATCH_BUT_UNPARSED,
+            cls.RAW_PATCH_BUT_UNMATCHED,
+            cls.MATCHED_BUT_EMPTY_DIFF,
+            cls.MATCHED_BUT_EMPTY_ORIGIN,
+            cls.APPLICABLE_PATCH,
+        ]
 
     @staticmethod
     def max(statuses):
@@ -113,7 +125,9 @@ def record_extract_status(individual_expr_dir: str, extract_status: ExtractStatu
             json.dump(record, f, indent=4)
 
 
-def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
+def read_extract_status(
+    individual_expr_dir: str,
+) -> tuple[ExtractStatus, str | PathLike]:
     """
     Read extract status from file. If there are multiple status recorded, read the best one.
     Returns:
@@ -121,19 +135,42 @@ def read_extract_status(individual_expr_dir: str) -> tuple[ExtractStatus, int]:
         - The index of the best status in the list of all statuses. (0-based)
     """
     # we should read from the all the record
-    record_file = pjoin(individual_expr_dir, "extract_status.json")
-    if not os.path.isfile(record_file):
-        # if no status file is written, means that we did not even
-        # reach the state of extracting patches
-        return ExtractStatus.NO_PATCH, -1
-    with open(record_file) as f:
-        record = json.load(f)
-    # convert string to enum type
-    all_status = [ExtractStatus(s) for s in record["extract_status"]]
+    record_files = list(Path(individual_expr_dir).glob("**/extract_status.json"))
 
-    best_status = ExtractStatus.max(all_status)
-    best_idx = all_status.index(best_status)
-    return best_status, best_idx
+    if not record_files:
+        return ExtractStatus.NO_PATCH, ""
+
+    global_best_status = ExtractStatus.NO_PATCH
+    global_best_files = []
+    for record_file in record_files:
+        record = json.loads(record_file.read_text())
+        # convert string to enum type
+        all_status = [ExtractStatus(s) for s in record["extract_status"]]
+
+        best_status = ExtractStatus.max(all_status)
+
+        if best_status < global_best_status:
+            continue
+
+        if best_status > global_best_status:
+            global_best_files = []
+            global_best_status = best_status
+
+        # get index from behind
+        best_idx = len(all_status) - all_status[::-1].index(best_status) - 1
+        best_file = record_file.with_name(f"extracted_patch_{best_idx}.diff")
+        global_best_files.append(best_file)
+
+    def key(path: Path) -> int:
+        try:
+            return int(path.parent.name.rpartition("_")[2])
+        except ValueError:
+            # Just to be compatible with old output layouts. To be removed
+            # in the future.
+            return 0
+
+    global_best_files.sort(key=key, reverse=True)
+    return global_best_status, global_best_files[0]
 
 
 def get_final_patch_path(individual_expr_dir: str) -> str | None:
@@ -142,14 +179,8 @@ def get_final_patch_path(individual_expr_dir: str) -> str | None:
     If there are multiple extracted patches, need to figure out which one is the best based
     on the patch extraction history.
     """
-    _, best_index = read_extract_status(individual_expr_dir)
-    best_patch_name = f"extracted_patch_{best_index + 1}.diff"
-    final_patch_path = pjoin(individual_expr_dir, best_patch_name)
-
-    if not os.path.isfile(final_patch_path):
-        return None
-
-    return final_patch_path
+    best_status, best_file = read_extract_status(individual_expr_dir)
+    return None if best_status == ExtractStatus.NO_PATCH else str(best_file)
 
 
 def extract_diff_one_instance(
@@ -167,8 +198,31 @@ def extract_diff_one_instance(
         - An additional string containing more explanation on how patch extraction failed.
           If everything is successful, this string is empty.
     """
+    if not os.path.isfile(raw_patch_file):
+        return ExtractStatus.NO_PATCH, "No raw patch file is found."
+
+    raw_patch_path = Path(raw_patch_file)
+
+    response = raw_patch_path.read_text()
+    task_dir = str(raw_patch_path.parent)
+
+    status, summary, diff_content = convert_response_to_diff(
+        response, task_dir, standalone_mode
+    )
+
+    Path(extracted_file).write_text(diff_content)
+
+    return status, summary
+
+
+# TODO: move this to PatchWriter
+def convert_response_to_diff(
+    response: str, task_dir: str, standalone_mode: bool = False
+) -> tuple[ExtractStatus, str, str]:
+    patch_content = response
+
     # (1) get the meta data for this task
-    task_dir = os.path.dirname(raw_patch_file)
+    # task_dir = os.path.dirname(raw_patch_file)
     meta_file = pjoin(task_dir, "meta.json")
     with open(meta_file) as f:
         meta = json.load(f)
@@ -178,23 +232,29 @@ def extract_diff_one_instance(
     repo_path = setup_info["repo_path"]  # the project dir
     base_commit = task_info["base_commit"]  # the commit to checkout
 
-    if not os.path.isfile(raw_patch_file):
-        return ExtractStatus.NO_PATCH, "No raw patch file is found."
-
-    with open(raw_patch_file) as f:
-        patch_content = f.read()
+    # if not os.path.isfile(raw_patch_file):
+    # return ExtractStatus.NO_PATCH, "No raw patch file is found."
 
     # (2) try parsing the edits
     try:
-        edits = parse_edits(patch_content)
+        raw_edits = parse_edits(patch_content)
     except Exception as e:
         return (
             ExtractStatus.RAW_PATCH_BUT_UNPARSED,
             f"Exception {e} happend when parsing edits.",
+            "",
         )
 
+    # filter out edits to test files
+    edits = []
+    for idx, edit in enumerate(raw_edits):
+        if is_test_file(edit.filename):
+            logger.debug("filtered out edit {}, which changes tests", idx)
+            continue
+        edits.append(edit)
+
     if not edits:
-        return ExtractStatus.RAW_PATCH_BUT_UNPARSED, "No edits can be parsed."
+        return ExtractStatus.RAW_PATCH_BUT_UNPARSED, "No edits can be parsed.", ""
 
     # (3) edit parsed. check whether it can match the original program
     with apputils.cd(repo_path):
@@ -230,6 +290,7 @@ def extract_diff_one_instance(
             return (
                 ExtractStatus.RAW_PATCH_BUT_UNMATCHED,
                 "None of the edits can match the original program.",
+                "",
             )
 
         # let's have a message describing which edits can be matched
@@ -254,7 +315,7 @@ def extract_diff_one_instance(
                 unmatched_msg
                 + "The matched edits do not introduce any change to the codebase."
             )
-            return ExtractStatus.MATCHED_BUT_EMPTY_DIFF, msg
+            return ExtractStatus.MATCHED_BUT_EMPTY_DIFF, msg, ""
 
         edits_with_empty_before = [
             str(idx + 1) for idx, edit in enumerate(edits) if not edit.before.strip()
@@ -262,14 +323,14 @@ def extract_diff_one_instance(
         if edits_with_empty_before:
             numbers = ", ".join(edits_with_empty_before)
             msg = f"Please contain **non-whitespace** original code snippet in edits number {numbers}."
-            return ExtractStatus.MATCHED_BUT_EMPTY_ORIGIN, msg
+            return ExtractStatus.MATCHED_BUT_EMPTY_ORIGIN, msg, ""
 
         # the edits resulted in a non-empty diff. We should at least save and return it
-        with open(extracted_file, "w") as f:
-            f.write(diff)
+        # with open(extracted_file, "w") as f:
+        # f.write(diff)
 
         # if all edits are matched, the `unmatched_msg` is empty string
-        return ExtractStatus.APPLICABLE_PATCH, unmatched_msg
+        return ExtractStatus.APPLICABLE_PATCH, unmatched_msg, diff
 
 
 def organize_experiment_results(expr_dir: str):
@@ -403,12 +464,14 @@ def extract_swe_bench_input(dir: str):
     # (2) if there is validation, only the one with the largest index may be correct
     diff_files = []
     for x in task_dirs:
-        extracted_patches = glob(pjoin(x, "extracted_patch_*.diff"))
-        extracted_patches.sort(
-            key=lambda name: int(name.removesuffix(".diff").split("_")[-1]),
-            reverse=True,
-        )
-        diff_files.append(extracted_patches[0])
+        selection_file = Path(x, "selected_patch.json")
+        if selection_file.is_file():
+            diff_file = pjoin(
+                x, json.loads(selection_file.read_text())["selected_patch"]
+            )
+        else:
+            _, diff_file = read_extract_status(x)
+        diff_files.append(diff_file)
 
     diff_files = [os.path.abspath(x) for x in diff_files]
 
@@ -421,12 +484,12 @@ def extract_swe_bench_input(dir: str):
         meta_file = pjoin(task_dir, "meta.json")
         with open(meta_file) as f:
             meta = json.load(f)
-        task_id = meta["task_id"]
-        this_result = {}
-        this_result["instance_id"] = task_id
-        this_result["model_name_or_path"] = common.SELECTED_MODEL.name
-        with open(diff_file) as f:
-            diff_content = f.read()
+
+        this_result = {
+            "instance_id": meta["task_id"],
+            "model_name_or_path": common.SELECTED_MODEL.name,
+        }
+        diff_content = Path(diff_file).read_text()
         if not diff_content:
             # empty diff file, dont bother sending it to swe-bench
             continue
@@ -497,5 +560,4 @@ def organize_and_form_input(expr_dir):
         - expr_dir: the overall experiment directory.
     """
     organize_experiment_results(expr_dir)
-    swe_input_file = extract_swe_bench_input(expr_dir)
-    return swe_input_file
+    return extract_swe_bench_input(expr_dir)
