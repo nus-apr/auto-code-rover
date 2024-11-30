@@ -154,7 +154,7 @@ def run_agent(
 
     print(f"Running agent workflow with cmd: {cmd}")
     with cd(root_dir):
-        _ = run_string_cmd_in_conda(cmd, "acr-plus", env=modified_env)
+        _ = run_string_cmd_in_conda(cmd, "auto-code-rover", env=modified_env)
 
     print("Done with running agent workflow.")
     swe_input_file = pjoin(expr_dir, "predictions_for_swebench.json")
@@ -188,7 +188,7 @@ def run_swe_bench_eval_docker(
     print(f"Running SWE-bench evaluation (docker eval) with cmd: {cmd}")
     with cd(docker_swe_bench_dir):
         # TODO: currently we install all the SWE-bench-docker requirements in base env
-        _ = run_string_cmd_in_conda(cmd, "acr-plus")
+        _ = run_string_cmd_in_conda(cmd, "auto-code-rover")
 
     print("Done with running SWE-bench evaluation (docker eval).")
     return eval_log_dir
@@ -271,7 +271,7 @@ def generate_report_docker(
 
     print(f"Generating final report (docker eval) with cmd: {cmd}")
     with cd(docker_swe_bench_dir):
-        _ = run_string_cmd_in_conda(cmd, "acr-plus")
+        _ = run_string_cmd_in_conda(cmd, "auto-code-rover")
 
     print("Done with generating final report (docker eval).")
     final_report_path = pjoin(report_dir, "report.json")
