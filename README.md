@@ -26,7 +26,7 @@
 > This is a public version of the AutoCodeRover project. Check the latest results on our [website](https://autocoderover.dev/).
 
 ## 📣 Updates
-- [November 21, 2024] AutoCodeRover(v20240620) achieves **46.20%** efficacy on SWE-bench Verified and **24.89%** on full SWE-bench. 
+- [November 21, 2024] AutoCodeRover(v20240620) achieves **46.20%** efficacy on SWE-bench Verified and **24.89%** on full SWE-bench.
 - [August 14, 2024] On the SWE-bench Verified dataset released by OpenAI, AutoCodeRover(v20240620) achieves **38.40%** efficacy, and AutoCodeRover(v20240408) achieves 28.8% efficacy. More details in the [blog post](https://openai.com/index/introducing-swe-bench-verified/) from OpenAI and [SWE-bench leaderboard](https://www.swebench.com/).
 - [July 18, 2024] AutoCodeRover now supports a new mode that outputs the list of potential fix locations.
 - [June 20, 2024] AutoCodeRover(v20240620) now achieves **30.67%** efficacy (pass@1) on SWE-bench-lite!
@@ -123,10 +123,10 @@ export ANTHROPIC_API_KEY=sk-ant-api...
 
 The same with `GROQ_API_KEY`
 
-Build and start the docker image:
+Build and start the docker image for the AutoCodeRover tool:
 
 ```
-docker build -f Dockerfile -t acr .
+docker build -f Dockerfile.minimal -t acr .
 docker run -it -e OPENAI_KEY="${OPENAI_KEY:-OPENAI_API_KEY}" acr
 ```
 
