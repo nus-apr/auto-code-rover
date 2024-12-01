@@ -193,6 +193,19 @@ This mode is for running ACR on existing issue tasks contained in SWE-bench.
 
 #### Set up
 
+##### Install SWE-bench Docker
+
+We use a [fork](https://github.com/nus-apr/SWE-bench-docker) of [SWE-bench docker](https://github.com/aorwall/SWE-bench-docker) to run regression tests (not `FAIL_TO_PASS` tests, but all the tests in the buggy programs). To install this, run
+
+```
+conda activate auto-code-rover
+git submodule update --init --recursive
+cd SWE-bench-docker
+pip install .
+```
+
+##### Setting up Testbed
+
 For SWE-bench mode, we recommend setting up ACR on a host machine, instead of running it in docker mode.
 
 Firstly, set up the SWE-bench task instances locally.
