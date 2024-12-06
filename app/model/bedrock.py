@@ -117,9 +117,9 @@ class BedrockModel(Model):
             output_tokens = int(resp_usage.completion_tokens)
             cost = self.calc_cost(input_tokens, output_tokens)
 
-            self.model_cost.process_cost += cost
-            self.model_cost.process_input_tokens += input_tokens
-            self.model_cost.process_output_tokens += output_tokens
+            common.thread_cost.process_cost += cost
+            common.thread_cost.process_input_tokens += input_tokens
+            common.thread_cost.process_output_tokens += output_tokens
 
             first_resp_choice = response.choices[0]
             assert isinstance(first_resp_choice, Choices)

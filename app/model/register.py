@@ -36,6 +36,10 @@ def register_all_models() -> None:
     common.register_model(bedrock.AnthropicClaude3Opus())
     common.register_model(bedrock.AnthropicClaude3Sonnet())
     common.register_model(bedrock.AnthropicClaude3Haiku())
+    common.register_model(bedrock.AmazonNovaLitev1())
+    common.register_model(bedrock.AmazonNovaProv1())
+    common.register_model(bedrock.AmazonNovaMicrov1())
+    common.register_model(bedrock.AnthropicClaude35Sonnet())
 
     common.register_model(ollama.Llama3_8B())
     common.register_model(ollama.Llama3_70B())
