@@ -7,7 +7,12 @@ import sys
 from typing import Literal
 
 import litellm
-from litellm.utils import Choices, Message, ModelResponse
+
+try:
+    from litellm.types.utils import Choices, Message, ModelResponse
+except ImportError:
+    from litellm.utils import Choices, Message, ModelResponse
+
 from openai import BadRequestError
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
@@ -112,9 +117,9 @@ class BedrockModel(Model):
             output_tokens = int(resp_usage.completion_tokens)
             cost = self.calc_cost(input_tokens, output_tokens)
 
-            common.thread_cost.process_cost += cost
-            common.thread_cost.process_input_tokens += input_tokens
-            common.thread_cost.process_output_tokens += output_tokens
+            self.model_cost.process_cost += cost
+            self.model_cost.process_input_tokens += input_tokens
+            self.model_cost.process_output_tokens += output_tokens
 
             first_resp_choice = response.choices[0]
             assert isinstance(first_resp_choice, Choices)
@@ -130,6 +135,39 @@ class BedrockModel(Model):
             if e.code == "context_length_exceeded":
                 log_and_print("Context length exceeded")
             raise e
+
+
+class AmazonNovaLitev1(BedrockModel):
+    def __init__(self):
+        super().__init__(
+            "bedrock/us.amazon.nova-lite-v1:0",
+            0.00000006,
+            0.00000024,
+            parallel_tool_call=True,
+        )
+        self.note = "Lite version of Amazon Nova"
+
+
+class AmazonNovaProv1(BedrockModel):
+    def __init__(self):
+        super().__init__(
+            "bedrock/us.amazon.nova-pro-v1:0",
+            0.0000008,
+            0.0000032,
+            parallel_tool_call=True,
+        )
+        self.note = "Pro version of Amazon Nova"
+
+
+class AmazonNovaMicrov1(BedrockModel):
+    def __init__(self):
+        super().__init__(
+            "bedrock/us.amazon.nova-micro-v1:0",
+            0.000000035,
+            0.00000014,
+            parallel_tool_call=True,
+        )
+        self.note = "Micro version of Amazon Nova"
 
 
 class AnthropicClaude2(BedrockModel):
@@ -158,6 +196,17 @@ class AnthropicClaude3Sonnet(BedrockModel):
     def __init__(self):
         super().__init__(
             "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
+            0.000003,
+            0.000015,
+            parallel_tool_call=True,
+        )
+        self.note = "Most balanced (intelligence and speed) model from Antropic"
+
+
+class AnthropicClaude35Sonnet(BedrockModel):
+    def __init__(self):
+        super().__init__(
+            "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
             0.000003,
             0.000015,
             parallel_tool_call=True,
