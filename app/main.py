@@ -4,7 +4,6 @@ The main driver.
 
 import json
 import logging
-from multiprocessing import set_start_method
 import platform
 import shutil
 from argparse import ArgumentParser
@@ -13,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from glob import glob
 from itertools import chain
+from multiprocessing import set_start_method
 from os import PathLike
 from os.path import abspath
 from os.path import join as pjoin
