@@ -4,6 +4,8 @@ The main driver.
 
 import json
 import logging
+from multiprocessing import set_start_method
+import platform
 import shutil
 from argparse import ArgumentParser
 from collections.abc import Mapping, Sequence
@@ -646,6 +648,9 @@ def dump_cost(
 
 
 if __name__ == "__main__":
+    if platform.system() == "Darwin":
+        #Macos specific requirement for Multi-Processing
+        set_start_method('fork',force=True)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logger.remove()
     main()
