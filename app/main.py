@@ -621,8 +621,8 @@ def do_inference(python_task: Task, task_output_dir: str) -> bool:
                 )
 
             end_time = datetime.now()
-
-            dump_cost(start_time, end_time, task_output_dir)
+            with apputils.cd(python_task.project_path):
+                dump_cost(start_time, end_time, task_output_dir)
     finally:
         python_task.reset_project()
 
