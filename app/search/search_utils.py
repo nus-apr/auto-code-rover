@@ -6,8 +6,94 @@ from dataclasses import dataclass
 from os.path import join as pjoin
 
 from app import utils as apputils
+from typing import List, Tuple
+import math
+
+# For RAG-based embeddings
+
+from sentence_transformers import SentenceTransformer
+import torch
 
 
+class RAGEmbeddingManager:
+    """
+    A simple in-memory store for code snippets. We store:
+       snippet_id -> code
+    Alongside embeddings for the snippet_code.
+
+    Then semantic_search(query) will:
+      1) embed the query
+      2) compute similarity with all snippet embeddings
+      3) return top-k matches
+    """
+    def __init__(self):
+        # snippet_id -> code
+        self.documents = {}  
+        # snippet_id -> embedding
+        self.embeddings = {}
+
+        self.model_name = "sentence-transformers/all-MiniLM-L6-v2"
+        self.embedding_model = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.initialized = False
+
+    def add_document(self, snippet_id: str, code: str):
+        """Add snippet code as a 'document' into the store."""
+        self.documents[snippet_id] = code
+
+    def build_embeddings(self):
+        """Build embeddings for all stored documents."""
+        if not self.documents:
+            self.initialized = True
+            return
+
+        # load the model
+        self.embedding_model = SentenceTransformer(self.model_name, device=self.device)
+        # convert documents to embeddings
+        docs_list = list(self.documents.items())  # [(snippet_id, code), ...]
+        snippet_ids = [item[0] for item in docs_list]
+        snippet_texts = [item[1] for item in docs_list]
+
+        embeddings = self.embedding_model.encode(snippet_texts, show_progress_bar=False)
+        for idx, snippet_id in enumerate(snippet_ids):
+            self.embeddings[snippet_id] = embeddings[idx]
+        self.initialized = True
+
+    def semantic_search(self, query: str, top_k: int = 3) -> List[Tuple[str, float, str]]:
+        """
+        Return a list of (snippet_id, score, snippet_code),
+        sorted by descending semantic similarity with the query.
+        """
+        if not self.initialized or not self.documents:
+            return []
+
+        # embed the query
+        query_emb = self.embedding_model.encode(query, show_progress_bar=False)
+        # compute similarity
+        results = []
+        for snippet_id, snippet_emb in self.embeddings.items():
+            score = self._cosine_similarity(query_emb, snippet_emb)
+            results.append((snippet_id, score, self.documents[snippet_id]))
+
+        # sort by descending score
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+    def _cosine_similarity(self, a, b):
+        # both a and b are numpy arrays or torch tensors
+        if isinstance(a, torch.Tensor):
+            a = a.cpu().numpy()
+        if isinstance(b, torch.Tensor):
+            b = b.cpu().numpy()
+        dot = (a * b).sum()
+        norm_a = math.sqrt((a * a).sum())
+        norm_b = math.sqrt((b * b).sum())
+        return dot / (norm_a * norm_b + 1e-8)
+    
+    
+    
+    
 @dataclass
 class SearchResult:
     """Dataclass to hold search results."""
