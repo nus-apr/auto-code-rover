@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Generator
@@ -10,7 +11,7 @@ from os import PathLike
 from pathlib import Path
 from shutil import copy2
 from subprocess import DEVNULL, CompletedProcess
-from tempfile import NamedTemporaryFile, TemporaryDirectory, mkstemp
+from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir, mkstemp
 
 from loguru import logger
 
@@ -232,7 +233,12 @@ class SweTask(Task):
         logger.info("Start running regression tests")
 
         status_map, eval_log_content = self._run_test_suite_docker(patch_content)
-        Path(log_file).write_text(eval_log_content)
+        temp_dir = os.path.realpath(gettempdir())
+        safe_log_file = os.path.realpath(log_file)
+        if os.path.commonpath([temp_dir, safe_log_file]) != temp_dir:
+            raise ValueError(f"Log file {log_file} is outside the temp directory.")
+        with open(safe_log_file, "w") as f:
+            f.write(eval_log_content)
 
         bad_status = (TestStatus.FAILED.value, TestStatus.ERROR.value)
         failures = {test for test, status in status_map.items() if status in bad_status}
@@ -268,9 +274,9 @@ class SweTask(Task):
             run_command(["git", "add", "."])
             run_command(["git", "commit", "-m", "first commit"])
 
-            gitignore_content = gitignore_file.read_text()
-            new_gitignore_content = f"{gitignore_content}\n"
-            Path(d, ".gitignore").write_text(new_gitignore_content)
+            # the copied file already has the original content; just append a new line
+            with Path(d, ".gitignore").open("a") as f:
+                f.write("\n")
 
             run_command(["git", "add", "."])
             run_command(["git", "commit", "-m", "append new line to gitignore"])
