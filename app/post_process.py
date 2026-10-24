@@ -466,9 +466,19 @@ def extract_swe_bench_input(dir: str):
     for x in task_dirs:
         selection_file = Path(x, "selected_patch.json")
         if selection_file.is_file():
-            diff_file = pjoin(
-                x, json.loads(selection_file.read_text())["selected_patch"]
+            selected_patch = json.loads(selection_file.read_text())["selected_patch"]
+            # only accept a selection that matches an existing patch file inside
+            # the task directory, instead of building a path from the raw value
+            diff_file = next(
+                (
+                    str(p)
+                    for p in Path(x).glob("**/extracted_patch_*.diff")
+                    if str(p.relative_to(x)) == selected_patch
+                ),
+                None,
             )
+            if diff_file is None:
+                continue
         else:
             _, diff_file = read_extract_status(x)
         diff_files.append(diff_file)
